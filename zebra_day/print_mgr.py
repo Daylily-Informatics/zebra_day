@@ -103,7 +103,7 @@ class zpl:
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
-            raise Exception(f"ZPL style: {label_zpl_style} is not valid for {lab} {printer_name} ... {self.printers['labs'][lab][printer_name]['label_zpl_styles']}")
+            print(f"\n\nWARNING:::\nZPL style: {label_zpl_style} is not valid for {lab} {printer_name} ... {self.printers['labs'][lab][printer_name]['label_zpl_styles']}")
 
         printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
 
