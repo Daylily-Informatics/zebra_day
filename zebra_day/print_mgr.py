@@ -72,6 +72,29 @@ class zpl:
 
         return zpl_string
 
+    def generate_label_png(self,zpl_string=None, png_fn=None):
+
+        if zpl_string in [None] or png_fn in [None]:
+            raise Exception('ERROR: zpl_string and png_fn may not be None.')
+        
+        # Labelary API URL                                                                                          
+        labelary_url = "http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/"
+
+        # Create a POST request to the Labelary API                                                                 
+        response = requests.post(labelary_url, data=zpl_string)
+
+        # Check if the request was successful                                                                       
+        if response.status_code == 200:
+            # Save the image to a file                                                                              
+            with open(png_fn, "wb") as f:
+                f.write(response.content)
+                print(f"Image saved as {png_fn}")
+        else:
+            print(f"Failed to convert ZPL to image. Status code: {response.status_code}")
+
+
+
+
             
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', uid_human_readable='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None):
 
@@ -84,7 +107,13 @@ class zpl:
 
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, uid_human_readable=uid_human_readable, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
-        send_zpl_code(zpl_string, printer_ip)
+        if label_zpl_style in ['']:
+            pl_fn = f"files/zpl_label_{tube_style}_{rec_date}.png"
+            cmd = "python bin/plab.py "+ pl_fn +  " '" + zpl_string.replace('\n','') + "'"
+            print(cmd)
+            os.system(cmd)
+        else:
+            send_zpl_code(zpl_string, printer_ip)
 
         if self.debug:
             print(f"\nZPL STRING  :: {zpl_string}\n")
