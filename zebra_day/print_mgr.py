@@ -73,6 +73,7 @@ class zpl:
 
         return zpl_string
 
+    
     def generate_label_png(self,zpl_string=None, png_fn=None):
 
         if zpl_string in [None] or png_fn in [None]:
@@ -93,6 +94,8 @@ class zpl:
         else:
             print(f"Failed to convert ZPL to image. Status code: {response.status_code}")
 
+        return png_fn
+    
             
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', uid_human_readable='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
@@ -106,13 +109,16 @@ class zpl:
 
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, uid_human_readable=uid_human_readable, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
+        ret_s = None
         if printer_ip in ['dl_png']:
             png_fn = f"files/zpl_label_{label_zpl_style}_{rec_date}.png"
-            self.generate_label_png(zpl_string, png_fn)
+            ret_s = self.generate_label_png(zpl_string, png_fn)
             
         else:
             send_zpl_code(zpl_string, printer_ip)
-
+            ret_s = zpl_string
+            
         if self.debug:
             print(f"\nZPL STRING  :: {zpl_string}\n")
-    
+
+        return ret_s

@@ -26,7 +26,7 @@
                 "label_zpl_styles" : ["tube_2inX1in"],
                 "print_method" : "direct thermal transfer"
             },
-	    "Download Label png" : {
+	    "Download-Label-png" : {
 		"ip_address" : "dl_png",
                 "label_zpl_styles" : ["tube_2inX1in", "plate_1inX0.25in"],
                 "print_method" : "generate png"
