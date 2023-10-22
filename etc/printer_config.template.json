@@ -1,44 +1,36 @@
 {
     "labs" : {
 	"Daylily-Oakland" : {
-	    "printers" : [
-		{
-		    "name" : "DYL-1",
-		    "ip_address" : "192.168.1.7",
-		    "label_zpl_styles" : ["tube_2inX1in"],
-		    "print_method" : "direct thermal transfer"
-		},
-		{
-                    "name" : "DYL-2",
-                    "ip_address" : "192.168.1.17",
-                    "label_zpl_styles" : ["tube_2inX1in"],
-                    "print_method" : "direct thermal transfer"
-                },
-		{
-                    "name" : "DYL-3",
-                    "ip_address" : "192.168.1.18",
-                    "label_zpl_styles" : ["tube_2inX1in"],
-                    "print_method" : "direct thermal transfer"
-                },
-		{
-                    "name" : "DYL-4",
-                    "ip_address" : "192.168.1.20",
-                    "label_zpl_styles" : ["tube_2inX1in"],
-                    "print_method" : "direct thermal transfer"
-                },
-		{
-                    "name" : "DYL-5",
-                    "ip_address" : "192.168.1.16",
-                    "label_zpl_styles" : ["tube_2inX1in"],
-                    "print_method" : "direct thermal transfer"
-                },
-		{
-		    "name" : "Download Label png",
-		    "ip_address" : "dl_png",
-                    "label_zpl_styles" : ["tube_2inX1in", "plate_1inX0.25in"],
-                    "print_method" : "generate png"
-		}
-	    ]
+	    "DYL-1" : {
+		"ip_address" : "192.168.1.7",
+		"label_zpl_styles" : ["tube_2inX1in"],
+		"print_method" : "direct thermal transfer"
+	    },
+            "DYL-2" : {
+                "ip_address" : "192.168.1.17",
+                "label_zpl_styles" : ["tube_2inX1in"],
+                "print_method" : "direct thermal transfer"
+            },
+	    "DYL-3" : {
+                "ip_address" : "192.168.1.18",
+                "label_zpl_styles" : ["tube_2inX1in"],
+                "print_method" : "direct thermal transfer"
+            },
+	    "DYL-4" : {
+                "ip_address" : "192.168.1.20",
+                "label_zpl_styles" : ["tube_2inX1in"],
+                "print_method" : "direct thermal transfer"
+            },
+	    "DYL-5" : {
+                "ip_address" : "192.168.1.16",
+                "label_zpl_styles" : ["tube_2inX1in"],
+                "print_method" : "direct thermal transfer"
+            },
+	    "Download Label png" : {
+		"ip_address" : "dl_png",
+                "label_zpl_styles" : ["tube_2inX1in", "plate_1inX0.25in"],
+                "print_method" : "generate png"
+	    }	    
 	}
     }
 }

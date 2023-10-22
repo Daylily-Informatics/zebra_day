@@ -34,12 +34,36 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
 class zpl:
 
     def __init__(self):
+        self.load_printer_json()
+
+        
+    def load_printer_json(self, json_file="etc/printer_config.json"):
+        fh = open(json_file)
+        self.printers = json.load(fh)
+
+        
+    def replace_printer_json_from_template(self):
+        os.system('cp etc/printer_config.template.json etc/printer_config.json')
+
+
+    def get_valid_label_styles_for_lab(self,lab=None):
+        unique_labels = set()
+
+        for printer in self.printers['labs'][lab]['printers']:
+            for style in printer['label_zpl_styles']:
+                unique_labels.add(style)
+
+        result = list(unique_labels)
+        return result
+        
+    def formulate_zpl(self,uid_barcode=None, uid_human_readable=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
         pass
 
+    
+    def print_zpl(self, lab=None, printer_name=None, uid_barcode=None, uid_human_readable=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
 
-    def print_zpl(self, station_name=None, ip_addr=None, lab=None, label_zpl_style=None):
-        rec_date = get_current_date()
-
+        if label_zpl_style in [None,'','None']:
+            label_zpl_style = self.printers['labs'][lab][printer_name]['printers']
         zpl_string = "ZPL NOT CREATED"
         send_zpl_code(zpl_string, ip_addr)
 
