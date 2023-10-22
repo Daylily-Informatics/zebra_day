@@ -17,13 +17,40 @@ class Zserve(object):
 
 
     @cherrypy.expose
+    def probe_network_for_zebra_printers(self, ip_stub="192.168.1", scan_wait="0.25"):
+        ret_html = f"<h1>Probing {ip_stub} For Zebra Printers</h1><br><a href=printer_status>BACK TO THE NETWORK ZEBRA REPORT</a><ul><hr><ul>"
+
+        self.detected_printer_ips = {}
+        
+        res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        for i in res.readlines():
+            ii = i.rstrip()
+            sl = ii.split('|')
+            if len(sl) > 1:
+                zp = sl[0]
+                ip = sl[1]
+                model = sl[2]
+                serial = sl[3]
+                status = sl[4]
+                self.detected_printer_ips[ip] =	[model, serial, status]
+                ret_html = ret_html + f"""
+                <li>{zp} ::: <a href={ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
+
+        return ret_html
+
+
+    @cherrypy.expose
     def printer_status(self,lab="Daylily-Oakland"):
         printer_deets = {}
-        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
+        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='192.168.1'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
+        pips = self.detected_printer_ips
 
         for pname in self.zp.printers['labs'][lab]:
             pip = self.zp.printers['labs'][lab][pname]['ip_address']
+            if pip in pips:
+                del(pips[pip])
+                
             printer_deets[pname] = [pip, "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
             print(pname, pip)
             cres = os.popen(f"curl -m 4 {pip}").readlines()
@@ -41,7 +68,11 @@ class Zserve(object):
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}</td><td>UNABLE TO CONNECT</td></tr>"
 
-        return ret_html + "</table>"
+        zaddl = ""
+        for zi in pips:
+            zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
+                
+        return ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl
 
 
     @cherrypy.expose
@@ -91,7 +122,7 @@ class Zserve(object):
         """
         ret_html = ret_html + f"""
         <input type=hidden name=lab value={lab} >
-        <input type=hidden name=printer value={printer} >                                          
+        <input type=hidden name=printer value={printer} >
         <input type=hidden name=printer_ip value={printer_ip} >
         <input type=hidden name=label_zpl_style value={label_zpl_style} >
         <input type=submit>
@@ -109,7 +140,7 @@ class Zserve(object):
         if len(ret_s.split('.png')) > 1:
             addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src={ret_s}><br>"
         return addl_html + "<a href=/>home</a>"
-    
+
 
     @cherrypy.expose
     def _db_shell(self,ipython=0):
