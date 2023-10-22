@@ -3,6 +3,7 @@ import sys
 import socket
 import datetime
 import json
+import requests
 
 
 def get_current_date():
@@ -92,12 +93,10 @@ class zpl:
         else:
             print(f"Failed to convert ZPL to image. Status code: {response.status_code}")
 
-
-
-
             
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', uid_human_readable='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None):
-
+        rec_date = str(datetime.datetime.now()).replace(' ','_')
+        
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
@@ -107,11 +106,10 @@ class zpl:
 
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, uid_human_readable=uid_human_readable, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
-        if label_zpl_style in ['']:
-            pl_fn = f"files/zpl_label_{tube_style}_{rec_date}.png"
-            cmd = "python bin/plab.py "+ pl_fn +  " '" + zpl_string.replace('\n','') + "'"
-            print(cmd)
-            os.system(cmd)
+        if printer_ip in ['dl_png']:
+            png_fn = f"files/zpl_label_{label_zpl_style}_{rec_date}.png"
+            self.generate_label_png(zpl_string, png_fn)
+            
         else:
             send_zpl_code(zpl_string, printer_ip)
 
