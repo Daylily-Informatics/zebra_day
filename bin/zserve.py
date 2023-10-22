@@ -44,12 +44,46 @@ class Zserve(object):
 
 
     @cherrypy.expose
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="na"):
+        try:
+            self.detected_printer_ips = {}
+        except Exception as e:
+            self.detected_printer_ips = {}
+
+        if lab not in self.zp.printers['labs']:
+            self.zp.printers['labs'][lab] = {}
+            
+        res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        for i in res.readlines():
+            ii = i.rstrip()
+            sl = ii.split('|')
+            if len(sl) > 1:
+                zp = sl[0]
+                ip = sl[1]
+                model = sl[2]
+                serial = sl[3]
+                status = sl[4]
+                self.detected_printer_ips[ip] = [model, serial, status]
+                if ip not in self.zp.printers['labs'][lab]:
+                    self.zp.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in"], "print_method" : "unk"}
+                    
+        self.zp.save_printer_json()
+
+        return "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
+
+
+    @cherrypy.expose
     def printer_status(self,lab="Daylily-Oakland"):
         printer_deets = {}
         ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='192.168.1'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
-        pips = self.detected_printer_ips.copy()
+        pips = {}
+        try:
+            pips = self.detected_printer_ips.copy()
+        except Exception as e:
+            self.detected_printer_ips = {}
 
+            
         for pname in self.zp.printers['labs'][lab]:
             pip = self.zp.printers['labs'][lab][pname]['ip_address']
             if pip in self.detected_printer_ips:
@@ -83,10 +117,17 @@ class Zserve(object):
 
     @cherrypy.expose
     def index(self):
+        
+        llinks = "<ul>"
+        for lb in self.zp.printers['labs'].keys():
+            llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
+        llinks = llinks + "</ul>"
+        
         ret_html = """
         <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><hr><ul>
-        <li><a target=new href=printer_status>Printer Fleet Report</a>
+        <li>Zebra Printer Fleet Status, By Site"""+llinks+"""
         <li><a href=view_pstation_json >VIEW AND EDIT PRINT STATION JSON</a>
+        <ul><small> <a href=probe_zebra_printers_add_to_printers_json>... add scan results to printer json</a>    </small>                 </ul>
         <li><a href=send_print_request>Send Print Request</a>
         <li><a href=edit_zpl>EDIT ZPL FILES</a>"""
 

@@ -39,7 +39,13 @@ class zpl:
         self.load_printer_json()
         self.debug = False if debug in [0,'0'] else True
 
+    # USING SELF.PRINTERS
+    def save_printer_json(self, json_filename="etc/printer_config.json"):
+        with open(json_filename, 'w') as json_file:
+            json.dump(self.printers, json_file, indent=4)
+        self.load_printer_json(json_filename)
         
+            
     def load_printer_json(self, json_file="etc/printer_config.json"):
         fh = open(json_file)
         self.printers_filename = json_file
