@@ -42,38 +42,25 @@ class Zserve(object):
 
         return ret_html
 
-
     @cherrypy.expose
-    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="na"):
-        try:
-            self.detected_printer_ips = {}
-        except Exception as e:
-            self.detected_printer_ips = {}
+    def clear_printers_json(self):
+        self.zp.clear_printers_json()
+        return "printers json file has been cleared.<br><a href=/>home</a>"
+    
+    @cherrypy.expose
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
 
-        if lab not in self.zp.printers['labs']:
-            self.zp.printers['labs'][lab] = {}
-            
-        res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
-        for i in res.readlines():
-            ii = i.rstrip()
-            sl = ii.split('|')
-            if len(sl) > 1:
-                zp = sl[0]
-                ip = sl[1]
-                model = sl[2]
-                serial = sl[3]
-                status = sl[4]
-                self.detected_printer_ips[ip] = [model, serial, status]
-                if ip not in self.zp.printers['labs'][lab]:
-                    self.zp.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in"], "print_method" : "unk"}
-                    
-        self.zp.save_printer_json()
+        self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
         return "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
 
 
     @cherrypy.expose
     def printer_status(self,lab="Daylily-Oakland"):
+
+        if lab not in self.zp.printers['labs']:
+            return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
+        
         printer_deets = {}
         ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='192.168.1'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
@@ -118,16 +105,20 @@ class Zserve(object):
     @cherrypy.expose
     def index(self):
         
-        llinks = "<ul>"
-        for lb in self.zp.printers['labs'].keys():
-            llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
+        llinks = "<ul><li> ..."
+        try:
+            for lb in self.zp.printers['labs'].keys():
+                llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
+        except Exception as e:
+            llinks = llinks + "<li> no labs found. Try scanning and resetting printers.json"
+            
         llinks = llinks + "</ul>"
         
         ret_html = """
         <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><hr><ul>
         <li>Zebra Printer Fleet Status, By Site"""+llinks+"""
         <li><a href=view_pstation_json >VIEW AND EDIT PRINT STATION JSON</a>
-        <ul><small> <a href=probe_zebra_printers_add_to_printers_json>... add scan results to printer json</a>    </small>                 </ul>
+        <ul><small> <a href=probe_zebra_printers_add_to_printers_json>... scan network for zebra printers, and add to printers.json</a>    </small>                 </ul>
         <li><a href=send_print_request>Send Print Request</a>
         <li><a href=edit_zpl>EDIT ZPL FILES</a>"""
 
@@ -243,8 +234,9 @@ class Zserve(object):
                     <textarea name="json_data" rows="80" cols="50">{json.dumps(data, indent=4)}</textarea><br>
                     <input type="submit" value="Save">
                 </form>
-        <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!</a>
-            </body>
+        <li>!! <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!</a>
+        <li>!! <a href=clear_printers_json>CLEAR contents of current printers.json file !!!! This Cannot Be Undone</a>
+        </body>
             </html>
             """
 

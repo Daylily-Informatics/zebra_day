@@ -39,6 +39,29 @@ class zpl:
         self.load_printer_json()
         self.debug = False if debug in [0,'0'] else True
 
+
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
+
+        if lab not in self.printers['labs']:
+            self.printers['labs'][lab] = {}
+
+        res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        for i in res.readlines():
+            ii = i.rstrip()
+            sl = ii.split('|')
+            if len(sl) > 1:
+                zp = sl[0]
+                ip = sl[1]
+                model = sl[2]
+                serial = sl[3]
+                status = sl[4]                
+                if ip not in self.printers['labs'][lab]:
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in"], "print_method" : "unk"}
+
+        self.save_printer_json()
+
+
+        
     # USING SELF.PRINTERS
     def save_printer_json(self, json_filename="etc/printer_config.json"):
         with open(json_filename, 'w') as json_file:
@@ -51,6 +74,13 @@ class zpl:
         self.printers_filename = json_file
         self.printers = json.load(fh)
 
+        
+    def clear_printers_json(self, json_file="etc/printer_config.json"):
+        os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
+        fh = open(json_file)
+        self.printers_filename = json_file
+        self.printers = json.load(fh)
+        
         
     def replace_printer_json_from_template(self):
         os.system('cp etc/printer_config.template.json etc/printer_config.json')
