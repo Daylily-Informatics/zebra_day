@@ -1,5 +1,9 @@
-# zebra_day
-## Overview 
+<img src=imgs/bar_red.png>
+
+## zebra_day Overview 
+<ul>
+
+
 ### It Is 3+ Things
 
   (1) Zebra Printer Management & Configuration
@@ -19,14 +23,16 @@
   * you will need to produce your own UID/GUID/etc. This can be manual, spreadsheets, custom code, various RDBMS, LIMS systems, Salesforce... but should not be tangled in this package.
     * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable UID. [Insert Unique Identifier Reccomendations Here](na).
 
+</ul>
 
 ## Getting Started
 
+<ul>
+  
 ### Quickest Start :: Daylily Orchestrated Build and Deploy
 * [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/). Daylily offers expertise with the entire process from evaluating existing operations systems, proposing integration options, securing all hardware, deploying hardware and software, and importantly: connecting newly deployed barcoding services to other LIS systems.
 
-### Installing zebra_day
-## Requirements
+### Requirements
 * Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem). Windows would be a rather large hassle, though presumably possible (not advised).
 * [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html#regular-installation) and [mamba](https://anaconda.org/conda-forge/mamba) installed. This is not, in fact, a blocking requirement, but other env setups have not been tested yet.  __for MAC users, it may be advisable to install conda with homebrew__.
   * create conda environment `ZDAY`, which will be used to run the UI
@@ -34,15 +40,15 @@
     mamba create -n ZDAY -c conda-forge python==3.10 pip ipython
     ```
 
-## Install From PIP
+### Install From PIP
 you can pip install `zebra_day` to any python environment running 3.10.*, which for purely programatic use is unlikely to be a problem.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:
 
 * COMING SOON... but should soon be `pip install zebra_day`
 
 
-## Install From Source
+### Install From Source
 
-### Clone Repository & Local PIP
+#### Clone Repository & Local PIP
 
 *  [From github via ssh](https://github.com/Daylily-Informatics/zebra_day)
 
@@ -56,8 +62,16 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 
 * `zebra_day` is now installed in your current python environment.
 
+<br><br><br>
+
+</ul>
+
+<img src=imgs/bar_purp3.png>
+
 # USAGE
 
+<ul>
+  
 ## Hardware Config
 ### Quick
 * Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
@@ -65,7 +79,7 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 ### [Hardware Config Guide](docs/hardware_config_guide.md)
 
 <br><br>
-<img src=imgs/bar_ltpurp.png>
+  
 
 ## Programatic
 ### Quick
@@ -99,7 +113,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 <br><br>
 
-<img src=imgs/bar_ltpurp.png>
+
 
 ## Web UI
 
@@ -136,7 +150,9 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 
 
 <br><br>
-<img src=imgs/bar_ltpurp.png>
+
+</ul>
+<img src=imgs/bar_red.png>
 
 # Other Topics
 
