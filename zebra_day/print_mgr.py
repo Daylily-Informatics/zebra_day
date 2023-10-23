@@ -45,6 +45,8 @@ class zpl:
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
+        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png"}
+
         res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
             ii = i.rstrip()
