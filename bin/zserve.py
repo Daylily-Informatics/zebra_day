@@ -16,8 +16,14 @@ class Zserve(object):
 
     def __init__(self):
         self.zp = zdpm.zpl()
+        try:
+            self.ip = os.popen("(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null").readline().rstrip()
+            self.ip_root = ".".join(self.ip.split('.')[:-1])
+        except Exception as e:
+            self.ip = '192.168.1.0' # FAILS
+            self.ip_root = '192.168.111'  # FAILS
 
-
+            
     @cherrypy.expose
     def probe_network_for_zebra_printers(self, ip_stub="192.168.1", scan_wait="0.25"):
         ret_html = f"<h1>Probing {ip_stub} For Zebra Printers</h1><br><a href=printer_status>BACK TO THE NETWORK ZEBRA REPORT</a><ul><hr><ul>"
@@ -62,7 +68,7 @@ class Zserve(object):
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
         
         printer_deets = {}
-        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='192.168.1'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
+        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='{self.ip_root}'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
         pips = {}
         try:
@@ -105,22 +111,30 @@ class Zserve(object):
     @cherrypy.expose
     def index(self):
         
-        llinks = "<ul><li> ..."
+        llinks = "<ul>"
         try:
             for lb in self.zp.printers['labs'].keys():
                 llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
         except Exception as e:
             llinks = llinks + "<li> no labs found. Try scanning and resetting printers.json"
             
-        llinks = llinks + "</ul>"
+        llinks = llinks + "<li> __end__ </ul>"
         
         ret_html = """
-        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><hr><ul>
-        <li>Zebra Printer Fleet Status, By Site"""+llinks+"""
-        <li><a href=view_pstation_json >VIEW AND EDIT PRINT STATION JSON</a>
-        <ul><small> <a href=probe_zebra_printers_add_to_printers_json>... scan network for zebra printers, and add to printers.json</a>    </small>                 </ul>
+        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>IP address detected :: """+self.ip+"""</small><hr><ul>
+        <hr><h2>Zebra Printer Fleet Status, By Site</h2><ul>"""+llinks+"""</ul><br>
+        <hr><h2>Zebra Printer JSON Config</h2>This json file defines the zebra printers available to the package<ul>
+        <li><a href=view_pstation_json >view and edit json</a>
+        <li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small>                 </ul><br>
+        <hr><h2>Send Print Requests To Accessible Zebra Priners</h2><ul>
         <li><a href=send_print_request>Send Print Request</a>
-        <li><a href=edit_zpl>EDIT ZPL FILES</a>"""
+        </ul><br>
+        <hr><h2>Make Edits To ZPL Files</h2><ul>
+        <li><a href=edit_zpl>EDIT ZPL FILES</a></ul><br>
+        <hr><h2>Github Docs</h2><ul>
+        <li><a href=https://github.com/Daylily-Informatics/zebra_day >HERE</a>
+        </ul>
+        """
 
         return ret_html
 
@@ -130,7 +144,7 @@ class Zserve(object):
         ret_html = ""
 
         for lab in sorted(self.zp.printers['labs']):
-            ret_html = ret_html + f"<h1>Lab {lab}</h1><br><ul><hr><ul>"
+            ret_html = ret_html + f"<h1>Lab {lab}</h1><small><a href=/>home</a><br><ul><hr><ul>"
             for printer in sorted(self.zp.printers['labs'][lab]):
                 pip = self.zp.printers['labs'][lab][printer]['ip_address']
                 plab = self.zp.printers['labs'][lab][printer]['label_zpl_styles']

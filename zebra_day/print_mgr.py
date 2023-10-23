@@ -41,7 +41,7 @@ class zpl:
 
 
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
-
+        
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
@@ -56,7 +56,7 @@ class zpl:
                 serial = sl[3]
                 status = sl[4]                
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in"], "print_method" : "unk"}
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk"}  # The label formats set here are the installed defaults
 
         self.save_printer_json()
 
