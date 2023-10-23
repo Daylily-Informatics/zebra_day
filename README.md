@@ -63,10 +63,9 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 * Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
 
 ### [Hardware Config Guide](docs/hardware_config_guide.md)
-<div style="background-color:magenta; height:3px;"></div>
 
-<hr>
-<hr>
+<br><br>
+<img src=imgs/bar_ltpurp.png>
 
 ## Programatic
 ### Quick
@@ -96,6 +95,10 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 
 ### [Programatic Guide](docs/programatic_guide.md)
+
+
+<br><br>
+<img src=imgs/bar_ltpurp.png>
 
 ## Web UI
 
@@ -131,6 +134,8 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 ### [Web UI Guide](docs/zebra_day_ui_guide.md)
 
 
+<br><br>
+<img src=imgs/bar_ltpurp.png>
 
 # Other Topics
 
