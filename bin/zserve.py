@@ -50,11 +50,21 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def list_prior_printer_cconfig_files(self):
-        ret_html = ""
-        from IPython import embed
-        embed()
+    def list_prior_printer_config_files(self):
+        ret_html = """
+        <h1> Saved Printer Config JSON Files</h1><ul><small><a href=/>home</a></small><br><ul><hr><ul>
+        If you wish to restore from one of these files, download the one you'd like, open in a text editor, then copy the contents of the file into <a href=view_pstation_json>the printers json editing form</a> and save a new json file. <br><ul><i><small>note:  the existing file will have a backup created and accessible here</small></i>.<br><br><ul><hr><br>
+        <ul>"""
 
+        bkup_d = "etc/old_printer_config/"
+
+        for i in sorted(os.listdir(bkup_d)):
+            bkup_fn = f"{bkup_d}{i}"
+            ret_html = ret_html + f"<li><a href={bkup_fn} >{bkup_fn}</a>"
+
+        return self.wrap_content(ret_html)
+
+   
     @cherrypy.expose
     def clear_printers_json(self):
         self.zp.clear_printers_json()
@@ -136,7 +146,7 @@ class Zserve(object):
         <hr><h2>Zebra Printer Fleet Status, By Site</h2><ul>"""+llinks+"""</ul><br>
         <hr><h2>Zebra Printer JSON Config</h2>This json file defines the zebra printers available to the package<ul>
         <li><a href=view_pstation_json >view and edit json</a>
-        <li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small>                 </ul><br>
+        <li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small><li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
         <hr><h2>Send Print Requests To Accessible Zebra Priners</h2><ul>
         <li><a href=send_print_request>Send Print Request</a>
         </ul><br>
@@ -248,10 +258,16 @@ class Zserve(object):
                <br><a href=/>home</a><br>
                 {error_display}
                 <form action="save_pstation_json" method="post">
-                    <textarea name="json_data" rows="80" cols="50">{json.dumps(data, indent=4)}</textarea><br>
-                    <input type="submit" value="Save">
+                    <textarea name="json_data" rows="45" cols="50">{json.dumps(data, indent=4)}</textarea><br>
+                    <input type="submit" value="Save New Printers Config Json & Make Active">
                 </form>
+        <ul><ul><hr>
+        <li><a href=list_prior_printer_config_files>view backed up printers json config files</a>
+        <ul><Ul>
+        <hr><hr>
         <li>!! <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!</a>
+        <ul><ul>
+        <hr><hr><hr>
         <li>!! <a href=clear_printers_json>CLEAR contents of current printers.json file !!!! This Cannot Be Undone</a>
 
             """
@@ -268,6 +284,11 @@ class Zserve(object):
 
     @cherrypy.expose
     def save_pstation_json(self, json_data):
+        rec_date = str(datetime.now()).replace(' ','_')
+        bkup_pconfig_fn = f"etc/old_printer_config/{rec_date}_printer_config.json"
+
+        os.system(f"cp {self.zp.printers_filename} {bkup_pconfig_fn}")
+
         try:
             data = json.loads(json_data)
             with open(self.zp.printers_filename, 'w') as f:
