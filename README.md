@@ -98,6 +98,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 
 <br><br>
+
 <img src=imgs/bar_ltpurp.png>
 
 ## Web UI
