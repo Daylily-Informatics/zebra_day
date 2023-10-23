@@ -63,7 +63,10 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 * Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
 
 ### [Hardware Config Guide](docs/hardware_config_guide.md)
+<div style="background-color:magenta; height:3px;"></div>
 
+<hr>
+<hr>
 
 ## Programatic
 ### Quick
