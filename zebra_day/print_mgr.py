@@ -63,9 +63,13 @@ class zpl:
         self.save_printer_json()
 
 
-        
     # USING SELF.PRINTERS
     def save_printer_json(self, json_filename="etc/printer_config.json"):
+        rec_date = str(datetime.datetime.now()).replace(' ','_')
+        bkup_pconfig_fn = f"etc/old_printer_config/{rec_date}_printer_config.json"
+
+        os.system(f"cp {json_filename} {bkup_pconfig_fn}")
+        
         with open(json_filename, 'w') as json_file:
             json.dump(self.printers, json_file, indent=4)
         self.load_printer_json(json_filename)

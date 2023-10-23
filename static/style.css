@@ -1,5 +1,11 @@
-/* static/style.css */
-body {
-    font-family: Arial, sans-serif;
-    font-color: magenta;
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
 }
+
+body {
+    font-family: 'Monoid', monospace;
+}
+

@@ -50,6 +50,12 @@ class Zserve(object):
 
 
     @cherrypy.expose
+    def list_prior_printer_cconfig_files(self):
+        ret_html = ""
+        from IPython import embed
+        embed()
+
+    @cherrypy.expose
     def clear_printers_json(self):
         self.zp.clear_printers_json()
         ret_html = "printers json file has been cleared.<br><a href=/>home</a>"
@@ -491,7 +497,7 @@ class Zserve(object):
         header = """
         <html>
         <head>
-            <link rel="stylesheet" href="/static/style.css">
+        <link rel="stylesheet" href="/static/style.css">
         </head>
         <body>
         """
