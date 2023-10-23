@@ -33,9 +33,14 @@
 * [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/). Daylily offers expertise with the entire process from evaluating existing operations systems, proposing integration options, securing all hardware, deploying hardware and software, and importantly: connecting newly deployed barcoding services to other LIS systems.
 
 #### Universal Barcoding Capability Project Timing Estimates
-<ul><ul>
+
+<ul>
+<ul>
+  
 > <img src=imgs/UBC_gantt_chart.png height=200 width=450>
-</ul></ul>
+
+</ul>
+</ul>
 
 ### Requirements
 * Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem). Windows would be a rather large hassle, though presumably possible (not advised).
