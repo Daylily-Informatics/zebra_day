@@ -46,19 +46,23 @@ class Zserve(object):
                 ret_html = ret_html + f"""
                 <li>{zp} ::: <a href={ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
 
-        return ret_html
+        return self.wrap_content(ret_html)
+
 
     @cherrypy.expose
     def clear_printers_json(self):
         self.zp.clear_printers_json()
-        return "printers json file has been cleared.<br><a href=/>home</a>"
+        ret_html = "printers json file has been cleared.<br><a href=/>home</a>"
+        return self.wrap_content(ret_html)
+
 
     @cherrypy.expose
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
 
         self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
-        return "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
+        ret_html = "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
@@ -105,12 +109,13 @@ class Zserve(object):
         for zi in pips:
             zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
 
-        return ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl
+        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl
+
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def index(self):
-
         llinks = "<ul>"
         try:
             for lb in self.zp.printers['labs'].keys():
@@ -136,7 +141,7 @@ class Zserve(object):
         </ul>
         """
 
-        return ret_html
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
@@ -152,11 +157,12 @@ class Zserve(object):
                 for plabi in sorted(plab):
                     ret_html = ret_html + f"<li>{plabi} ----- <a href=build_print_request?lab='{lab}'&printer='{printer}'&printer_ip='{pip}'&label_zpl_style='{plabi}'>PRINT THIS TYPE</a>"
                 ret_html = ret_html + "</ul><br>"
-        return ret_html
+
+        return self.wrap_content(ret_html)
+
 
     @cherrypy.expose
     def build_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename='',ftag=''):
-
 
         if label_zpl_style in ['','None', None] and filename not in ['','None',None]:
             label_zpl_style = filename.split('.zpl')[0]
@@ -187,7 +193,7 @@ class Zserve(object):
         </form>
         """
 
-        return ret_html
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
@@ -199,24 +205,17 @@ class Zserve(object):
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED"
         if len(ret_s.split('.png')) > 1:
             addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src={ret_s}><br>"
-        return addl_html + "<a href=/>home</a>"
-
-
-    @cherrypy.expose
-    def _db_shell(self,ipython=0):
-        if ipython in [1,'1']:
-            if not self.sfc:
-                self.sfc = sftu.connect_to_salesforce(instance=self.sf_domain)
-            sfdb = sftd.db(self.sfc)
-
-            from IPython import embed
-            embed()
+        ret_html = addl_html + "<a href=/>home</a>"
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def _restart(self):
         os.system(f"touch bin/zebra_printer_server.py")
-        return "restarted"
+        ret_html = "restarted"
+
+        return self.wrap_content(ret_html)
+
 
     @cherrypy.expose
     def dl_bin_file(self, fn=None):
@@ -239,10 +238,8 @@ class Zserve(object):
         with open(self.zp.printers_filename, 'r') as f:
             data = json.load(f)
         error_display = f'<p style="color:red;">{error_msg}</p>' if error_msg else ''
-        return f"""
-            <html>
-            <head><title>JSON File Editor</title></head>
-            <body>         <br><a href=/>home</a><br>
+        ret_html = f"""
+               <br><a href=/>home</a><br>
                 {error_display}
                 <form action="save_pstation_json" method="post">
                     <textarea name="json_data" rows="80" cols="50">{json.dumps(data, indent=4)}</textarea><br>
@@ -250,15 +247,17 @@ class Zserve(object):
                 </form>
         <li>!! <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!</a>
         <li>!! <a href=clear_printers_json>CLEAR contents of current printers.json file !!!! This Cannot Be Undone</a>
-        </body>
-            </html>
+
             """
+
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
-        return "Done. <a href=/>HOME</a>."
+        ret_html = "Done. <a href=/>HOME</a>."
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
@@ -279,18 +278,19 @@ class Zserve(object):
 
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
 
-        return """<html>
-        <body><a href=/>HOME</a><br>
+        ret_html = """
+        <a href=/>HOME</a><br>
 
             <ul>
                 {}
             </ul>
-        </body>
-        </html>    """.format("<li>" + "</li><li>".join(file_links) + "</li>")
+        """.format("<li>" + "</li><li>".join(file_links) + "</li>")
+
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
-    def xxx(self):
+    def qqqxxx(self):
         self.labs_dict = self.zp.printers
         labs = self.labs_dict["labs"].keys()
 
@@ -351,6 +351,7 @@ class Zserve(object):
 
         return """<html>
         <head>
+        <link rel="stylesheet" href="/static/style.css">
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
@@ -384,7 +385,7 @@ class Zserve(object):
                     <option value="">Select Printer</option>
                 </select>
                 <input type="button" value="Test Print To Local Zebra" onclick="submitToRealPrint();">
-            </form><br>                
+            </form><br>
         </td><td>
          <div style="border: 1;" id="pngContainer"></div>
         <ul><h3>How To Use This Tool</h3>
@@ -481,8 +482,26 @@ class Zserve(object):
         with open(temp_filepath, 'w') as file:
             file.write(content)
 
-        return "Changes saved to temp file! <br>You may either: (<a href=edit_zpl >go back to the zpl file list</a>) -or- (<a href='/'>go home</a>)"
+        ret_html = "Changes saved to temp file! <br>You may either: (<a href=edit_zpl >go back to the zpl file list</a>) -or- (<a href='/'>go home</a>)"
 
+        return self.wrap_content(ret_html)
+
+
+    def wrap_content(self, content):
+        header = """
+        <html>
+        <head>
+            <link rel="stylesheet" href="/static/style.css">
+        </head>
+        <body>
+        """
+
+        footer = """
+        </body>
+        </html>
+        """
+
+        return header + content + footer
 
 
 if __name__ == '__main__':
