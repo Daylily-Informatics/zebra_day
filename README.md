@@ -89,7 +89,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 ```
 
 * This will produce a label which looks like this (modulo printer config items needing attention).
-  ![test_lab](imgs/quick_start_test_label.png)
+  ![test_lab](imgs/quick_start_test_label2.png)
 
 
 ### [Programatic Guide](docs/programatic_guide.md)
