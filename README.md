@@ -23,38 +23,96 @@
 ## Getting Started
 
 ### Quickest Start :: Daylily Orchestrated Build and Deploy
-* [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/)
+* [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/). Daylily offers expertise with the entire process from evaluating existing operations systems, proposing integration options, securing all hardware, deploying hardware and software, and importantly: connecting newly deployed barcoding services to other LIS systems.
 
 ### Installing zebra_day
 ## Requirements
-* Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem
-* conda and mamba installed
+* Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem). Windows would be a rather large hassle, though presumably possible (not advised).
+* [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html#regular-installation) and [mamba](https://anaconda.org/conda-forge/mamba) installed. This is not, in fact, a blocking requirement, but other env setups have not been tested yet.  __for MAC users, it may be advisable to install conda with homebrew__.
+  * create conda environment `ZDAY`, which will be used to run the UI
+    ```bash
+    mamba create -n ZDAY -c conda-forge python==3.10 pip ipython
+    ```
 
-## PIP
+## Install From PIP
+you can pip install `zebra_day` to any python environment running 3.10.*, which for purely programatic use is unlikely to be a problem.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:
 
-* COMING SOON... but should soon be `pip install zebra_day`.
+* COMING SOON... but should soon be `pip install zebra_day`
 
 
-## From Source
+## Install From Source
 
-### Environment Setup
-```bash
-mamba create -n ZDAY -c conda-forge python==3.10 pip ipython 
-```
+### Clone Repository & Local PIP
 
-### Clone Repository
-
-* [from github via ssh](https://github.com/Daylily-Informatics/zebra_day)
-
-* install via locak pip to ZDAY env
+*  [From github via ssh](https://github.com/Daylily-Informatics/zebra_day)
 
 ```bash
-conda activate ZDAY
+git clone git@github.com:Daylily-Informatics/zebra_day.git
+cd zebra_day
+conda activate ZDAY  # ZDAY was built with mamba earlier
 python setup.py sdist
 pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 ```
 
-* Your `ZDAY` environment is now ready.
+* `zebra_day` is now installed in your current python environment.
+
+# USAGE
+
+## Hardware Config
+### Quick
+* Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
+
+### [Hardware Config Guide](docs/hardware_config_guide.md)
+
+
+## Programatic
+### Quick
+
+Open an ipython shell
+```python
+import zebra_day.print_mgr as zdpm
+
+zlab = zdpm.zpl()
+
+zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.
+
+print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'scan-results', this may be edited latter.
+# The json will loook something like this
+## {'labs': {'scan-results': {'192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'unk'}}}
+##               'lab' name     'printer' name(can be edited latter)                              label_zpl_style
+
+# Assuming a printer was detected, send a test print request.  Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now.  There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
+
+zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID", uid_human_readable="123aUID")
+# ZPL code sent successfully to the printer!
+# Out[13]: '^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FD123aUID^FS\n^FO235,70\n^ADN,30,20\n^FD123aUID^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ'
+```
+
+* This will produce a label which looks like this (modulo printer config items needing attention).
+  ![test_lab](imgs/quick_start_test_label.png)
+
+
+### [Programatic Guide](docs/programatic_guide.md)
+
+## Web UI
+
+### Quick Start
+* Start the `zebra_day` service.
+
+```bash
+# consider running this via tmux or screen
+conda activate ZDAY
+python bin/zserve.py  # This service will continue running until stopped or until it crashes. Access and error logs are printed to STDout/err.
+
+# ctrl-c to shutdown the web service
+
+```
+
+* The web UI should now be accessible at `YOUR.HOST.IP.ADDR:8118`, or if physically on the box you're running the service on, `localhost:8118`.
+  * Unreachable?  Are the ports open?  Is the python cherrypy service started above still running, or has it exited?
+
+### [Web UI Guide](docs/zebra_day_ui_guide.md)
+
 
 
 # Other Topics
