@@ -23,7 +23,7 @@ class Zserve(object):
             self.ip = '192.168.1.0' # FAILS
             self.ip_root = '192.168.111'  # FAILS
 
-            
+
     @cherrypy.expose
     def probe_network_for_zebra_printers(self, ip_stub="192.168.1", scan_wait="0.25"):
         ret_html = f"<h1>Probing {ip_stub} For Zebra Printers</h1><br><a href=printer_status>BACK TO THE NETWORK ZEBRA REPORT</a><ul><hr><ul>"
@@ -52,7 +52,7 @@ class Zserve(object):
     def clear_printers_json(self):
         self.zp.clear_printers_json()
         return "printers json file has been cleared.<br><a href=/>home</a>"
-    
+
     @cherrypy.expose
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
 
@@ -66,7 +66,7 @@ class Zserve(object):
 
         if lab not in self.zp.printers['labs']:
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
-        
+
         printer_deets = {}
         ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='{self.ip_root}'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
@@ -76,7 +76,7 @@ class Zserve(object):
         except Exception as e:
             self.detected_printer_ips = {}
 
-            
+
         for pname in self.zp.printers['labs'][lab]:
             pip = self.zp.printers['labs'][lab][pname]['ip_address']
             if pip in self.detected_printer_ips:
@@ -110,16 +110,16 @@ class Zserve(object):
 
     @cherrypy.expose
     def index(self):
-        
+
         llinks = "<ul>"
         try:
             for lb in self.zp.printers['labs'].keys():
                 llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
         except Exception as e:
             llinks = llinks + "<li> no labs found. Try scanning and resetting printers.json"
-            
+
         llinks = llinks + "<li> __end__ </ul>"
-        
+
         ret_html = """
         <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>IP address detected :: """+self.ip+"""</small><hr><ul>
         <hr><h2>Zebra Printer Fleet Status, By Site</h2><ul>"""+llinks+"""</ul><br>
@@ -160,7 +160,7 @@ class Zserve(object):
 
         if label_zpl_style in ['','None', None] and filename not in ['','None',None]:
             label_zpl_style = filename.split('.zpl')[0]
-            
+
         ret_html = f"""
         <h1>Send Label Print Request</h1>
         <ul><hr><ul>
@@ -281,7 +281,7 @@ class Zserve(object):
 
         return """<html>
         <body><a href=/>HOME</a><br>
-            <h2>Select a file to edit:</h2>
+
             <ul>
                 {}
             </ul>
@@ -370,32 +370,33 @@ class Zserve(object):
             <h2>Editing: """+filename+"""</h2><a href=edit_zpl >BACK TO LABEL LIST</a><br><small><a href=https://labelary.com/zpl.html target=x >ZPL INTRODUCTION</a></small><br>
         <table border=1><tr><td style="vertical-align: top;"  >
         <form method="post" action="/save" id="textForm">
-                <select id="labsDropdown" name=lab onchange="populatePrinters()">
-                <option value="">Select Lab</option>"""+ll+"""
-                </select>                                                                                              \
-
-                <select id="printersDropdown" name=printer>                                                                         \
-
-                    <option value="">Select Printer</option>                                                           \
-
-                </select>
-                <textarea name="content" rows="30" cols="50">{}</textarea><br/>
-                <input type="hidden" name="filename" value="{}">
+                <textarea name="content" rows="30" cols="40">{cont}</textarea><br/>
+                <input type="hidden" name="filename" value="{fn}">
+                TMP File Tag (added to new file name): <input type=text name=ftag value=na >
                 <input type="submit" value="Save Temp File">
+                <hr>
                 <input type="button" value="Render PNG Of ZPL Label" onclick="submitToPNGrenderer();">
-                <input type="button" value="Test Print To Local Zebra" onclick="submitToRealPrint();">                 
-            </form><br><small><a href=https://labelary.com/viewer.html target=labels>labely, more advanced, WYSIWYG Label Designer</a></small><br>
+                <hr>
+                <b>choose a 'Lab' and 'Printer' to test print to</b><select id="labsDropdown" name=lab onchange="populatePrinters()">
+                <option value="">Select Lab</option>{ll}
+                </select>
+                <select id="printersDropdown" name=printer>
+                    <option value="">Select Printer</option>
+                </select>
+                <input type="button" value="Test Print To Local Zebra" onclick="submitToRealPrint();">
+            </form><br>                
         </td><td>
          <div style="border: 1;" id="pngContainer"></div>
         <ul><h3>How To Use This Tool</h3>
-        <ul><ul>
-        <li>Load existing ZPL format files, make edits and preview the effects by producing a PNG.
-        <li>When you wish to save a ZPL format you have worked on here, click 'Save As Temp'.  This will use the original ZPL file name to create a timestamped new file with your changes saved to it.
+        <small><a href=https://labelary.com/viewer.html target=labels>For More On ZPL (docs and tools)</a></small><ul>
+        <ul><li>Load existing ZPL format files, make edits and preview the effects by producing a PNG.
+        <li>When you wish to save a ZPL format you have worked on here, click 'Save As Temp'.  This will use the original ZPL file name to create a timestamped new file with your changes saved to it, the new file name will contain the TAG you specify.  <b>THE ORIGINAL FILE IS NOT CHANGED OR DELETED</b>.
         <li><a href=edit_zpl >Your New File Appears Here</a>
         <li>To print using this ZPL template to a printer available on your network, <a href=send_print_request >navigate to available printers</a>. When you arrive at the <b>build_print_request</b> form for a specific printer, you are able to enter in any of the format replacement values specified in the ZPL you created. <b>important</b>, new ZPL files are not default available to use for printing.  However, you can override the  label_style_zpl value to select a different ZPL file.  Valid strings for label_style_zpl are the label style zpl file name, minus the .zpl extension, and no path.  So, for 'plate_1inX0.25in.zpl' you would enter 'plate_1inX0.25in' to use this zpl format.  For any non-default ZPL template files which have been created, the same process applies.  Given a draft ZPL file created on this page, ie: 'tube_2inX1in.2023-10-22_05:25:05.004018.zpl', you may use this template by trimming off the .zpl and entering 'tube_2inX1in.2023-10-22_05:25:05.004018'.
         </ul>
         <li>A good way to proceed when designing a new label.  Use the labely tool to generate your ZPL.  Create a zpl template file here with the format wildcards added.  Test using this ZPL, with format substitutions, on the printers you will be using you new template on.
 
+        <li> <b>When A ZPL File Is Ready For Wider Use...</b> For now, the file needs to be manually moved to a permanent ZPL file name.  A tool to do this will be available everntually.
         </ul>
 
         <h3>ZPL Template Wildcards</h3>
@@ -455,7 +456,7 @@ class Zserve(object):
         </script>
         </body>
         </html>
-        """.format(content, filename)
+        """.format(cont=content, fn=filename,ll=ll)
 
     @cherrypy.expose
     def png_renderer(self,filename,content,lab='',printer=''):
@@ -470,16 +471,17 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def save(self, filename, content, lab='',printer=''):
+    def save(self, filename, content, lab='',printer='', ftag=''):
         rec_date = str(datetime.now()).replace(' ','_')
-        tfn = filename.replace('.zpl',f'.{rec_date}.zpl')
+
+        tfn = filename.replace('.zpl',f'.{ftag}.{rec_date}.zpl')
 
         temp_filepath = os.path.join(FILES_DIR, tfn)
 
         with open(temp_filepath, 'w') as file:
             file.write(content)
 
-        return "Changes saved to temp file! <a href='/'>Go back</a>"
+        return "Changes saved to temp file! <br>You may either: (<a href=edit_zpl >go back to the zpl file list</a>) -or- (<a href='/'>go home</a>)"
 
 
 
