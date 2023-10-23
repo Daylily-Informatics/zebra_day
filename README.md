@@ -111,6 +111,20 @@ python bin/zserve.py  # This service will continue running until stopped or unti
 * The web UI should now be accessible at `YOUR.HOST.IP.ADDR:8118`, or if physically on the box you're running the service on, `localhost:8118`.
   * Unreachable?  Are the ports open?  Is the python cherrypy service started above still running, or has it exited?
 
+* You can send a label print request via the UI (the process is a little involved ATM)... also, you can send the service requests via HTTP, ie, the programatic print request from above, can be similarly accomplished with this URL
+
+```http
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&uid_human_readable=123aUID&alt_a=&alt_b=&alt_c=&alt_d=&alt_e=&alt_f=
+```
+
+_or_ with the unused (in this ZPL template!) fields removed, this URL
+
+```http
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&uid_human_readable=123aUID
+```
+
+* There will be more details on the web tools available via this GUI in the `Web UI Guide`.
+
 ### [Web UI Guide](docs/zebra_day_ui_guide.md)
 
 
