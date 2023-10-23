@@ -155,7 +155,7 @@ class Zserve(object):
         return ret_html
 
     @cherrypy.expose
-    def build_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename=''):
+    def build_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename='',ftag=''):
 
 
         if label_zpl_style in ['','None', None] and filename not in ['','None',None]:
@@ -459,7 +459,7 @@ class Zserve(object):
         """.format(cont=content, fn=filename,ll=ll)
 
     @cherrypy.expose
-    def png_renderer(self,filename,content,lab='',printer=''):
+    def png_renderer(self,filename,content,lab='',printer='', ftag=''):
 
 
         png_tmp_f = tempfile.NamedTemporaryFile(suffix='.png', dir='./files', delete=False).name
