@@ -11,14 +11,15 @@
 ### Each distinct thing deserves its own UID.
   * corrolaries:
     * copies of	things are now distinct	things,	and should have	their own UID (metadata and relationships should be stored indicating relationships to other UIDs).
-      *	In other words __at all	costs, avoid re-using UIDs for children	of things. This	may momentarily	be convenient, but I can promise you in	the end, you'll	have more than made up for the immediate convenience with an unecessarily fragile and opaque process/system__.
+      *	In other words __at all	costs, avoid re-using UIDs for children	of things. This	may momentarily	be convenient, but I can promise you in	the end, you'll	have more than made up for the immediate convenience with an unecessarily fragile and opaque process/system.
 
 ### Encode only the unique ID
 #### Vigourously avoid encoding any meta data regarding the thing identied by a UID in the UID. Similarly, avoid encoding process/state information.
-    * There is one exception, 'enterprise UIDs', with a brief prefix indicating object have not been a problem in my experience ([see stripe thinking on this](stripe.com)). These prefixes even offer a benefit when talking about object classes, as well as speeding up certain database queries.
-    * A few tests to apply when this temptation presents itself (and it will, more than you'd like):
-      * Is the information being added to the UID mutable ever? And if the answer is 'almost never' or 'it should not happen(but not actively blocked by a system)', this is BAD.  What if there was a clerical error post UID assignment and now the UID does not reflect the corrected info? Chage the UID? (bad idea, see above)
-      * Is there a better way to accomplish whatever use case having the additional data in the UID is attempting to meet (in effectively every situation I've encountered, the answer is yes). Explore how to better serve this use case with other solutions.
+
+* There is one exception, 'enterprise UIDs', with a brief prefix indicating object have not been a problem in my experience ([see stripe thinking on this](stripe.com)). These prefixes even offer a benefit when talking about object classes, as well as speeding up certain database queries.
+* A few tests to apply when this temptation presents itself (and it will, more than you'd like):
+  * Is the information being added to the UID mutable ever? And if the answer is 'almost never' or 'it should not happen(but not actively blocked by a system)', this is BAD.  What if there was a clerical error post UID assignment and now the UID does not reflect the corrected info? Chage the UID? (bad idea, see above)
+  * Is there a better way to accomplish whatever use case having the additional data in the UID is attempting to meet (in effectively every situation I've encountered, the answer is yes). Explore how to better serve this use case with other solutions.
       
 
 ### Use only alpha numeric characters, ideally all uppercase alpha, no special characters.
