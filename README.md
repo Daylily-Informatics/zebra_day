@@ -303,3 +303,60 @@ _experimenting_... tiny handheld pretty well behaving non-corded scanner.
 * [Available From Amazon](https://www.amazon.com/dp/B08NDFWFKJ?psc=1&ref=ppx_yo2ov_dt_b_product_details)
 * Cost per Scanner : `$38.00`
 
+
+
+# Send Zebra Label Print Requests In From Outside Your Private Network
+
+## Using NGROK 
+
+Create a tunnel to connect to the zebra_day service running on port 8118.
+
+https://dashboard.ngrok.com/get-started/setup/macos
+
+__running in tmux or screen advised__
+
+```bash
+brew install ngrok/ngrok/ngrok
+ngrok config add-authtoken MYTOKEN
+ngrok http 8118
+```
+
+Which starts a tunnel and presents a monitoring dashboard.  And it looks like this:
+<pre>
+ngrok                                                                                (Ctrl+C to quit)
+                                                                                                     
+Introducing Always-On Global Server Load Balancer: https://ngrok.com/r/gslb                          
+                                                                                                     
+Session Status                online                                                                 
+Account                       USERNAME (Plan: Free)                                      
+Version                       3.3.5                                                                  
+Region                        United States (California) (us-cal-1)                                  
+Latency                       12ms                                                                   
+Web Interface                 http://127.0.0.1:4040                                                  
+Forwarding                    https://dfbf-23-93-175-197.ngrok-free.app -> http://localhost:8118
+
+Connections                   ttl     opn     rt1     rt5     p50     p90
+                              8       0       0.00    0.01    10.03   28.05
+
+HTTP Requests
+-------------
+
+GET /_print_label              200 OK
+GET /_print_label              200 OK
+GET /build_print_request       200 OK
+GET /send_print_request        200 OK
+GET /                          200 OK
+GET /_print_label              200 OK
+GET /_print_label              200 OK
+GET /build_print_request       200 OK
+GET /send_print_request        200 OK
+GET /favicon.ico               200 OK        ~
+</pre>
+
+And looks like:
+<img src=imgs/ngrok.png>
+
+
+
+
+## AWS
