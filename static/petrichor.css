@@ -1,0 +1,150 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Monoid', monospace;
+    background-color: #273238; /* Raincloud gray */
+    color: #A8B9B0; /* Soft, muted greenish-gray */
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #547C7C; /* Wet stone color */
+    border-bottom: 2px solid #547C7C;
+    padding-bottom: 5px;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+    margin-left: 21px;
+}
+
+li::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    border: 0.6px solid #547C7C;
+    background-color: #273238;
+    margin-right: 7px;
+    vertical-align: middle;
+}
+
+a {
+    color: #547C7C; 
+    text-decoration: underline; /* Underline for better readability */
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #698D8D; /* A shade brighter when hovered */
+}
+
+small {
+    color: #7D9898; /* Rain-washed stone color */
+}
+
+.spinner-hidden {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(39, 50, 56, 0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+#spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+#spinner.spinner-hidden {
+    display: none;
+}
+
+.loader {
+    border: 8px solid #D4E0DE;
+    border-top: 8px solid #547C7C; 
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, #547C7C, #273238, #547C7C);
+    margin: 20px 0;
+}
+
+input[type=text], textarea {
+    background-color: #313D3F; /* Earthy gray */
+    color: #A8B9B0;
+    border: 2px solid #547C7C;
+    border-radius: 5px;
+    padding: 5px 10px;
+    outline: none;
+    transition: background-color 0.3s ease;
+}
+
+input[type=text]:hover, textarea:hover {
+    background-color: #3A484A; /* A shade darker when hovered */
+}
+
+input[type=submit], input[type="button"] {
+    background-color: #313D3F;
+    color: #A8B9B0;
+    border: 2px solid #547C7C;
+    border-radius: 5px;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    font-family: 'Monoid', monospace;
+}
+
+input[type=submit]:hover, input[type="button"]:hover {
+    background-color: #3A484A;
+    border-color: #698D8D;
+}
+
+select {
+    background-color: #313D3F;
+    color: #A8B9B0;
+    border: 2px solid #547C7C;
+    padding: 5px 10px;
+    border-radius: 5px;
+    appearance: none;
+    cursor: pointer;
+}
+
+select:-moz-focusring {
+    color: transparent;
+    text-shadow: 0 0 0 #A8B9B0;
+}
+
+textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+    background-color: #547C7C;
+    border-radius: 5px;
+}
+
+textarea::-webkit-scrollbar-track {
+    background-color: #273238;
+    border-radius: 5px;
+}

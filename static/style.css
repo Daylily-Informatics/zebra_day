@@ -8,6 +8,16 @@ body {
     margin: 0;
     padding: 20px;
     line-height: 1.6;
+    position: relative;
+}
+
+#bottomRightLink {
+    position: absolute;  /* Position the link absolutely within the closest relative or absolute parent element */
+    bottom: 0;           /* 0 distance from the bottom of the parent element */
+    right: 0;            /* 0 distance from the right of the parent element */
+    padding: 10px;       /* Optional: some space between the link and the corner */
+    text-decoration: none;  /* Optional: remove the underline from the link */
+    color: #000;           /* Optional: set a color for the link */
 }
 
 /* Headers: Using deep blue for a professional and medical feel */

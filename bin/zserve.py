@@ -16,6 +16,7 @@ class Zserve(object):
 
     def __init__(self):
         self.zp = zdpm.zpl()
+        self.css_file = "static/style.css"
         try:
             ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
             print(ipcmd)
@@ -24,6 +25,22 @@ class Zserve(object):
         except Exception as e:
             self.ip = '192.168.1.0' # FAILS
             self.ip_root = '192.168.1'  # FAILS
+
+
+    @cherrypy.expose
+    def chg_ui_style(self,css_file=None):
+
+        if css_file not in [None]:
+            self.css_file = "static/"+css_file
+            raise cherrypy.HTTPRedirect("/") 
+            
+        ret_html = "<h1>Change The Zebra Day UI Style</h1><ul><small><a href=/>home</a></small><br><ul><hr><br><ul>Available Style CSS Files:<br><ul>"
+        for i in sorted(os.listdir('static')):
+            if i.endswith('.css'):
+                ret_html += f"<li><a href=chg_ui_style?css_file={i} >{i}</a>"
+        ret_html += "</ul></ul></ul>"
+
+        return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
@@ -49,7 +66,7 @@ class Zserve(object):
                 <li>{zp} ::: <a href={ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
 
         self._restart()
-        
+
         return self.wrap_content(ret_html)
 
 
@@ -68,7 +85,7 @@ class Zserve(object):
 
         return self.wrap_content(ret_html)
 
-   
+
     @cherrypy.expose
     def clear_printers_json(self):
         self.zp.clear_printers_json()
@@ -133,37 +150,59 @@ class Zserve(object):
         for zi in pips:
             zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
 
-        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl + "</ul></ul>" 
+        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl + "</ul></ul>"
 
         return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def index(self):
-        llinks = "<ul>"
+        llinks = ""
         try:
             for lb in self.zp.printers['labs'].keys():
-                llinks = llinks + f"<li><a href=printer_status?lab={lb} class='navigational-link' > {lb} Zebra Printer Status </a>"
+                llinks = llinks + f"<li><a href=printer_status?lab={lb}  > {lb} Zebra Printer Status </a>"
         except Exception as e:
-            llinks = llinks + "<li> no labs found. Try scanning and resetting printers.json"
+            llinks = llinks + "<li> no labs found. try scanning and resetting printers.json"
 
         llinks = llinks + "<li> __end__ </ul>"
 
         ret_html = """
-        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>IP address detected :: """+self.ip+"""</small><hr><ul>
-        <hr><h2>Zebra Printer Fleet Status, By Site</h2><ul>"""+llinks+"""</ul><br>
-        <hr><h2>Zebra Printer JSON Config</h2>This json file defines the zebra printers available to the package<ul><br>
+        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>ip address detected :: """+self.ip+"""</small>
+        <hr><ul>
+        <hr>
+        <h2>Zebra Printer Fleet Status, By Site</h2>
+        <ul>detected sites:
+        <ul><ul>"""+llinks+"""</ul><br></ul>
+        <hr>
+        <h2>Zebra Printer JSON Config</h2>
+        <ul>this json file defines the zebra printers available to the package
+        <ul><ul>
         <li><a href=view_pstation_json >view and edit json</a>
         <br>
         <br><li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small><li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
-        <hr><h2>Send Print Requests To Accessible Zebra Priners</h2><ul>
-        <li><a href=send_print_request>Send Print Request</a>
+        </ul></ul>
+        <hr>
+        <h2>Send Print Requests</h2>
+        <ul>to accessible zebra printers
+        <ul><ul>
+        <li><a href=send_print_request>manually compose & send print request</a>
         </ul><br>
-        <hr><h2>Make Edits To ZPL Files</h2><ul>
-        <li><a href=edit_zpl>EDIT ZPL FILES</a></ul><br>
-        <hr><h2>Github Docs</h2><ul>
-        <li><a href=https://github.com/Daylily-Informatics/zebra_day >HERE</a>
+        </ul></ul>
+        <hr><h2>Edit Label Templates</h2>
+        <ul>modify existing templates, create new templates, preview changes & test print new designs
+        <ul><ul>
+        <li><a href=edit_zpl>edit zpl files</a></ul><br>
+        </ul></ul>
+        <hr><h2>Github Docs</h2>
+        <ul>for this and other daylily repos
+        <ul><ul><small>
+        <li><a href=https://github.com/Daylily-Informatics/zebra_day >zebra_day</a>
+        <li><a href=https://github.com/Daylily-Informatics/fedex_tracking_day >fedex_tracking_day</a>
+        <li><a href=https://github.com/Daylily-Informatics/yaml_config_day >yaml_config_day</a>
+        </small>
+        </ul></ul>
         </ul></ul></ul>
+        <small> <a href=chg_ui_style style='position: fixed; bottom: 0; right: 0;padding: 10px; text-decoration:none;' id="bottomRightLink">change ui style</a></small>
         """
 
         return self.wrap_content(ret_html)
@@ -194,7 +233,7 @@ class Zserve(object):
 
         ret_html = f"""
         <h1>Send Label Print Request</h1>
-        <ul><hr><ul>
+        <ul><small><a href=/>home</a></small><hr><ul>
         <h3>{lab} .. {printer} .. {printer_ip} .. {label_zpl_style}</h3><ul><hr><ul>
         """
 
@@ -286,7 +325,7 @@ class Zserve(object):
     @cherrypy.expose
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
-        ret_html = "Done. <a href=/>HOME</a>."
+        ret_html = "Done. <a href=/>home</a>."
         ret_html = ret_html + "<br>server is restarted? " + self._restart()
         return self.wrap_content(ret_html)
 
@@ -304,7 +343,7 @@ class Zserve(object):
                 json.dump(data, f, indent=4)
             self.zp.load_printer_json(json_file=self.zp.printers_filename)
             self._restart()
-            return "JSON saved successfully!<br><br>Print Stations Updated.<br><br><a href=/>HOME</a><br><br><a href=view_pstation_json>open current print station json</a>"
+            return "JSON saved successfully!<br><br>Print Stations Updated.<br><br><a href=/>home</a><br><br><a href=view_pstation_json>open current print station json</a>"
         except json.JSONDecodeError as e:
             return self.view_pstation_json(error_msg=str(e))
 
@@ -320,7 +359,7 @@ class Zserve(object):
         file_linkst = ['<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft) for ft in filest]
 
         ret_html = """
-        <a href=/>HOME</a><br><ul>
+        <a href=/>home</a><br><ul>
         To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'.  ie: test_2inX1in' <br><ul><hr><br>stable ZPL templates<br>
             <ul>
                 {}
@@ -328,7 +367,7 @@ class Zserve(object):
 
         <br><br><hr><br>draft ZPL templates<ul> {} </ul>
         """.format("<li>" + "</li><li>".join(file_links) + "</li>", "<li>" + "</li><li>".join(file_linkst) + "</li>")
-        
+
         return self.wrap_content(ret_html)
 
 
@@ -394,7 +433,7 @@ class Zserve(object):
 
         return """<html>
         <head>
-        <link rel="stylesheet" href="/static/style.css">
+        <link rel="stylesheet" href="""+self.css_file+""">
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
@@ -411,7 +450,7 @@ class Zserve(object):
             </script>
             </head>
         <body>
-            <h2>Editing: """+filename+"""</h2><a href=edit_zpl >BACK TO LABEL LIST</a><br><small><a href=https://labelary.com/zpl.html target=x >ZPL INTRODUCTION</a></small><br>
+            <h2>Editing: """+filename+"""</h2><small><ul><hr><a href=/>home</a> /// <a href=edit_zpl >back to label list</a> /// <a href=https://labelary.com/zpl.html target=x >zpl intro</a></small><br>
         <table border=1><tr><td style="vertical-align: top;"  >
         <form method="post" action="/save" id="textForm">
                 <textarea name="content" rows="30" cols="40">{cont}</textarea><br/>
@@ -530,10 +569,10 @@ class Zserve(object):
 
 
     def wrap_content(self, content):
-        header = """
+        header = f"""
         <html>
         <head>
-        <link rel="stylesheet" href="/static/style.css">
+        <link rel="stylesheet" href="{self.css_file}">
         </head>
         <body>
         <div id="spinner" class="spinner-hidden">
@@ -546,7 +585,7 @@ class Zserve(object):
         document.getElementById('myForm').addEventListener('submit', function(event) {
         // When the form is submitted, show the spinner
         document.getElementById('spinner').classList.remove('spinner-hidden');
-        
+
         // The actual submission will proceed, and the new page will start loading.
         // As the new page loads, the current page (and spinner) will be unloaded.
         });

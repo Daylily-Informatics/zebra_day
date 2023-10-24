@@ -216,3 +216,62 @@ input[type=submit]:focus, input[type=submit]:active, button:focus, button:active
 input[type=submit]:active, button:active {
     transform: translateY(2px); /* Shift the button down a bit */
 }
+
+select {
+    background-color: #141414;
+    color: #33C3F0;
+    border: 2px solid #33C3F0;
+    padding: 5px 10px;
+    border-radius: 5px;
+    appearance: none; /* Remove default appearance */
+    cursor: pointer;
+}
+
+/* For the dropdown arrow in Firefox */
+select:-moz-focusring {
+    color: transparent;
+    text-shadow: 0 0 0 #33C3F0;
+}
+
+textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+    background-color: #33C3F0;
+    border-radius: 5px;
+}
+
+textarea::-webkit-scrollbar-track {
+    background-color: #141414;
+    border-radius: 5px;
+}
+
+input[type="button"] {
+    background-color: #141414;         /* Dark background */
+    border: 2px solid #33C3F0;         /* Glowing blue border */
+    color: #33C3F0;                    /* Glowing blue text */
+    padding: 10px 20px;                /* Button padding */
+    font-size: 16px;                   /* Text size */
+    border-radius: 5px;                /* Rounded corners */
+    transition: all 0.3s ease;         /* Transition for hover effect */
+    cursor: pointer;                   /* Pointer cursor on hover */
+    outline: none;                     /* Remove focus outline */
+    font-family: 'Source Code Pro', monospace; /* Font from earlier */
+}
+
+input[type="button"]:hover {
+    background-color: #33C3F0;        /* Glowing blue background on hover */
+    color: #141414;                   /* Dark text on hover */
+}
+
+input[type="button"]:active {
+    background-color: #288FB6;        /* Darker blue background when pressed */
+    border-color: #288FB6;            /* Border color when pressed */
+    color: #0D0D0D;                   /* Darker text when pressed */
+}
+
+/* Optional: glow effect when focused (for accessibility) */
+input[type="button"]:focus {
+    box-shadow: 0 0 10px #33C3F0;     /* Glowing blue shadow */
+}
