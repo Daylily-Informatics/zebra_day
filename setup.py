@@ -15,6 +15,8 @@ setup(
         'cherrypy'
     ],
     include_package_data=True,
+    package_data={'zebra_day':['static/*']},
+    data_files=[('',['static/style.css','etc/printer_config.template.json'])],
     entry_points={
         'console_scripts': [
             'zday_quickstart = zebra_day.print_mgr:main',

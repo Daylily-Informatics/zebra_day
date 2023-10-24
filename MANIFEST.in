@@ -1,5 +1,5 @@
-include bin/*
-include files/*
-include logs/*
-include static/*
+recursive-include bin *
+recursive-include files *
+recursive-include logs *
+recursive-include static *
 recursive-include etc *
