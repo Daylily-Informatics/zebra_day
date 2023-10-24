@@ -21,7 +21,7 @@
 
 * _An Identify Generating Authority_
   * you will need to produce your own UID/GUID/etc. This can be manual, spreadsheets, custom code, various RDBMS, LIMS systems, Salesforce... but should not be tangled in this package.
-    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable representation of the provided UID. [Insert Unique Identifier Reccomendations Here](docs/uid_screed_light.md).
+    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable representation of the provided UID. [Unique Identifier Maxims](docs/uid_screed_light.md).
 
 </ul>
 
