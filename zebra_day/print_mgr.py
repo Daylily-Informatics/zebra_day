@@ -45,7 +45,7 @@ class zpl:
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
-        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png"}
+        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na"}
 
         res = os.popen(f"bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
@@ -58,7 +58,7 @@ class zpl:
                 serial = sl[3]
                 status = sl[4]                
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk"}  # The label formats set here are the installed defaults
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial}  # The label formats set here are the installed defaults
 
         self.save_printer_json()
 
@@ -76,6 +76,8 @@ class zpl:
         
             
     def load_printer_json(self, json_file="etc/printer_config.json"):
+        if not os.path.exists(json_file):
+            os.system("""echo '{ "labs" : {} }' >>""" + json_file)
         fh = open(json_file)
         self.printers_filename = json_file
         self.printers = json.load(fh)

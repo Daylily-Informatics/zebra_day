@@ -88,7 +88,7 @@ class Zserve(object):
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
 
         printer_deets = {}
-        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers> Network Stub To Scan : <input type=text name=ip_stub value='{self.ip_root}'> Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
+        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers id='myForm' > Network Stub To Scan : <input type=text name=ip_stub value='{self.ip_root}' class='navigational-link' > Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
 
         pips = {}
         try:
@@ -102,21 +102,22 @@ class Zserve(object):
             if pip in self.detected_printer_ips:
                 del(pips[pip])
 
-            printer_deets[pname] = [pip, "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
+            printer_deets[pname] = [pip, "<small><a href=edit_zpl >available zpl templates here</a></small>"]  # "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
             print(pname, pip)
             cres = os.popen(f"curl -m 4 {pip}").readlines()
             for ci in cres:
                 if len(ci.split('Status:')) > 1:
                     printer_deets[pname].append(ci)
 
+        ptype = ''
         for pret in printer_deets:
             try:
                 pip2 = printer_deets[pret][0]
 
-                pip2a = "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
+                pip2a = f"{self.zp.printers['labs'][lab][pname]['model']} / {self.zp.printers['labs'][lab][pname]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
-                ret_html = ret_html + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small><a target=pl href=_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=test_2inX1in  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashiing and needs to be pressed</small></td></tr>"
+                ret_html = ret_html + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small><a target=pl href=_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=test_2inX1in  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
             except Exception as e:
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
@@ -125,7 +126,7 @@ class Zserve(object):
         for zi in pips:
             zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
 
-        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl
+        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl + "</ul></ul>" 
 
         return self.wrap_content(ret_html)
 
@@ -135,7 +136,7 @@ class Zserve(object):
         llinks = "<ul>"
         try:
             for lb in self.zp.printers['labs'].keys():
-                llinks = llinks + f"<li><a href=printer_status?lab={lb} > {lb} Zebra Printer Status </a>"
+                llinks = llinks + f"<li><a href=printer_status?lab={lb} class='navigational-link' > {lb} Zebra Printer Status </a>"
         except Exception as e:
             llinks = llinks + "<li> no labs found. Try scanning and resetting printers.json"
 
@@ -144,9 +145,10 @@ class Zserve(object):
         ret_html = """
         <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>IP address detected :: """+self.ip+"""</small><hr><ul>
         <hr><h2>Zebra Printer Fleet Status, By Site</h2><ul>"""+llinks+"""</ul><br>
-        <hr><h2>Zebra Printer JSON Config</h2>This json file defines the zebra printers available to the package<ul>
+        <hr><h2>Zebra Printer JSON Config</h2>This json file defines the zebra printers available to the package<ul><br>
         <li><a href=view_pstation_json >view and edit json</a>
-        <li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small><li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
+        <br>
+        <br><li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small><li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
         <hr><h2>Send Print Requests To Accessible Zebra Priners</h2><ul>
         <li><a href=send_print_request>Send Print Request</a>
         </ul><br>
@@ -154,7 +156,7 @@ class Zserve(object):
         <li><a href=edit_zpl>EDIT ZPL FILES</a></ul><br>
         <hr><h2>Github Docs</h2><ul>
         <li><a href=https://github.com/Daylily-Informatics/zebra_day >HERE</a>
-        </ul>
+        </ul></ul></ul>
         """
 
         return self.wrap_content(ret_html)
@@ -306,8 +308,8 @@ class Zserve(object):
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
 
         ret_html = """
-        <a href=/>HOME</a><br>
-
+        <a href=/>HOME</a><br><ul>
+        To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'.  ie: test_2inX1in' <br><ul><hr><br>
             <ul>
                 {}
             </ul>
@@ -521,9 +523,21 @@ class Zserve(object):
         <link rel="stylesheet" href="/static/style.css">
         </head>
         <body>
+        <div id="spinner" class="spinner-hidden">
+        <div class="loader"></div>
+        </div>
         """
 
         footer = """
+        <script>
+        document.getElementById('myForm').addEventListener('submit', function(event) {
+        // When the form is submitted, show the spinner
+        document.getElementById('spinner').classList.remove('spinner-hidden');
+        
+        // The actual submission will proceed, and the new page will start loading.
+        // As the new page loads, the current page (and spinner) will be unloaded.
+        });
+        </script>
         </body>
         </html>
         """
