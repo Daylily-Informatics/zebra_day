@@ -12,6 +12,8 @@ import zebra_day.print_mgr as zdpm
 
 FILES_DIR = "etc/label_styles"
 
+ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=somestring && python bin/zserve.py and the index (for now) will not load unless you send along the same string with the HTTP request using the envcheck variable.  If not detected, set to skip and this is not checked.  NOTE!  This is hugely crude and something much better needs to be done before anything here is exposed routinely in the wild.  A quick improvement coming soon, session level auth and so on.
+
 class Zserve(object):
 
     def __init__(self):
@@ -156,7 +158,12 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def index(self):
+    def index(self,envcheck='skip'):
+        if envcheck != ENVCHECK:
+            #client_ip = cherrypy.request.remote.ip
+            os.system('sleep 31')
+            return ''
+        
         llinks = ""
         try:
             for lb in self.zp.printers['labs'].keys():
@@ -261,7 +268,9 @@ class Zserve(object):
 
     @cherrypy.expose
     def _print_label(self, lab, printer, printer_ip='', label_zpl_style='', uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
-        ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f)
+        client_ip = cherrypy.request.remote.ip
+
+        ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, client_ip=client_ip)
 
         full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
 

@@ -143,8 +143,9 @@ class zpl:
         return png_fn
     
             
-    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, ref_ip=''):
+    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
+        print_n = int(print_n)
         
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
@@ -155,7 +156,7 @@ class zpl:
 
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
-        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{ref_ip}' >> logs/print_requests.log")
+        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}' >> logs/print_requests.log")
         
         ret_s = None
         if printer_ip in ['dl_png']:
@@ -163,7 +164,11 @@ class zpl:
             ret_s = self.generate_label_png(zpl_string, png_fn)
             
         else:
-            send_zpl_code(zpl_string, printer_ip)
+            pn = 1
+            while pn <= print_n:
+                send_zpl_code(zpl_string, printer_ip)
+                pn += 1
+                
             ret_s = zpl_string
             
         if self.debug:
