@@ -182,7 +182,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 ```bash
 # consider running this via tmux or screen
-conda activate ZDAY
+conda activate ZDAY # or any python environment where you have pip installed zebra_day (from pypy or local pip)
 python bin/zserve.py  # This service will continue running until stopped or until it crashes. Access and error logs are printed to STDout/err.
 
 # ctrl-c to shutdown the web service
