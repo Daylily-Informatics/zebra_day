@@ -29,7 +29,7 @@
 
 <ul>
   
-### Quickest Start :: Daylily Orchestrated Build and Deploy ( deliverable in a month, given minimal externally driven delays)
+### Managed :: Daylily Orchestrated Build and Deploy ( deliverable in a month, given minimal externally driven delays)
 * [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/). Daylily offers expertise with the entire process from evaluating existing operations systems, proposing integration options, securing all hardware, deploying hardware and software, and importantly: connecting newly deployed barcoding services to other LIS systems.
 
 #### Universal Barcoding Capability Project Timing Estimates

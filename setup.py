@@ -15,5 +15,8 @@ setup(
         'cherrypy'
     ],
     entry_points={
+        'console_scripts': [
+            'zday_quickstart = zebra_day.print_mgr.zdquick',
+        ],
     },
 )

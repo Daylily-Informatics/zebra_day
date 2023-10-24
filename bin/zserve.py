@@ -17,11 +17,13 @@ class Zserve(object):
     def __init__(self):
         self.zp = zdpm.zpl()
         try:
-            self.ip = os.popen("(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null").readline().rstrip()
+            ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
+            print(ipcmd)
+            self.ip = os.popen(ipcmd).readline().rstrip()
             self.ip_root = ".".join(self.ip.split('.')[:-1])
         except Exception as e:
             self.ip = '192.168.1.0' # FAILS
-            self.ip_root = '192.168.111'  # FAILS
+            self.ip_root = '192.168.1'  # FAILS
 
 
     @cherrypy.expose
