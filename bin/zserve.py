@@ -117,9 +117,9 @@ class Zserve(object):
                 pip2a = f"{self.zp.printers['labs'][lab][pname]['model']} / {self.zp.printers['labs'][lab][pname]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
-                ret_html = ret_html + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href=_print_label?lab=scan-results&printer=192.168.1.16&printer_ip=192.168.1.16&label_zpl_style=test_2inX1in&uid_barcode=&alt_a=&alt_b=&alt_c=
-
-                _print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=test_2inX1in  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
+                serial = self.zp.printers['labs'][lab][pname]['serial'].replace(' ','_')
+                model = self.zp.printers['labs'][lab][pname]['model']
+                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href="_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=labware_2inX1in&uid_barcode={pip2}&alt_a={model}&alt_b={serial}&alt_c={pname}&alt_d={lab}"  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
             except Exception as e:
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
@@ -221,7 +221,7 @@ class Zserve(object):
 
         full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
 
-        addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED"
+        addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED<br><ul>"
         if len(ret_s.split('.png')) > 1:
             addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src={ret_s}><br>"
         ret_html = addl_html + "<a href=/>home</a>"
