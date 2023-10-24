@@ -91,7 +91,10 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 
 ### Example Output From `zday_quickstart`
 <pre>
-ev/null
+
+zday_quickstart
+
+(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2> /dev/null
 
 IP detected: 192.168.1.12 ... using IP root: 192.168.1
 
