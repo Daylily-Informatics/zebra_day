@@ -1,78 +1,23 @@
 {
     "labs": {
-        "Daylily-Oakland": {
-            "DYL-1": {
-                "ip_address": "192.168.1.7",
-                "label_zpl_styles": [
-                    "tube_2inX1in"
-                ],
-                "print_method": "direct thermal transfer"
-            },
-            "DYL-2": {
-                "ip_address": "192.168.1.17",
-                "label_zpl_styles": [
-                    "tube_2inX1in"
-                ],
-                "print_method": "direct thermal transfer"
-            },
-            "DYL-3": {
-                "ip_address": "192.168.1.18",
-                "label_zpl_styles": [
-                    "tube_2inX1in"
-                ],
-                "print_method": "direct thermal transfer"
-            },
-            "DYL-4": {
-                "ip_address": "192.168.1.20",
-                "label_zpl_styles": [
-                    "tube_2inX1in"
-                ],
-                "print_method": "direct thermal transfer"
-            },
-            "DYL-5": {
-                "ip_address": "192.168.1.16",
-                "label_zpl_styles": [
-                    "tube_2inX1in"
-                ],
-                "print_method": "direct thermal transfer"
-            },
+        "scan-results": {
             "Download-Label-png": {
                 "ip_address": "dl_png",
                 "label_zpl_styles": [
-                    "tube_2inX1in",
-                    "plate_1inX0.25in"
-                ],
-                "print_method": "generate png"
-            }
-        },
-        "na": {
-            "192.168.1.7": {
-                "ip_address": "192.168.1.7",
-                "label_zpl_styles": [
                     "test_2inX1in"
                 ],
-                "print_method": "unk"
+                "print_method": "generate png",
+                "model": "na",
+                "serial": "na"
             },
-            "192.168.1.16": {
-                "ip_address": "192.168.1.16",
+            "SOMENAMENOSPACES": {
+                "ip_address": "#.#.#.#",
                 "label_zpl_styles": [
                     "test_2inX1in"
                 ],
-                "print_method": "unk"
-            },
-            "192.168.1.18": {
-                "ip_address": "192.168.1.18",
-                "label_zpl_styles": [
-                    "test_2inX1in"
-                ],
-                "print_method": "unk"
-            },
-            "192.168.1.20": {
-                "ip_address": "192.168.1.20",
-                "label_zpl_styles": [
-                    "test_2inX1in"
-                ],
-                "print_method": "unk"
+                "print_method": "unk",
+                "model": "MODEL",
+                "serial": "SERIAL"
             }
         }
     }
