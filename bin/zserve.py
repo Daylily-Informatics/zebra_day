@@ -48,6 +48,8 @@ class Zserve(object):
                 ret_html = ret_html + f"""
                 <li>{zp} ::: <a href={ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
 
+        self._restart()
+        
         return self.wrap_content(ret_html)
 
 
@@ -71,6 +73,7 @@ class Zserve(object):
     def clear_printers_json(self):
         self.zp.clear_printers_json()
         ret_html = "printers json file has been cleared.<br><a href=/>home</a>"
+        self._restart()
         return self.wrap_content(ret_html)
 
 
@@ -232,9 +235,9 @@ class Zserve(object):
 
     @cherrypy.expose
     def _restart(self):
-        os.system(f"touch bin/zebra_printer_server.py")
-        ret_html = "restarted"
-
+        os.system(f"touch bin/zserve.py")
+        os.system('sleep 4')
+        ret_html = 'server restarted'
         return self.wrap_content(ret_html)
 
 
@@ -270,7 +273,7 @@ class Zserve(object):
         <li><a href=list_prior_printer_config_files>view backed up printers json config files</a>
         <ul><Ul>
         <hr><hr>
-        <li>!! <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!</a>
+        <li>!! <a href=reset_pstation_json>Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!!)</a>
         <ul><ul>
         <hr><hr><hr>
         <li>!! <a href=clear_printers_json>CLEAR contents of current printers.json file !!!! This Cannot Be Undone</a>
@@ -284,6 +287,7 @@ class Zserve(object):
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
         ret_html = "Done. <a href=/>HOME</a>."
+        ret_html = ret_html + "<br>server is restarted? " + self._restart()
         return self.wrap_content(ret_html)
 
 
@@ -299,6 +303,7 @@ class Zserve(object):
             with open(self.zp.printers_filename, 'w') as f:
                 json.dump(data, f, indent=4)
             self.zp.load_printer_json(json_file=self.zp.printers_filename)
+            self._restart()
             return "JSON saved successfully!<br><br>Print Stations Updated.<br><br><a href=/>HOME</a><br><br><a href=view_pstation_json>open current print station json</a>"
         except json.JSONDecodeError as e:
             return self.view_pstation_json(error_msg=str(e))

@@ -1,0 +1,120 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Monoid', monospace;
+    background-color: #121212; 
+    color: #EFEFEF;
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #FFD700; /* Golden color for headers */
+    border-bottom: 3px solid #FFD700; 
+    padding-bottom: 5px;
+}
+
+ul {
+    list-style-type: none; 
+    padding: 0;
+    margin-left: 21px; 
+}
+
+li::before {
+    content: ''; 
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%; 
+    border: 0.6px solid #FFD700; /* Golden border */
+    background-color: #121212; 
+    margin-right: 7px; 
+    box-shadow: 0 0 3px #FFD700, 0 0 5px #FFD700, inset 0 0 3px #FFD700; 
+    vertical-align: middle; 
+}
+
+@keyframes pulsate {
+    0% {
+        box-shadow: 0 0 3px #FFD700, 0 0 4px #FFD700, inset 0 0 3px #FFD700;
+    }
+    50% {
+        box-shadow: 0 0 4px #FFAA00, 0 0 7px #FFAA00, inset 0 0 4px #FFAA00;
+    }
+    100% {
+        box-shadow: 0 0 3px #FFD700, 0 0 5px #FFD700, inset 0 0 3px #FFD700;
+    }
+}
+
+li::before {
+    animation: pulsate 15s infinite alternate;
+}
+
+a {
+    color: #FFD700; /* Golden links */
+    text-decoration: none; 
+    transition: color 0.3s ease; 
+}
+
+a:hover {
+    color: #FFAA00; /* Slightly different shade of gold for hover */
+}
+
+small {
+    color: #B0B0B0; 
+}
+
+.spinner-hidden {
+    /* ... (rest remains unchanged) ... */
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, #FFD700, #121212, #FFD700); /* Gradient line effect with gold */
+    margin: 20px 0;
+}
+
+input[type=text], textarea {
+    background-color: #202020; 
+    color: #EFEFEF; 
+    border: 2px solid #FFD700; 
+    border-radius: 5px; 
+    padding: 5px 10px;
+    outline: none;
+    transition: background-color 0.3s ease, border-color 0.3s ease; 
+}
+
+input[type=text]:hover, textarea:hover {
+    background-color: #2A2A2A; 
+}
+
+input[type=text]:focus, textarea:focus {
+    background-color: #333333; 
+    border-color: #FFAA00; 
+    box-shadow: 0 0 5px #FFAA00, 0 0 10px #FFAA00;
+}
+
+input[type=submit], button {
+    background-color: #FFD700; 
+    color: #121212; 
+    border: none;
+    border-radius: 5px; 
+    padding: 8px 15px; 
+    font-family: 'Monoid', monospace;
+    cursor: pointer; 
+    outline: none; 
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+input[type=submit]:hover, button:hover {
+    background-color: #FFAA00; 
+}
+
+input[type=submit]:active, button:active {
+    transform: translateY(2px); 
+}
