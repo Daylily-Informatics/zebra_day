@@ -5,5 +5,5 @@
 ^FD{uid_barcode}^FS
 ^FO232,39
 ^ADN,20,11
-^FD{uid_human_readable} : {alt_a}^FS
+^FD{uid_barcode} : {alt_a}^FS
 ^XZ

@@ -105,7 +105,7 @@ class zpl:
         return result
 
     
-    def formulate_zpl(self,uid_barcode=None, uid_human_readable=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
+    def formulate_zpl(self,uid_barcode=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
 
         zpl_file = f"etc/label_styles/{label_zpl_style}.zpl"
         if not os.path.exists(zpl_file):
@@ -113,7 +113,7 @@ class zpl:
 
         with open(zpl_file, 'r') as file:
             content = file.read()
-        zpl_string = content.format(uid_barcode=uid_barcode, uid_human_readable=uid_human_readable,alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
+        zpl_string = content.format(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
         return zpl_string
 
@@ -141,7 +141,7 @@ class zpl:
         return png_fn
     
             
-    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', uid_human_readable='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None):
+    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
         
         if label_zpl_style in [None,'','None']:
@@ -151,7 +151,7 @@ class zpl:
 
         printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
 
-        zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, uid_human_readable=uid_human_readable, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
+        zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
         ret_s = None
         if printer_ip in ['dl_png']:

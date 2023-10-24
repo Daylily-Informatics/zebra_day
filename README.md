@@ -21,7 +21,7 @@
 
 * _An Identify Generating Authority_
   * you will need to produce your own UID/GUID/etc. This can be manual, spreadsheets, custom code, various RDBMS, LIMS systems, Salesforce... but should not be tangled in this package.
-    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable UID. [Insert Unique Identifier Reccomendations Here](na).
+    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable representation of the provided UID. [Insert Unique Identifier Reccomendations Here](docs/uid_screed_light.md).
 
 </ul>
 
@@ -109,7 +109,7 @@ print(zlab.printers)  # This should print out the json dict of all detected zebr
 
 # Assuming a printer was detected, send a test print request.  Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now.  There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
 
-zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID", uid_human_readable="123aUID")
+zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID")
 # ZPL code sent successfully to the printer!
 # Out[13]: '^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FD123aUID^FS\n^FO235,70\n^ADN,30,20\n^FD123aUID^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ'
 ```
@@ -145,13 +145,13 @@ python bin/zserve.py  # This service will continue running until stopped or unti
 * You can send a label print request via the UI (the process is a little involved ATM)... also, you can send the service requests via HTTP, ie, the programatic print request from above, can be similarly accomplished with this URL
 
 ```http
-http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&uid_human_readable=123aUID&alt_a=&alt_b=&alt_c=&alt_d=&alt_e=&alt_f=
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&alt_a=&alt_b=&alt_c=&alt_d=&alt_e=&alt_f=
 ```
 
 _or_ with the unused (in this ZPL template!) fields removed, this URL
 
 ```http
-http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&uid_human_readable=123aUID
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
 ```
 
 * There will be more details on the web tools available via this GUI in the `Web UI Guide`.

@@ -117,7 +117,9 @@ class Zserve(object):
                 pip2a = f"{self.zp.printers['labs'][lab][pname]['model']} / {self.zp.printers['labs'][lab][pname]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
-                ret_html = ret_html + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small><a target=pl href=_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=test_2inX1in  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
+                ret_html = ret_html + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href=_print_label?lab=scan-results&printer=192.168.1.16&printer_ip=192.168.1.16&label_zpl_style=test_2inX1in&uid_barcode=&alt_a=&alt_b=&alt_c=
+
+                _print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=test_2inX1in  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
             except Exception as e:
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
@@ -193,8 +195,7 @@ class Zserve(object):
 
         ret_html = ret_html + """
         <form action=_print_label>
-        <li>UID Barcode Encoded : <input type=text name=uid_barcode ></input><br>
-        <li>UID Human Readable (prob want this the same as Barcode Encoded) : <input type=text name=uid_human_readable ></input><br>
+        <li>UID for Barcode : <input type=text name=uid_barcode ></input><br>
         <li>ALT-A : <input type=text name=alt_a ></input><br>
         <li>ALT-B : <input type=text name=alt_b ></input><br>
         <li>ALT-C : <input type=text name=alt_c ></input><br>
@@ -215,10 +216,10 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def _print_label(self, lab, printer, printer_ip, label_zpl_style, uid_barcode='', uid_human_readable='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
-        ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode,uid_human_readable=uid_human_readable, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f)
+    def _print_label(self, lab, printer, printer_ip, label_zpl_style, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
+        ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f)
 
-        full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&uid_human_readable={uid_human_readable}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
+        full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
 
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED"
         if len(ret_s.split('.png')) > 1:
@@ -434,9 +435,8 @@ class Zserve(object):
         <ul><hr>
         The templates used by this system provide for a set of format wildcards which can be embedded in the ZPL specification file, and values inserted with each new print request.  Not all ZPL formats support all format replacements. The preview pdf generation on this page will not template any values in.  To use a zpl template, and specify format replacement values, <a href=send_print_request >use this interface</a>. <br>The wildcards supported:
         <ul>
-        <li>{{uid_barcode}} = This will be encoded as the scannable barcode
-        <li>{{uid_human_readable}} = This *should* be the same as 'uid_barcode', in most cases, this value is printed below the 'uid_barcode'. If the scannable barcode does not resolve to this human readable string, please have very good reasons to do this.
-        <li>{{alt_a}} = the 'alt_*' wildcards are placehoders for additional information that may be presented beyond the scannable and human readable UID.  These alt_* fields may be used howeever you like with your ZPL templates.
+        <li>{{uid_barcode}} = This will be encoded as the scannable barcode and presented in human readable form (at least for all default label templates)
+        <li>{{alt_a}} = the 'alt_*' wildcards are placehoders for additional information that may be presented beyond the .  These alt_* fields may be used howeever you like with your ZPL templates.
         <li>{{alt_b}} = <a href=send_print_request >use this interface to test sending wildcards to ZPL templates.</a>
         <li>... through {{alt_f}}
         </ul></ul>

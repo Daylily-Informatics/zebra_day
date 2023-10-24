@@ -5,7 +5,7 @@
 ^FD{uid_barcode}^FS
 ^FO235,70
 ^ADN,30,20
-^FD{uid_human_readable}^FS
+^FD{uid_barcode}^FS
 ^FO235,115
 ^ADN,25,12
 ^FDalt_a^FS
