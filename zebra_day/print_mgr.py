@@ -109,7 +109,9 @@ class zpl:
 
         zpl_file = f"etc/label_styles/{label_zpl_style}.zpl"
         if not os.path.exists(zpl_file):
-            raise Exception(f"ZPL File : {zpl_file} does not exist.")
+            zpl_file = f"etc/label_styles/tmps/{label_zpl_style}.zpl"
+            if not os.path.exists(zpl_file):
+                raise Exception(f"ZPL File : {zpl_file} does not exist in the TOPLEVEL or TMPS etc/label_styles dir.")
 
         with open(zpl_file, 'r') as file:
             content = file.read()

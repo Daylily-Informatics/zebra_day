@@ -308,14 +308,20 @@ class Zserve(object):
 
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
 
+        filest = [ft for ft in os.listdir(FILES_DIR+'/tmps/') if os.path.isfile(os.path.join(FILES_DIR+'/tmps/', ft))]
+
+        file_linkst = ['<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft) for ft in filest]
+
         ret_html = """
         <a href=/>HOME</a><br><ul>
-        To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'.  ie: test_2inX1in' <br><ul><hr><br>
+        To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'.  ie: test_2inX1in' <br><ul><hr><br>stable ZPL templates<br>
             <ul>
                 {}
             </ul>
-        """.format("<li>" + "</li><li>".join(file_links) + "</li>")
 
+        <br><br><hr><br>draft ZPL templates<ul> {} </ul>
+        """.format("<li>" + "</li><li>".join(file_links) + "</li>", "<li>" + "</li><li>".join(file_linkst) + "</li>")
+        
         return self.wrap_content(ret_html)
 
 
@@ -362,11 +368,11 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def edit(self, filename=None):
+    def edit(self, filename=None, dtype=''):
         if not filename:
             return "No file selected"
 
-        filepath = os.path.join(FILES_DIR, filename)
+        filepath = os.path.join(FILES_DIR + '/' + dtype + '/', filename)
 
         with open(filepath, 'r') as file:
             content = file.read()
@@ -506,7 +512,7 @@ class Zserve(object):
 
         tfn = filename.replace('.zpl',f'.{ftag}.{rec_date}.zpl')
 
-        temp_filepath = os.path.join(FILES_DIR, tfn)
+        temp_filepath = os.path.join(FILES_DIR, 'tmps/', tfn)
 
         with open(temp_filepath, 'w') as file:
             file.write(content)
