@@ -306,6 +306,10 @@ _experimenting_... tiny handheld pretty well behaving non-corded scanner.
 
 
 # Send Zebra Label Print Requests In From Outside Your Private Network
+> !! THE EXAMPLES BELOW WORK, BUT ARE NOT INTENDED FOR OPERATIONAL USE UNTIL SESSION AUTHENTICATION IS BUILT OUT !!
+> !!!! currently, routine use should be limited to running this service in a protected network environment !!!!
+> ...... and feel free to fork and add more robust auth.
+
 
 ## Brute Force, Expose Server Publicly ( entirely, or just select ports )
 * The opportunities to mess this up are many.  There are convenient, and much much safer ways to access your new service.  See below. If you do decide to take this route, please talk to a networking & security expert at some point.
@@ -375,6 +379,7 @@ And looks like:
 wget "https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in"
 ```
 ##### From SalesForce
+
  * There are several ways to do this, but they all boil down to somehow formulating a URL for each print request, ie: `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&lab=scan-results&printer=192.168.1.20&label_zpl_style=tube_2inX1in`, and hitting the URL via Apex, Flow, etc.
    * To send a print request, you will need to know the API url, and the `lab`, `printer_name`, and `label_zpl_style` you wish to print the salesforce `Name` aka `UID` as a label.  This example explains how to pass just one variable to print from salesforce, adding additional metadata to print involves adding additional params to the url being constructed.
    
