@@ -21,7 +21,7 @@
 
 * _An Identify Generating Authority_
   * you will need to produce your own UID/GUID/etc. This can be manual, spreadsheets, custom code, various RDBMS, LIMS systems, Salesforce... but should not be tangled in this package.
-    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable representation of the provided UID. [Unique Identifier Maxims](docs/uid_screed_light.md).
+    * also, METADATA regaring your UID is important as these metadata can be presented on the labels in addition to the human readable and scannable representation of the provided UID. [Unique Identifier Maxims](zebra_day/docs/uid_screed_light.md).
 
 </ul>
 
@@ -136,7 +136,7 @@ The Application mounted at '' has an empty config.
 ### Quick
 * Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
 
-### [Hardware Config Guide](docs/hardware_config_guide.md)
+### [Hardware Config Guide](zebra_day/docs/hardware_config_guide.md)
 
 <br><br>
   
@@ -168,7 +168,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
   ![test_lab](zebra_day/imgs/quick_start_test_label2.png)
 
 
-### [Programatic Guide](docs/programatic_guide.md)
+### [Programatic Guide](zebra_day/docs/programatic_guide.md)
 
 
 <br><br>
@@ -206,7 +206,7 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 
 * There will be more details on the web tools available via this GUI in the `Web UI Guide`.
 
-### [Web UI Guide](docs/zebra_day_ui_guide.md)
+### [Web UI Guide](zebra_day/docs/zebra_day_ui_guide.md)
 
 
 <br><br>
