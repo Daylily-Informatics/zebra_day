@@ -1,0 +1,5 @@
+include bin/*
+include files/*
+include logs/*
+include static/*
+recursive-include etc *
