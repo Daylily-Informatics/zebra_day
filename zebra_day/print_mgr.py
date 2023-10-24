@@ -186,6 +186,7 @@ def main():
     print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...)")
     os.system('sleep 2.2')
     import zebra_day.print_mgr as zdpm
+    os.chdir(os.path.dirname(zdpm.__file__))
     zp = zdpm.zpl()
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_root)
 
