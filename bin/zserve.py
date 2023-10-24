@@ -106,7 +106,7 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def printer_status(self,lab="Daylily-Oakland"):
+    def printer_status(self,lab="scan-results"):
 
         if lab not in self.zp.printers['labs']:
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
@@ -138,12 +138,12 @@ class Zserve(object):
             try:
                 pip2 = printer_deets[pret][0]
 
-                pip2a = f"{self.zp.printers['labs'][lab][pname]['model']} / {self.zp.printers['labs'][lab][pname]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
+                pip2a = f"{self.zp.printers['labs'][lab][pret]['model']} / {self.zp.printers['labs'][lab][pret]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
-                serial = self.zp.printers['labs'][lab][pname]['serial'].replace(' ','_')
-                model = self.zp.printers['labs'][lab][pname]['model']
-                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href="_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=labware_2inX1in&uid_barcode={pip2}&alt_a={model}&alt_b={serial}&alt_c={pname}&alt_d={lab}"  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
+                serial = self.zp.printers['labs'][lab][pret]['serial'].replace(' ','_')
+                model = self.zp.printers['labs'][lab][pret]['model']
+                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href="_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=labware_2inX1in&uid_barcode={pip2}&alt_a={model}&alt_b={serial}&alt_c={pret}&alt_d={lab}"  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
             except Exception as e:
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
