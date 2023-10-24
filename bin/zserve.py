@@ -260,7 +260,7 @@ class Zserve(object):
 
 
     @cherrypy.expose
-    def _print_label(self, lab, printer, printer_ip, label_zpl_style, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
+    def _print_label(self, lab, printer, printer_ip='', label_zpl_style='', uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
         ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f)
 
         full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"

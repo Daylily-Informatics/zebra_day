@@ -307,17 +307,24 @@ _experimenting_... tiny handheld pretty well behaving non-corded scanner.
 
 # Send Zebra Label Print Requests In From Outside Your Private Network
 
-## Using NGROK 
+## Brute Force, Expose Server Publicly ( entirely, or just select ports )
+* The opportunities to mess this up are many.  There are convenient, and much much safer ways to access your new service.  See below. If you do decide to take this route, please talk to a networking & security expert at some point.
 
-Create a tunnel to connect to the zebra_day service running on port 8118.
+## Using NGROK (up and running in <5 min!)
 
-https://dashboard.ngrok.com/get-started/setup/macos
+* Create a tunnel to connect to the zebra_day service running on a machine within your network on port 8118.  This could be a cloud instance w/in a VPC you control, or a machine physically present w/in your network.
 
-__running in tmux or screen advised__
+* https://dashboard.ngrok.com/get-started/setup/macos
+
+### Install ngrok
 
 ```bash
 brew install ngrok/ngrok/ngrok
-ngrok config add-authtoken MYTOKEN
+ngrok config add-authtoken MYTOKEN  # you get this once registered (its free!)
+```
+
+### Running ngrok
+```bash
 ngrok http 8118
 ```
 
@@ -356,7 +363,87 @@ GET /favicon.ico               200 OK        ~
 And looks like:
 <img src=imgs/ngrok.png>
 
+* If you leave the ngrok tunnel running, go to a different network, you can use the link named in the `Forwarding` row above to access the zebra_day UI, in the above example, this url would be `https://dfbf-23-93-175-197.ngrok-free.app`.
+
+#### Sending Label Print Requests
+##### from a web browser on a different network
+
+`https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in`
+
+##### Using wget from a shell on a machine outside your local network
+```bash
+wget "https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in"
+```
+##### From SalesForce
+ * There are several ways to do this, but they all boil down to somehow formulating a URL for each print request, ie: `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&lab=scan-results&printer=192.168.1.20&label_zpl_style=tube_2inX1in`, and hitting the URL via Apex, Flow, etc.
+   * To send a print request, you will need to know the API url, and the `lab`, `printer_name`, and `label_zpl_style` you wish to print the salesforce `Name` aka `UID` as a label.  This example explains how to pass just one variable to print from salesforce, adding additional metadata to print involves adding additional params to the url being constructed.
+   
+###### Print Upon Object Creation (Apex Class + Flow)
+
+> The following is a very quick prof of concept that this kind of interaction will work with Salesforce.  I fully expect there are more robust ways to reach this goal.
+
+Create an Apex class to handle sending HTTP requests.
+* Setup->Apex Classes, create new Apex Class, save the following as the Apex Class:
+```java
+public class HttpRequestFlowAction {
+
+    public class RequestInput {
+        @InvocableVariable(label='Endpoint URL' required=true)
+        public String url;
+        
+        // Add other variables as needed, e.g. headers, body, method, etc.
+    }
+    
+    @InvocableMethod(label='Make HTTP Request' description='Makes an HTTP request from a Flow.')
+    public static List<String> makeHttpRequest(List<RequestInput> requests) {
+        List<String> responses = new List<String>();
+        
+        for(RequestInput req : requests) {
+            Http http = new Http();
+            HttpRequest request = new HttpRequest();
+            request.setEndpoint(req.url);
+            request.setMethod('GET');  // Change method as needed: POST, PUT, etc.
+            
+            // Add headers, body, etc. if needed.
+            
+            HttpResponse response = http.send(request);
+            responses.add(response.getBody());
+        }
+        
+        return responses;
+    }
+}
+```
+* click save, the apex class is now ready.  Check the security settings and verify the profile associated with your user has access to see/use this class.
+
+Next, create a flow which uses this Apex Class.
+
+* setup->Flow & click `New Flow`.  I remained in the `Auto Layout` view.
+* Choose `Record-Triggered Flow`
+* Select the object type the flow will be triggered when an instance of this object type is created.
+* Select 'A record is created` as the trigger.
+* Set Entry Conditions (this might be unecessary), `Any Condition Is Met`, Field `Name`, Operator `Starts with`, Value `X`(X being the first letter of the Name field UID salesforce creates for this object.  Again, this is probably not needed, but I have not gone back to try w/out this step).
+* Choose `Actions and Related Records`, and check the box at the bottom of the page to `Include a Run Asynchronously path...`
+  * upon clicking this box, the graphic representation of the flow to the left of the page will now have 2 branches at the bottom of the flow rule, one `Run Immediately` and one `Run Asynchronously`.  The `Run Immediately` branch was throwing errors, so I removed it to debug at a latter date.
+  * Click the node just below the `Run Asynch` oval. Add an `Action`. Select the `Make HTTP Request` we created via the Apex Class above.  Give it a `Label`, let the API Name auto generate.
+  * In the `Endpoint URL` field, enter the url `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode={!$Record.Name}&lab=scan-results&printer=!!YOURPRINTERIP!!&label_zpl_style=tube_2inX1in`, where Record.Name will be replaced with the Object.Name from the object triggering the flow.  Replace !!YOURPRINTERIP!! with one of the printer IPs zebra_day detected above.  If you are using the auto-generated zebra printers config json file, you may leave `scan-results` as the value for `lab=` as this will be the default name given when zebra_day autodetects printers.
+  * add the same HTTPrequest action to the node just below `Run Immediately`.
+  * click `Save` in the upper right corner of the page. Give it a name
+  * Click `Debug Again`, run the `Run Immediately` branch first. This will fail.
+  * You need to whitelist the URL used by Apex in this flow with Salesforce.  To do this: Setup->Remote Site Settings, click `New Remote Site`.  Give it a name, and enter your ngrok URL up to the `.app`, so: `https://dfbf-23-93-175-197.ngrok-free.app`. Click the `active` checkbox and then save.
+  * CLick `Debug Again`, run the `Asyncronous` branch, this should succeed.
+  * Click `Save As`, new version.
+  * Click `Activate`
+  * Go create one of the objects you made this flow for. This will fail!
+  * Go back to your flow, click `edit flow`, switch from `Auto Layout` to `Freeform` view.
+  * Click the connector labeled `Run Immediately`, delete it (leave the Async branch intact)
+  * Click `Save As`, new version.
+  * Click `Activate`
+  * Go create a new object of the type this trigger is built to respond to... it should print, and should do so each time a new object is created.
+* This toy example is intended to demonstrate this can work. Next, you should determine how you'd like to send print requests that best suits your needs.
+  
+###### Create a Formula Text Field For Objects
+You can construct the print URL in the formula, and this formula field can be presented on the object salesforce page.  If the user clicks the URL on the page, a print request is sent containing the data inserted by the formula for the current object.
 
 
-
-## AWS
+## AWS (eventually)
