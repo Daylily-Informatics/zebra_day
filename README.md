@@ -37,7 +37,7 @@
 <ul>
 <ul>
   
-> <img src=imgs/UBC_gantt_chart.png height=200 width=450>
+> <img src=zebra_day/imgs/UBC_gantt_chart.png height=200 width=450>
 
 </ul>
 </ul>
@@ -78,7 +78,7 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 
 </ul>
 
-<img src=imgs/bar_purp3.png>
+<img src=zebra_day/imgs/bar_purp3.png>
 
 # USAGE
 
@@ -129,7 +129,7 @@ The Application mounted at '' has an empty config.
 
 #### zebra_day Web GUI Launched From `zday_quickstart`
 
-> The `zebra_day` web gui will look like this:  <img src=imgs/zday_quick_gui.png>
+> The `zebra_day` web gui will look like this:  <img src=zebra_day/imgs/zday_quick_gui.png>
 
 
 ## Hardware Config
@@ -165,7 +165,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 ```
 
 * This will produce a label which looks like this (modulo printer config items needing attention).
-  ![test_lab](imgs/quick_start_test_label2.png)
+  ![test_lab](zebra_day/imgs/quick_start_test_label2.png)
 
 
 ### [Programatic Guide](docs/programatic_guide.md)
@@ -212,7 +212,7 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 <br><br>
 
 </ul>
-<img src=imgs/bar_red.png>
+<img src=zebra_day/imgs/bar_red.png>
 
 # Other Topics
 
@@ -365,7 +365,7 @@ GET /favicon.ico               200 OK        ~
 </pre>
 
 And looks like:
-<img src=imgs/ngrok.png>
+<img src=zebra_day/imgs/ngrok.png>
 
 * If you leave the ngrok tunnel running, go to a different network, you can use the link named in the `Forwarding` row above to access the zebra_day UI, in the above example, this url would be `https://dfbf-23-93-175-197.ngrok-free.app`.
 
