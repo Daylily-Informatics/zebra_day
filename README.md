@@ -50,10 +50,12 @@
     mamba create -n ZDAY -c conda-forge python==3.10 pip ipython
     ```
 
-### Install From PIP
+### Install From PIP 
 you can pip install `zebra_day` to any python environment running 3.10.*, which for purely programatic use is unlikely to be a problem.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:
 
-* COMING SOON... but should soon be `pip install zebra_day`
+```bash
+pip install zebra_day
+```
 
 
 ### Install From Source
@@ -81,7 +83,52 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 # USAGE
 
 <ul>
-  
+
+## QUICKEST START
+* zebra printers -> power on and connect via cable or wifi to the same network the machine you installed `zebra_day` is on.
+* activate the environment you have `zebra_day` installed into.
+* run `zday_quickstart`, which will detect you IP address, scan the detected network for zebra printers, build a printer fleet config for printers detected, and launch the `zebra_day` web gui (the IP:port will be printed for you if the launch succeeds, open the IP:port in a web browser with visibility to the IP).
+
+### Example Output From `zday_quickstart`
+<pre>
+ev/null
+
+IP detected: 192.168.1.12 ... using IP root: 192.168.1
+
+ ..... now scanning for zebra printers on this network (which may take a few minutes...
+
+Zebra Printer Scan Complete.  Results:{'labs': {'scan-results': {'Download-Label-png': {'ip_address': 'dl_png', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'generate png', 'model': 'na', 'serial': 'na'}, '192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['blank_0inX0in', 'test_2inX1in', 'tube_2inX1in', 'plate_1inX0.25in', 'tube_2inX0.3in'], 'print_method': 'unk', 'model': 'ZTC GX420d', 'serial': 'ZBR7563510 '}}}}
+
+Now starting zebra_day web GUI
+
+
+     	       **** THE ZDAY WEB GUI WILL BE ACCESSIBLE VIA THE URL: 192.168.1.12:8118
+
+               The zday web server will continue running, and not return this shell to a command prompt until it is shut down
+
+               .... you may shut down this web service by hitting ctrl+c.
+
+
+(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null
+[24/Oct/2023:00:45:51] ENGINE Listening for SIGTERM.
+[24/Oct/2023:00:45:51] ENGINE Listening for SIGHUP.
+[24/Oct/2023:00:45:51] ENGINE Listening for SIGUSR1.
+[24/Oct/2023:00:45:51] ENGINE Bus STARTING
+CherryPy Checker:
+The Application mounted at '' has an empty config.
+
+[24/Oct/2023:00:45:51] ENGINE Started monitor thread 'Autoreloader'.
+[24/Oct/2023:00:45:51] ENGINE Serving on http://0.0.0.0:8118
+[24/Oct/2023:00:45:51] ENGINE Bus STARTED
+</pre>
+
+  > If `zday_quickstart` ends with `ENGINE Bus STARTED` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
+
+#### zebra_day Web GUI Launched From `zday_quickstart`
+
+> The `zebra_day` web gui will look like this:  <img src=imgs/zday_quick_gui.png>
+
+
 ## Hardware Config
 ### Quick
 * Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.

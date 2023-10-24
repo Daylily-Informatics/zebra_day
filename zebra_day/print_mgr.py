@@ -174,23 +174,23 @@ def main():
 )?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
     print(ipcmd)
     ip = os.popen(ipcmd).readline().rstrip()
-    ip_root = ".".join(self.ip.split('.')[:-1])
+    ip_root = ".".join(ip.split('.')[:-1])
     
-    print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...")
+    print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...)")
     os.system('sleep 2.2')
     import zebra_day.print_mgr as zdpm
     zp = zdpm.zpl()
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_root)
 
-    print(f"\nZebra Printer Scan Complete.  Results:" + str(zp.printers()) + "\n\n")
-    print(f'\nNow starting zebra_day web GUI\n\n\n\tTHIS WILL BE ACCESSIBLE VIA THE URL: {ip}:8118 \n\n\n.... you may stop this web service by hitting ctrl+c.  For more information about running this service in a fashion amendable for production use, please see the README.\n\n')
+    print(f"\nZebra Printer Scan Complete.  Results:" + str(zp.printers) + "\n\n")
+    print(f'\nNow starting zebra_day web GUI\n\n\n\t\t\t**** THE ZDAY WEB GUI WILL BE ACCESSIBLE VIA THE URL: {ip}:8118 \n\n\n\tThe zday web server will continue running, and not return this shell to a command prompt until it is shut down\n\t.... you may shut down this web service by hitting ctrl+c.\n\n')
     os.system('sleep 1.3')
 
     os.system('python bin/zserve.py')
 
-    
-    
+    print('\n\n\n ** EXITING ZDAY QUICKSTART **\n\n\t\tif the zday web gui did not run ( if you immediately got the command prompt back, it did not run ), check and see if there is a service already running at {ip}:8118 . Otherwise, check out the zday cherrypy STDOUT emitted just above what you are reading now.  Cut&Paste that into chatgpt and see if a solution is presented!')
 
+    print('fin')
     
     
 if __name__ == "__main__":
