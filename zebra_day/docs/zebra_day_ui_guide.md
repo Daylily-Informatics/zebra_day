@@ -1,6 +1,6 @@
-# zebra_day UI Guide
+# ZDAY UI GUIDE
 
-## ZDAY UI PAGES
+## ALL PAGES
 * everything which can be accomplished via this UI can also be acheived with the library code directly (more so in fact)
   
 ### Home, 4 Primary Tool Clusters Available
