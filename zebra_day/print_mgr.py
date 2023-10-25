@@ -32,16 +32,19 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
         # Close the socket connection
         sock.close()
 
+# Due to some bizarre packaging thing I havent been able to puzzle out, when pip installed from pypy, included files are not found and you need to fetch this objec via:
+## import zebra_day.print_mgr as zdpm
+## z=zdpm.zplo()
 
 class zpl:
 
-    def __init__(self, debug=0):
-        self.load_printer_json()
+    def __init__(self, debug=0,json_config='zebra_day/etc/printer_config.json'):
+        self.load_printer_json(json_config)
         self.debug = False if debug in [0,'0'] else True
 
 
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
-        
+
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
@@ -56,7 +59,7 @@ class zpl:
                 ip = sl[1]
                 model = sl[2]
                 serial = sl[3]
-                status = sl[4]                
+                status = sl[4]
                 if ip not in self.printers['labs'][lab]:
                     self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial}  # The label formats set here are the installed defaults
 
@@ -69,12 +72,12 @@ class zpl:
         bkup_pconfig_fn = f"zebra_day/etc/old_printer_config/{rec_date}_printer_config.json"
 
         os.system(f"cp {json_filename} {bkup_pconfig_fn}")
-        
+
         with open(json_filename, 'w') as json_file:
             json.dump(self.printers, json_file, indent=4)
         self.load_printer_json(json_filename)
-        
-            
+
+
     def load_printer_json(self, json_file="zebra_day/etc/printer_config.json"):
         if not os.path.exists(json_file):
             os.system("""echo '{ "labs" : {} }' >>""" + json_file)
@@ -82,14 +85,14 @@ class zpl:
         self.printers_filename = json_file
         self.printers = json.load(fh)
 
-        
+
     def clear_printers_json(self, json_file="zebra_day/etc/printer_config.json"):
         os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
         fh = open(json_file)
         self.printers_filename = json_file
         self.printers = json.load(fh)
-        
-        
+
+
     def replace_printer_json_from_template(self):
         os.system('cp zebra_day/etc/printer_config.template.json zebra_day/etc/printer_config.json')
 
@@ -104,7 +107,7 @@ class zpl:
         result = list(unique_labels)
         return result
 
-    
+
     def formulate_zpl(self,uid_barcode=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
 
         zpl_file = f"zebra_day/etc/label_styles/{label_zpl_style}.zpl"
@@ -119,21 +122,21 @@ class zpl:
 
         return zpl_string
 
-    
+
     def generate_label_png(self,zpl_string=None, png_fn=None):
 
         if zpl_string in [None] or png_fn in [None]:
             raise Exception('ERROR: zpl_string and png_fn may not be None.')
-        
-        # Labelary API URL                                                                                          
+
+        # Labelary API URL
         labelary_url = "http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/"
 
-        # Create a POST request to the Labelary API                                                                 
+        # Create a POST request to the Labelary API
         response = requests.post(labelary_url, data=zpl_string)
 
-        # Check if the request was successful                                                                       
+        # Check if the request was successful
         if response.status_code == 200:
-            # Save the image to a file                                                                              
+            # Save the image to a file
             with open(png_fn, "wb") as f:
                 f.write(response.content)
                 print(f"Image saved as {png_fn}")
@@ -141,12 +144,12 @@ class zpl:
             print(f"Failed to convert ZPL to image. Status code: {response.status_code}")
 
         return png_fn
-    
-            
+
+
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
         print_n = int(print_n)
-        
+
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
@@ -157,24 +160,36 @@ class zpl:
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
         os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}' >> zebra_day/logs/print_requests.log")
-        
+
         ret_s = None
         if printer_ip in ['dl_png']:
             png_fn = f"zebra_day/files/zpl_label_{label_zpl_style}_{rec_date}.png"
             ret_s = self.generate_label_png(zpl_string, png_fn)
-            
+
         else:
             pn = 1
             while pn <= print_n:
                 send_zpl_code(zpl_string, printer_ip)
                 pn += 1
-                
+
             ret_s = zpl_string
-            
+
         if self.debug:
             print(f"\nZPL STRING  :: {zpl_string}\n")
 
         return ret_s
+
+
+# Due to some bizarre packaging thing I havent been able to puzzle out, when pip installed from pypy, included files are not found and you need to fetch this objec via:
+## import zebra_day.print_mgr as zdpm
+## z=zdpm.zplo()
+def zplo():
+    import zebra_day.print_mgr as zdpm
+    os.chdir(os.path.dirname(zdpm.__file__))
+    os.chdir('..')
+    zp = zdpm.zpl()
+    return zp
+
 
 def main():
     ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:\
@@ -182,7 +197,7 @@ def main():
     print(ipcmd)
     ip = os.popen(ipcmd).readline().rstrip()
     ip_root = ".".join(ip.split('.')[:-1])
-    
+
     print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...)")
     os.system('sleep 2.2')
     import zebra_day.print_mgr as zdpm
@@ -200,10 +215,8 @@ def main():
     print('\n\n\n ** EXITING ZDAY QUICKSTART **\n\n\t\tif the zday web gui did not run ( if you immediately got the command prompt back, it did not run ), check and see if there is a service already running at {ip}:8118 . Otherwise, check out the zday cherrypy STDOUT emitted just above what you are reading now.  Cut&Paste that into chatgpt and see if a solution is presented!')
 
     print('fin')
-    
-    
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise Exception("The first argument to this tool must be a fedex tracking number.")
 
     main()
