@@ -85,7 +85,7 @@ Rather than print a physical label, produce a `png`... this is most helpful when
 ### Printer json
 This is the file which describes the printer fleet. It may be manually edited or edited via the GUI.
 
-<pre>
+```json
   {
     "labs": {
         "scan-results": {
@@ -97,11 +97,12 @@ This is the file which describes the printer fleet. It may be manually edited or
                 "print_method": "generate png",
                 "model": "na",
                 "serial": "na"
-            }
-        }
-    }
-}
-</pre>
+              }
+          }
+      }
+   }
+```
+
   `labs` keys to a dict where each key can be a lab or IP block more likely, each termed a `lab` presently. The `lab` key in this example is `scan-results`, 
   this is the lab name assigned from scratch when the autodetect runs the first time. These names are editable via the GUI.
   The dictionary each lab points to have all keys being `printer_names` which then key to the printer specifics we need to know. The example here is the entry for the virtual PNG producing printer. When autodetection runs, detected printers are automatically added to the active printer.json.
