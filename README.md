@@ -1,25 +1,25 @@
 <img src=zebra_day/imgs/bar_red.png>
 
 ## zebra_day Overview [v0.0.32 -- PreRelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.0.32)
-<ul><ul><ul><ul><ul>
-    <table border="1" style="border-collapse: collapse; border-color: yellow;">
-    <tr style="background-color: gray;">
-        <td style="border-color: yellow; padding: 5px;">auto discovery of networked printers</td>
-        <td style="border-color: yellow; padding: 5px;">UI configurable printer fleet details</td>
-        <td style="border-color: yellow; padding: 5px;">ZPL template drafting via UI</td>
+<ul><ul><ul><ul>
+    <table border="1" >
+    <tr >
+        <td > * auto discovery * of networked printers</td>
+        <td> ui configurable printer fleet details</td>
+        <td >zpl template drafting & live ui preview </td>
     </tr>
-    <tr style="background-color: gray;">
-        <td style="border-color: yellow; padding: 5px;">monitor printer fleet status in one dashboard</td>
-        <td style="border-color: yellow; padding: 5px;">simple and powerful python package offers ability to include barcode label printing in other s/w systems</td>
-        <td style="border-color: yellow; padding: 5px;">fast and straight forward deployment and maintaince</td>
+    <tr >
+        <td>monitor printer fleet status in one dashboard</td>
+        <td >simple and powerful python package offers ability to include barcode label printing in other s/w systems</td>
+        <td>fast and straight forward deployment and maintaince</td>
     </tr>
-    <tr style="background-color: gray;">
-        <td style="border-color: yellow; padding: 5px;">directly access each printers admin console</td>
-        <td style="border-color: yellow; padding: 5px;">Integrate with other systems (Salesforce, AWS, ...)</td>
-        <td style="border-color: yellow; padding: 5px;">this s/w is FREE! (commercial alternatives are quite expensive, and often offer less)</td>
+    <tr >
+        <td >directly access each printers admin console</td>
+        <td >integrate with other systems (Salesforce, AWS)</td>
+        <td >this s/w is * FREE! * <hr>(commercial alternatives are quite expensive, and often offer less)</td>
     </tr>
-    </table>
-</ul></ul></ul></ul></ul>
+    </table></ul>
+</ul></ul></ul></ul>
 
 
 <ul>
