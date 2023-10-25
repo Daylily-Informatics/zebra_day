@@ -112,7 +112,7 @@ These are template files for various different label styles. These may be manual
 
 * Template files are easiest to design via the UI. The ZPL format is very old school word processor vibes.
 
-  <pre>
+```text
 ^XA
 ^FO200,20
 ^BY1
@@ -128,7 +128,7 @@ These are template files for various different label styles. These may be manual
 ^ADN,40,26
 ^FD{alt_b}^FS
 ^XZ    
-  </pre>
+```
 
 * The `{}` format keys match those from above in the zpl string formulation call.
 * [ZPL docs](https://labelary.com/zpl.html)
