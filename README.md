@@ -160,7 +160,23 @@ The Application mounted at '' has an empty config.
 
 #### zebra_day Web GUI Launched From `zday_quickstart`
 
-> The `zebra_day` web gui will look like this:  <img src=zebra_day/imgs/zday_quick_gui.png>
+##### Home Page 
+ <img src=zebra_day/imgs/zday_quick_gui.png>
+
+##### Zebra Fleet Auto Discovery & Status Report
+
+##### Zebra Printer Fleet Config Json Editing
+<img width="472" alt="pconfjson" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/0813cb07-4c5a-4cc9-9b33-d00e8424385e">
+  One printer configured.
+
+
+##### ZPL Template Drafting / Preview PNG / Test Print / Save 
+<img width="953" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
+
+
+##### Manual Print Requests
+<img width="895" alt="printmanual" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/72442f68-984f-4264-93ec-9878372d26f2">
+
 
 <br><br>
   
