@@ -15,6 +15,7 @@ echo 'load a fresh env'  # sometimes a package installed with pip will not be vi
 
 zday_quickstart  # will do some network scanning for available zebra printers, and launch the web UI.
 ```
+  > <img width="512" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a">
 
 ### It Is 3+ Things
 
@@ -164,6 +165,9 @@ The Application mounted at '' has an empty config.
  <img src=zebra_day/imgs/zday_quick_gui.png>
 
 ##### Zebra Fleet Auto Discovery & Status Report
+
+<img width="1024" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a">
+
 
 ##### Zebra Printer Fleet Config Json Editing
 <img width="472" alt="pconfjson" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/0813cb07-4c5a-4cc9-9b33-d00e8424385e">
