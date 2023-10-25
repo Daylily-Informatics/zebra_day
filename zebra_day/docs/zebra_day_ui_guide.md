@@ -33,4 +33,17 @@
 
 ## Alternate ZDAY Styles
 
+<img width="779" alt="dyldog" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/1d433b45-bbd0-4ea5-95f2-e4a89cf9fa7f">
+
+<img width="774" alt="dyltron" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/de87a37b-1d51-4854-a7f6-a1381df8ce89">
+
+<img width="774" alt="oak" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/b854f474-beb8-42bc-8f10-35ea1d1cd88d">
+
+<img width="776" alt="petrichor" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a4e52aa8-ba1b-4634-a195-96302d44a1ec">
+
+<img width="778" alt="dylyel" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/651e1e47-aa1f-4f45-ac22-49764a7fda2e">
+
+<img width="778" alt="dylflr" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a628e721-26a8-44fa-91f9-71765938a8bc">
+
+<img width="778" alt="dyltri" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/af52353d-b188-439c-afaa-ae47cca61399">
 
