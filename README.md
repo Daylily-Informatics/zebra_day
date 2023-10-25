@@ -1,31 +1,36 @@
 <img src=zebra_day/imgs/bar_red.png>
 
 ## zebra_day Overview [v0.0.32 -- PreRelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.0.32)
-<ul><ul><ul><ul>
-    <table border="1" >
-    <tr >
-        <td > * auto discovery * of networked printers</td>
-        <td> ui configurable printer fleet details</td>
-        <td >zpl template drafting & live ui preview </td>
-    </tr>
-    <tr >
-        <td>monitor printer fleet status in one dashboard</td>
-        <td >simple and powerful python package offers ability to include barcode label printing in other s/w systems</td>
-        <td>fast and straight forward deployment and maintaince</td>
-    </tr>
-    <tr >
-        <td >directly access each printers admin console</td>
-        <td >integrate with other systems (Salesforce, AWS)</td>
-        <td >this s/w is * FREE! * <hr>(commercial alternatives are quite expensive, and often offer less)</td>
-    </tr>
-    </table></ul>
-</ul></ul></ul></ul>
-
 
 <ul>
+    
+<table border="1" >
+<tr >
+<td > * auto discovery * of networked printers</td>
+<td> ui configurable printer fleet details</td>
+<td >zpl template drafting & live ui preview </td>
+</tr>
+<tr >
+<td>monitor printer fleet status in one dashboard</td>
+<td >simple and powerful python package offers ability to include barcode label printing in other s/w systems</td>
+<td>fast and straight forward deployment and maintaince</td>
+</tr>
+<tr >
+<td >directly access each printers admin console</td>
+<td >integrate with other systems (Salesforce, AWS)</td>
+<td >this s/w is * FREE! * <hr>(commercial alternatives are quite expensive, and often offer less)</td>
+</tr>
+</table>
+</ul>
+
+
+<hr>
 
 #### For The Impatient
+
+<ul>
 * Verify there are zebra printers connected & powered up to the same network that the PC you are installing this s/w to is connected.
+    
 ```bash
 python --version  # should be 3.10*  # advisable to run in some kind of venv
 
@@ -34,6 +39,7 @@ pip install zebra_day
 echo 'load a fresh env'  # sometimes a package installed with pip will not be visible until the env refreshes.
 
 zday_quickstart  # will do some network scanning for available zebra printers, and launch the web UI.
+
 ```
 <ul>
   <a href=zebra_day/docs/zebra_day_ui_guide.md ><hr></a>
