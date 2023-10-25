@@ -15,8 +15,14 @@ echo 'load a fresh env'  # sometimes a package installed with pip will not be vi
 
 zday_quickstart  # will do some network scanning for available zebra printers, and launch the web UI.
 ```
-  > <img width="400" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a"> <img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
+<ul>
+  <a href=zebra_day/docs/zebra_day_ui_guide.md ><hr></a>
+  
+  > <a href=zebra_day/docs/zebra_day_ui_guide.md >ui capabilities full details</a>
+  
+  >  <img width="400" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a"> <img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
 
+</ul>
 ### It Is 3+ Things
 
   (1) Zebra Printer Management & Configuration
