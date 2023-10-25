@@ -1,5 +1,5 @@
-recursive-include bin *
-recursive-include files *
-recursive-include logs *
-recursive-include static *
-recursive-include etc *
+recursive-include zebra_day/bin *
+recursive-include zebra_day/files *
+recursive-include zebra_day/logs *
+recursive-include zebra_day/static *
+recursive-include zebra_day/etc *
