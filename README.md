@@ -98,13 +98,11 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE.tar.gz
 * Connect all zebra printers to the same network as the machine you'll be running `zebra_day` is connected to. Load labels, power on printers , confirm status lights are green, etc.
 
 ### [Hardware Guide](zebra_day/docs/hardware_config_guide.md)
-  * Info on hardware and consumables known to work with `zebra_day`. 
+  * Info on hardware and consumables known to work with `zebra_day`.  User guides, notes, part#s and costs for:
       * Printers
       * Label Stock
       * Barcode Scanners
-   > part # info
-   > costs
-   > user guides
+
 
 <br><br>
 
