@@ -3,6 +3,17 @@
 ## zebra_day Overview [v0.0.26 - very beta](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.0.26)
 <ul>
 
+#### For The Impatient
+* Verify there are zebra printers connected & powered up to the same network that the PC you are installing this s/w to is connected.
+```bash
+python --version  # should be 3.10*  # advisable to run in some kind of venv
+
+pip install zebra_day
+
+echo 'load a fresh env'  # sometimes a package installed with pip will not be visible until the env refreshes.
+
+zday_quickstart  # will do some network scanning for available zebra printers, and launch the web UI.
+```
 
 ### It Is 3+ Things
 
@@ -29,7 +40,7 @@
 
 <ul>
   
-### Managed :: Daylily Orchestrated Build and Deploy ( deliverable in a month, given minimal externally driven delays)
+### Facilitated :: Daylily Orchestrated Build and Deploy ( deliverable in ~1month )
 * [Daylily is available to lead or contribute to the building and deployment of universal barcoding systems to your organizations operations](https://www.linkedin.com/in/john--major/). Daylily offers expertise with the entire process from evaluating existing operations systems, proposing integration options, securing all hardware, deploying hardware and software, and importantly: connecting newly deployed barcoding services to other LIS systems.
 
 #### Universal Barcoding Capability Project Timing Estimates
@@ -43,7 +54,7 @@
 </ul>
 
 ### Requirements
-* Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem). Windows would be a rather large hassle, though presumably possible (not advised).
+* Tested and runs on MAC and Ubuntu (but other flavors of Linux should be no problem). Windows would be a rather large hassle, though presumably possible.
 * [conda](https://conda.io/projects/conda/en/latest/user-guide/install/index.html#regular-installation) and [mamba](https://anaconda.org/conda-forge/mamba) installed. This is not, in fact, a blocking requirement, but other env setups have not been tested yet.  __for MAC users, it may be advisable to install conda with homebrew__.
   * create conda environment `ZDAY`, which will be used to run the UI
     ```bash
@@ -51,11 +62,12 @@
     ```
 
 ### Install From PIP 
-you can pip install `zebra_day` to any python environment running 3.10.*, which for purely programatic use is unlikely to be a problem.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:
+you can pip install `zebra_day` to any python environment running 3.10.*.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:
 
 ```bash
 pip install zebra_day
 ```
+* reload your environment/shell.
 
 
 ### Install From Source
@@ -69,12 +81,23 @@ git clone git@github.com:Daylily-Informatics/zebra_day.git
 cd zebra_day
 conda activate ZDAY  # ZDAY was built with mamba earlier
 python setup.py sdist
-pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
+pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE.tar.gz
 ```
 
 * `zebra_day` is now installed in your current python environment.
+* reload your environment/shell.
 
 <br><br><br>
+
+</ul>
+
+
+## Hardware Config
+### Quick
+* Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printerson, confirm status lights are green.
+
+### [Hardware Config Guide](zebra_day/docs/hardware_config_guide.md)
+<br><br>
 
 </ul>
 
@@ -84,9 +107,10 @@ pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE
 
 <ul>
 
-## QUICKEST START
+## QUICKSTART
 * zebra printers -> power on and connect via cable or wifi to the same network the machine you installed `zebra_day` is on.
 * activate the environment you have `zebra_day` installed into.
+* If you have just pip installed `zebra_day` in the shell you are in, start a new shell.
 * run `zday_quickstart`, which will detect you IP address, scan the detected network for zebra printers, build a printer fleet config for printers detected, and launch the `zebra_day` web gui (the IP:port will be printed for you if the launch succeeds, open the IP:port in a web browser with visibility to the IP).
 
 ### Example Output From `zday_quickstart`
@@ -131,26 +155,21 @@ The Application mounted at '' has an empty config.
 
 > The `zebra_day` web gui will look like this:  <img src=zebra_day/imgs/zday_quick_gui.png>
 
-
-## Hardware Config
-### Quick
-* Connect all zebra printers to the same network the machine you'll be running `zebra_day` is connected to. Load labels, power printers on, confirm status lights are green.
-
-### [Hardware Config Guide](zebra_day/docs/hardware_config_guide.md)
-
 <br><br>
   
 
 ## Programatic
 ### Quick
+Open an ipython shell.
 
-Open an ipython shell
 ```python
 import zebra_day.print_mgr as zdpm
 
-zlab = zdpm.zpl()
+zlab = zdpm.zplo()  ## !!! NOTE (see note below) NOTE !!!
+## !!! NOTE !!! due to something I have not yet sorted out with my pypy packaging, instantiating the print_mgr.zpl() class directly does not allow the class to see its package data files.  This hack solves the problem and returns you the same behaving object.
 
-zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.
+
+zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
 print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'scan-results', this may be edited latter.
 # The json will loook something like this
@@ -178,7 +197,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 ## Web UI
 
 ### Quick Start
-* Start the `zebra_day` service.
+* Start the `zebra_day` service.  The current network security for this service is minimal, as such, running this so it is fully visible to the public internet is no advised. Within a local network, or on a well configured AWS(etc) host is fine.
 
 ```bash
 # consider running this via tmux or screen
@@ -201,7 +220,7 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 _or_ with the unused (in this ZPL template!) fields removed, this URL
 
 ```http
-http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
 ```
 
 * There will be more details on the web tools available via this GUI in the `Web UI Guide`.
@@ -217,41 +236,53 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 # Other Topics
 
 ## Security
-* There is no need to route print requests outside the immediate network all of the local printers reside in.
-* This package only manages the mechanics of printing data to zebra printers, and some amount of printer and label format management. WHAT you print, will likely involve a UID issuing authority, which will need to be able to send print jobs to the API server, or if using the zebra_day package directly in python, should be able to see the label printing network(s).
-* No Cloud traversal is needed (or encouraged in this case).
+### Secrets
+No credentials of any kind are stored or used by `zebra_day`. It solely offers zebra printer management and label print request formatting and brokering services.  It does not need to know how to connect to other systems, other systems will use the library code provided here, or the http api.
+
+### Host and Network Security
+In it's present state, `zebra_day` is safe to run on a machine located in a properly configured & secure local network or cloud hosted instance residing in a secure VPN/VPC.
+  * `zebra_day` should not be deployed in such a way the host is fully visible to the public internet.
+    * a potential exception would be exposing the service via an encryped and secure open port. __POC demonstrating this concept can be found below__.
+    
+### Programatic Use Of `zebra_day` Package/Library
+Using the python library in other python code poses no particularly unique new risk. `zebra_day` may be treated similarly to how other third party tools are handled in each users organization.
+
+## Regulatory & Compliance
+### HIPAA / CAP / CLIA
+No PHI is needed by `zebra_day` to function.  PHI may be sent in print rquests, each organization will have their own use cases. `zebra_day` does not store any of the print request metadata sent to it, the info is redirected to the appropriate zebra printer, and that is that.  It is straightforward when setting up the host machine/environment this package will be running in to check off the various HIPAA and CAP/CLIA expectations where they apply.
+
 
 ## Hardware
 
 ### Zebra Printers
-* Printers will need to be able to secure an IP address either via a wired connection or via wireless.  The printers will need to be visible to the machine running this package to accept print requests. Further, there are rudimentary tools for automatically detecting Zebra printers already on the network and assigned IPs.  These tools can only scan (i think...) the IP root it is assigned itself.  Configuring VPNs and so on are outside the scope of this document.
-  * Network attached printers should be able to run w/out any connection to a PC/laptop. This affors much greater flexibility in placing print stations.
-* This code will not be able to see, or interact with, zebra printers only connected to a specific machine via USB.
+* Printers will need to be able to secure an IP address either via a wired connection or via wireless.  The printers will need to be visible to the machine running this package in order to accept print requests. Further, there are tools to scan the local network and identify Zebra Printers. Identified printers are automatically configured for use by `zebra_day`.
+
+  * Network attached printers should be able to run w/out any connection to a PC/laptop. This affors much greater flexibility in placing print stations. In fact, `zebra_day` does not communicate with USB only printers.
 * The below zebra printer models have been tested, but any zebra printer able to obtain an IP address and accept `ZPL` should also work.
-* _IMPORTANT_, I have not fleshed out a section on how to configure the zebra printers onboard setting when first setting them up.
-  * Each printer has a web admin interface you can reach by pointing a web browser to it's IP address. The zebra_day simple tools UI has a page which will detect and then list all zebra printers it sees.  Links are presented to bring you to these admin pages.  _please see the zebra docs before messing with these too much_.
-    * To change settings, if prompted for a un/pw, they will all be: `admin` and `1234`.
-  * The first thing I suggest when setting up a new printer is resetting the factory defaults - doable via the zebra printer admin UIs.
-  * Wired ethernet connections are advised for greater robustness.  Configure the wired network settings to obtain an IP automatically.  _I SUGGEST_ asking your network admins to set DNS rules which will assign the same IP to each printer.  You'll need to supply the printer MAC address to do this.
+* _IMPORTANT_, The initial configuration of zebra printers can be a little gnarly. I intend to add some notes on this topic soon. In the mean time, the GUI printer status report includes links to access the web server admin utility each zebra printer exposes.
+  * the printer admin UIs all use the default un/pw: `admin/1234`.
+    * The first thing I suggest when setting up a new printer is resetting the factory defaults - doable via the zebra printer admin UIs.
+  * Wired ethernet connections are advised for greater robustness.  Configure the wired network settings to obtain an IP automatically.  ask your network admins to set DNS rules which will assign the same IP to each printer.  You'll need to supply the printer MAC address to do this, which you can find on via each printers admin UI.
+    * __NOTE__ Sometimes these printers can not seem to obtain an IP with DHCP, this could be a router/hub issue, but sometimes you'll need to set the printer to a static IP.  This can be done via the printer admin UI. If the network config is saved with an error, you'll now need to connect to the printer via USB to reset (there might be a button seuquece cycle which can be hit to factory reset...).
     * Wireless setup is _SUPER_ fussy. You'll need to know precisely what bands your router is running on, and the precise auth used. This can be done via the zebra printer admin UI, or when connected via a USB cable to a computer running a driver config program(not advised really).
-  * The Zebra Printer admin pages will report the MAC for the printer.
   * Next, you may have to mess around with calibration settings for label width and length.
-  * I have used this driver/config tool on a MAC when I have needed to connect to a printer via `USB`, [Peninsula Zebra Printer Driver](https://www.peninsula-group.com/install-zebra-printer-mac-osx/install-zebra-printer-mac-osx.html).
-  * More to come... I'll add screenshots of config for the few models I have tested at some point.
+  * I have used this driver/config tool on a MAC when I have needed to connect to a printer via `USB`, [Peninsula Zebra Printer Driver](https://www.peninsula-group.com/install-zebra-printer-mac-osx/install-zebra-printer-mac-osx.html). I'm fairly sure there are several windows options.
 
 
 #### GX420d - wired, no LCD screen
+
 These printers are NOT reccomended b/c the lack of LCD screen makes them a pain to configure.  You will probably need to connect via USB to set good initial settings.  If you have the `zebra_day` UI running, try connecting the printer to the network and powering on, then run the zebra printer network scan.  If the printer is discovered, you're in luck and can admin it via the UI on the printer.
 
 * [Available From Amazon](https://www.amazon.com/gp/product/B07KCQ67Y1/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
 * Cost per printer : `$264.00`
-
+* [manual]()
 
 #### GX420d - wired, with LCD screen
 These are solid, but aging out and not as easy to find for sale.
 
 * [Available From Amazon](https://www.amazon.com/gp/product/B011Q95XX2/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
 * Cost per printer : `$425.00`
+* [manual]()
 
 
 #### ZD620d - wired and wireless, with color LCD screen
@@ -259,34 +290,66 @@ These are solid, but aging out and not as easy to find for sale.
 
 * [Available From Amazon](https://www.amazon.com/gp/product/B07VHDR33Z/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&psc=1)
 * Cost per printer : `$331.00`
+* [manual]()
+
+#### Zebra QLn420 Direct Thermal Printer - Monochrome - Portable 
+
+* [Amazon](https://www.amazon.com/dp/B084P4KBWS?psc=1&ref=ppx_yo2ov_dt_b_product_details)
+* Cost per printer : `$136`
+* [manual]()
+
+#### Zebra - ZD620d Direct Thermal Desktop Printer with LCD Screen - Print Width 4 in - 203 dpi - Interface: WiFi, Bluetooth, USB, Serial, Ethernet - ZD62142-D01L01EZ
+
+* [Amazon](https://www.amazon.com/dp/B07VHDR33Z?psc=1&ref=ppx_yo2ov_dt_b_product_details)
+* Cost per printer : `$331`
+* [manual]()
+
+
+#### Zebra ZD620t Thermal Transfer Desktop Printer 203 dpi Print Width 4 in Ethernet Serial USB ZD62042
+<font color=magenta>note, this is a thermal transfer printer & requires ribbons to print</font>
+* [Amazon](https://www.amazon.com/dp/B08PW6ZRL6?psc=1&ref=ppx_yo2ov_dt_b_product_details)
+* Cost per printer : `$500`
+* [manual]()
+
+### Thermal Transfer Ribbons
+Also require distinct label stock from the direct thermal transfer printer labels.
+
+* [Amazon](https://www.amazon.com/dp/B07FX3PJ2M?psc=1&ref=ppx_yo2ov_dt_b_product_details)
+* Cost per roll: `$7`
 
 
 ### Label Stock
-The label stock used to date are `direct thermal transfer`, with some speciality label stock vendors for use in more extreme conditions. The printing method used by printers that `zebra_day` can interact with has no impact on if the printer will work.  Printers using different printing methods may be mixed in the printer fleet described in the `printers.json`. It is up to you to ensure that printers using a specific method have the appropriate label stock, and ribbons if necessary.
+The `zebra_day` code can easily manage a printer fleet comprised of different printing mechanism.
 
-#### Aegis Direct Thermal Labels
+#### Direct Thermal Transfer Labels
+Require no ribbon, cheaper, can be less robust in some situations, speciality use case label stock mfgs are numerous.
+
+##### Aegis Direct Thermal Labels
 For general purpose use. Very inexpensive and easy to source.
 
-##### 2in x 1in
+###### 2in x 1in
 Good for paperwork, some larger tubes.
 
 * [Available On Amazon](https://www.amazon.com/gp/product/B01GJGC2OK/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
 * Cost per roll : `$3.21`
 
-##### 2in x 0.5in
+###### 2in x 0.5in
 Good for smaller tubes, or tubes that already have space taken up by labels.
 
 * [Available On Amazon](https://www.amazon.com/gp/product/B098Z8JYZC/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
 * Cost per roll : `$3.25`
 
-#### Labtag
+##### Labtag
 
-##### 2in x 1in
+###### 2in x 1in
 
 
-##### plate style
+###### plate style
 
-##### small tube w/dot
+###### small tube w/dot
+
+#### Thermal Transfer
+These labels requier ribons to print. Per-label are more expensive, more robust, but can be prone to smudging.
 
 
 ### Barcode Scanners
@@ -304,21 +367,18 @@ _experimenting_... tiny handheld pretty well behaving non-corded scanner.
 * Cost per Scanner : `$38.00`
 
 
+# Exploration With A Few Integration Approaches
 
-# Send Zebra Label Print Requests In From Outside Your Private Network
-> !! THE EXAMPLES BELOW WORK, BUT ARE NOT INTENDED FOR OPERATIONAL USE UNTIL SESSION AUTHENTICATION IS BUILT OUT !!
-> !!!! currently, routine use should be limited to running this service in a protected network environment !!!!
-> ...... and feel free to fork and add more robust auth.
+# Send Label Print Requests From Public Internet To Host PC w/In Your Private Network
 
+## Ditch The Private Local Network & Expose Server Publicly ( not advised )
+...
 
-## Brute Force, Expose Server Publicly ( entirely, or just select ports )
-* The opportunities to mess this up are many.  There are convenient, and much much safer ways to access your new service.  See below. If you do decide to take this route, please talk to a networking & security expert at some point.
-
-## Using NGROK (up and running in <5 min!)
+## Using NGROK To Present A Tunneled Port Connected To The `zebra_day` Host Port (up and running in <5 min!)
 
 * Create a tunnel to connect to the zebra_day service running on a machine within your network on port 8118.  This could be a cloud instance w/in a VPC you control, or a machine physically present w/in your network.
 
-* https://dashboard.ngrok.com/get-started/setup/macos
+* [NGROK DOCS]( https://dashboard.ngrok.com/get-started/setup/macos)
 
 ### Install ngrok
 
@@ -378,17 +438,21 @@ And looks like:
 ```bash
 wget "https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in"
 ```
-##### From SalesForce
+
+### From SalesForce
 
  * There are several ways to do this, but they all boil down to somehow formulating a URL for each print request, ie: `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&lab=scan-results&printer=192.168.1.20&label_zpl_style=tube_2inX1in`, and hitting the URL via Apex, Flow, etc.
    * To send a print request, you will need to know the API url, and the `lab`, `printer_name`, and `label_zpl_style` you wish to print the salesforce `Name` aka `UID` as a label.  This example explains how to pass just one variable to print from salesforce, adding additional metadata to print involves adding additional params to the url being constructed.
-   
-###### Print Upon Object Creation (Apex Class + Flow)
 
-> The following is a very quick prof of concept that this kind of interaction will work with Salesforce.  I fully expect there are more robust ways to reach this goal.
+
+#### Print Upon Object Creation (Apex Class + Flow)
+
+> The following is a very quick prof of concept to see it work(success!). I fully expect there are more robust ways to reach this goal.
 
 Create an Apex class to handle sending HTTP requests.
+
 * Setup->Apex Classes, create new Apex Class, save the following as the Apex Class:
+
 ```java
 public class HttpRequestFlowAction {
 
@@ -419,6 +483,7 @@ public class HttpRequestFlowAction {
     }
 }
 ```
+
 * click save, the apex class is now ready.  Check the security settings and verify the profile associated with your user has access to see/use this class.
 
 Next, create a flow which uses this Apex Class.
@@ -446,9 +511,26 @@ Next, create a flow which uses this Apex Class.
   * Click `Activate`
   * Go create a new object of the type this trigger is built to respond to... it should print, and should do so each time a new object is created.
 * This toy example is intended to demonstrate this can work. Next, you should determine how you'd like to send print requests that best suits your needs.
-  
+
+> This was all rather a PITA honestly.
+
 ###### Create a Formula Text Field For Objects
 You can construct the print URL in the formula, and this formula field can be presented on the object salesforce page.  If the user clicks the URL on the page, a print request is sent containing the data inserted by the formula for the current object.
 
 
-## AWS (eventually)
+## Host Machine Options
+### Machine physically connected to your local network.
+This is covered in the config and setup/install instructions above.
+
+### AWS
+#### ec2 instance
+more info coming soon.  The instructions for getting the package s/w up and running is largely the same as above. However, care must be taken when configuring the network and instances which will be used at amazon.
+
+##### From AMI?
+
+
+## Other Providers
+If it will work on AWS, it will work anyplace really.
+
+## Docker
+I'm not anti, but am not putting time towards this anytime soon.
