@@ -318,61 +318,82 @@ Also require distinct label stock from the direct thermal transfer printer label
 * Cost per roll: `$7`
 
 
-### Label Stock
-The `zebra_day` code can easily manage a printer fleet comprised of different printing mechanism.
+# Label Stock
+The `zebra_day` code can easily manage a printer fleet comprised of different printing mechanism. 
 
-#### Direct Thermal Transfer Labels
-Require no ribbon, cheaper, can be less robust in some situations, speciality use case label stock mfgs are numerous.
+> Thermal Transfer vs. Direct Thermal Transfer Labels
+  * Printers are only capable of printing using one or the other method only.
 
-##### Aegis Direct Thermal Labels
+  > Direct thermal transfer labels require no ribbon, cheaper, can be less robust in some situations, speciality use case label stock mfgs are numerous. 
+
+  > Thermal transfer labels require a ribbon, can be more durable, prone to smudging, more costly
+  
+### Aegis Labels
 For general purpose use. Very inexpensive and easy to source.
 
-###### 2in x 1in
+#### 2in x 1in - Direct TT
 Good for paperwork, some larger tubes.
 
-* [Available On Amazon](https://www.amazon.com/gp/product/B01GJGC2OK/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
+* [Amazon](https://www.amazon.com/gp/product/B098Z8JYZC/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
 * Cost per roll : `$3.21`
 
-###### 2in x 0.5in
+#### 2in x 0.5in - Direct TT
 Good for smaller tubes, or tubes that already have space taken up by labels.
 
 * [Available On Amazon](https://www.amazon.com/gp/product/B098Z8JYZC/ref=ppx_yo_dt_b_search_asin_title?ie=UTF8&th=1)
 * Cost per roll : `$3.25`
 
-##### Labtag
 
-###### 2in x 1in
+### [Labtag](http://www.labtag.com)
+
+#### 2in x 1in / a few colors / cryo - Direct TT
+
+* [LabTag](https://www.labtag.com/shop/product/cryogenic-direct-thermal-labels-2-x-1-dfp-dfpc-28-2/?attribute_pa_core-size=1&attribute_pa_qty-uom=1000&attribute_pa_color=white)
+* Cost per roll : `$81`
+
+#### 2in x 0.25in / plate style / cryo - Direct TT
+
+* [LabTag](https://www.labtag.com/shop/product/cryogenic-direct-thermal-labels-2-x-0-25-dfp-227/?attribute_pa_core-size=1&attribute_pa_qty-uom=2000)
+* Cost per roll	: `$67`
+
+#### small tube w/dot / cryo - Direct TT
+
+* [LabTag](https://www.labtag.com/shop/product/cryogenic-direct-thermal-labels-1-25-x-0-625-0-375-dfp-103/?attribute_pa_core-size=1&attribute_pa_qty-uom=2000)
+* Cost per roll	: `$105`
+
+#### 2in x 1in / cryo / many colors - Thermal Transfer
+
+* [LabTag](https://www.labtag.com/shop/product/cryogenic-barcode-labels-2-x-1-jtta-28/?attribute_pa_core-size=1&attribute_pa_qty-uom=2000&attribute_pa_color=white)
+* Cost per roll : `$117`
 
 
-###### plate style
+#### 2in x 0.25in / plate / cryo - Thermal Transfer
 
-###### small tube w/dot
-
-#### Thermal Transfer
-These labels requier ribons to print. Per-label are more expensive, more robust, but can be prone to smudging.
+* [LabTag](https://www.labtag.com/shop/product/thermal-transfer-cryogenic-labels-for-frozen-vials-surfaces-2-x-0-25-uc-227/?attribute_pa_core-size=1&attribute_pa_qty-uom=2000)
+* Cost per roll : `$80`
 
 
-### Barcode Scanners
+# Barcode Scanners
 
-#### Tera 1d, 2d, QR  scanner. Corded and bluetooth and wireless
+## Tera 1d, 2d, QR  scanner. Corded and bluetooth and wireless
 Programable and well supported/adopted.
 
 * [Available From Amazon](https://www.amazon.com/dp/B0953FJZDG?psc=1&ref=ppx_yo2ov_dt_b_product_details)
 * Cost per scanner : `$63.00`
 
-#### Tera Mini 1d 2d QR. Corded and wireless and bluetooth.
+## Tera Mini 1d 2d QR. Corded and wireless and bluetooth.
 _experimenting_... tiny handheld pretty well behaving non-corded scanner.
 
 * [Available From Amazon](https://www.amazon.com/dp/B08NDFWFKJ?psc=1&ref=ppx_yo2ov_dt_b_product_details)
 * Cost per Scanner : `$38.00`
 
 
-# Exploration With A Few Integration Approaches
+# A Few Integration Demonstrations
 
 # Send Label Print Requests From Public Internet To Host PC w/In Your Private Network
 
 ## Ditch The Private Local Network & Expose Server Publicly ( not advised )
-...
+really
 
 ## Using NGROK To Present A Tunneled Port Connected To The `zebra_day` Host Port (up and running in <5 min!)
 
