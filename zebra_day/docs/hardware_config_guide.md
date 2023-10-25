@@ -30,7 +30,6 @@ These are solid, but aging out and not as easy to find for sale.
 * Cost per printer : `$425.00`
 * [manual]()
 
-
 #### ZD620d - wired and wireless, with color LCD screen
 These are solid, but aging out and not as easy to find for sale.
 
@@ -56,6 +55,22 @@ These are solid, but aging out and not as easy to find for sale.
 * [Amazon](https://www.amazon.com/dp/B08PW6ZRL6?psc=1&ref=ppx_yo2ov_dt_b_product_details)
 * Cost per printer : `$500`
 * [manual]()
+
+### Initial Printer Configuration
+Ideally, you will be able to use `zebra_day` to auto-detect printers on your network, and connect to each ones web based admin tool (links are presented on the [printer fleet summary page](), un/pw is `admin/1234` ). Failing this, you will need to connect via usb, [there are several drivers to choose from if this is necessary, I liked this one for a MAC](https://www.peninsula-group.com/mac-thermal-printer-driver/). The main changes to make (and do so after consulting each printers manual):
+  * reset to factory defaults.
+  * set the network settings (wired and wifi) & hard code IPs if needed. It is helpful if they retain the same IP over time.
+  * Set the media type to `web`, set behavior on close and restart to be calibrate.
+  * Once you begin printing, you might find you need to adjust the print width and length for some printers if they do not set properly during calibration.
+  * Increase the darkness.
+  * Decrease print speed, `IPS` to 2 or 3.
+
+##### Reference Printer Config Reports
+* [GX420d - printer](zebra_day/imgs/gx420d_printer_config.png) .... [GX420d - network](zebra_day/imgs/gx420d_network_config.png)
+* [ZD620 - printer](zebra_day/imgs/zd620_printer_config.png) .... [ZD620 - network](zebra_day/imgs/zd620_network_config.png)
+
+
+  
 
 ### Thermal Transfer Ribbons
 Also require distinct label stock from the direct thermal transfer printer labels.
