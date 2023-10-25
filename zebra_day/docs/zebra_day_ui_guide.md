@@ -1,5 +1,6 @@
 # zebra_day UI Guide
 
+## ZDAY UI PAGES
 <img width="1016" alt="home" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8960686a-8444-4b17-8cf2-a27dfe0432eb">
 
 
@@ -7,8 +8,9 @@
 
 <img width="667" alt="editconf" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/0f6b04d7-0d98-491c-815f-ef157c6c5af8">
 <img width="999" alt="bkupconf" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/31970151-2015-40c5-a75e-8f3a694d5a78">
+<img width="834" alt="chooseZPL" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/c3a03dd6-2d04-47fc-9aa3-a3dc1c6b4677">
 
-<img width="472" alt="pconfjson" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/e8c1bbc3-c870-4427-b325-99256966dc51">
+
 
 <img width="953" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/025851d2-813e-43d7-80af-f66a71a45bf4">
 
@@ -28,4 +30,7 @@
 <img width="441" alt="z4" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/7843d86c-1a95-4bcd-b98a-b80ea6b93654">
 <img width="472" alt="z5" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/01784778-1665-46b5-8089-93db478f300e">
 <img width="484" alt="z6" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a1a55e92-5a29-4d30-89a1-baa0f4b0837f">
+
+## Alternate ZDAY Styles
+
 
