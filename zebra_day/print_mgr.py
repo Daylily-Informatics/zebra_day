@@ -104,7 +104,7 @@ class zpl:
 
     # Seems not to be working
     def replace_printer_json_from_template(self):
-        os.system(f'cp {str(files('zebra_day'))}/etc/printer_config.template.json {str(files('zebra_day'))}/etc/printer_config.json')
+        os.system(f"cp {str(files('zebra_day'))}/etc/printer_config.template.json {str(files('zebra_day'))}/etc/printer_config.json")
 
 
     def get_valid_label_styles_for_lab(self,lab=None):
