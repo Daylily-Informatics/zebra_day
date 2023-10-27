@@ -168,7 +168,7 @@ class zpl:
 
         zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
-        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}' >> zebra_day/logs/print_requests.log")
+        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}' >> {str(files('zebra_day'))}/logs/print_requests.log")
 
         ret_s = None
         if printer_ip in ['dl_png']:
@@ -189,9 +189,11 @@ class zpl:
         return ret_s
 
 
-def start_zday():
+def start_zday(pkg_root=None):
     import zebra_day.print_mgr as zdpm
-    zp = zdpm.zpl()
+
+    from zebra_day.bin import zserve
+    # zserve.Zserve(os.path.dirname(zdpm.__file__)+'/')
     os.system(f"python {str(files('zebra_day'))}/bin/zserve.py "+os.path.dirname(zdpm.__file__))
 
     

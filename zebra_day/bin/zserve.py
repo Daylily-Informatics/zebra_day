@@ -10,11 +10,11 @@ import tempfile
 
 import zebra_day.print_mgr as zdpm
 
-FILE_PREFIX = None #"" if len(sys.argv) == 1 else sys.argv[1]  # To the top dir of what would be the git top dir
+FILE_PREFIX = "" if len(sys.argv) == 1 else sys.argv[1]  # To the top dir of what would be the git top dir
 
 # os.chdir(FILE_PREFIX+'/..')
 
-FILES_DIR = None # FILE_PREFIX+"/etc/label_styles"
+FILES_DIR =  FILE_PREFIX+"/etc/label_styles"
 
 ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=somestring && python /bin/zserve.py and the index (for now) will not load unless you send along the same string with the HTTP request using the envcheck variable.  If not detected, set to skip and this is not checked.  NOTE!  This is hugely crude and something much better needs to be done before anything here is exposed routinely in the wild.  A quick improvement coming soon, session level auth and so on.
 
