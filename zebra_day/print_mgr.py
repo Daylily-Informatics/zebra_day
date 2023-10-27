@@ -91,6 +91,10 @@ class zpl:
         self.printers = json.load(fh)
 
 
+    def create_new_printers_json_with_single_test_printer(self):
+        pass
+    
+        
     def clear_printers_json(self, json_file="/etc/printer_config.json"):
         json_file = str(files('zebra_day'))+json_file
         os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
@@ -99,6 +103,7 @@ class zpl:
         self.printers = json.load(fh)
 
 
+    # Seems not to be working
     def replace_printer_json_from_template(self):
         os.system(f'cp {str(files("zebra_day"))}/etc/printer_config.template.json {str(files("zebra_day"))}/etc/printer_config.json')
 
