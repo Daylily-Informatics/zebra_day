@@ -9,7 +9,7 @@
 
 <img width="1016" alt="home" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8960686a-8444-4b17-8cf2-a27dfe0432eb">
 
-  > link to change ZDAY style can be found in the lower right of the home page
+  > the link to change ZDAY style can be found in the lower right of the home page
 
 ### Printer Fleet Status Report & Scan For New Printers Tool
 
@@ -37,7 +37,7 @@
 #### View of ZPL Preview/Editor
 > ( changes to the ZPL on this page produce a preview PNG of what the printer will print  )
 <img width="953" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/025851d2-813e-43d7-80af-f66a71a45bf4">
-  * Drafts can be saved, previewed as PNG, or sent to an available printer.
+  * Drafts can be saved, previewed as PNG, or sent to an available printer
 
 ### Form To Send Manual Formulated ZPL Print Jobs To Specific Printers
 
