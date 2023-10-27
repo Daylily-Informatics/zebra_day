@@ -4,6 +4,7 @@ import socket
 import datetime
 import json
 import requests
+from importlib.resources import files
 
 
 def get_current_date():
@@ -38,8 +39,9 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
 
 class zpl:
 
-    def __init__(self, debug=0,json_config='zebra_day/etc/printer_config.json'):
-        self.load_printer_json(json_config)
+    def __init__(self, debug=0,json_config='/etc/printer_config.json'):
+
+        self.load_printer_json(str(files('zebra_day'))+json_config)
         self.debug = False if debug in [0,'0'] else True
 
 
@@ -67,9 +69,10 @@ class zpl:
 
 
     # USING SELF.PRINTERS
-    def save_printer_json(self, json_filename="zebra_day/etc/printer_config.json"):
+    def save_printer_json(self, json_filename="/etc/printer_config.json"):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
-        bkup_pconfig_fn = f"zebra_day/etc/old_printer_config/{rec_date}_printer_config.json"
+        bkup_pconfig_fn = f"{str(files('zebra_day'))}/etc/old_printer_config/{rec_date}_printer_config.json"
+        json_filename = str(files('zebra_day'))+json_filename
 
         os.system(f"cp {json_filename} {bkup_pconfig_fn}")
 
@@ -78,7 +81,8 @@ class zpl:
         self.load_printer_json(json_filename)
 
 
-    def load_printer_json(self, json_file="zebra_day/etc/printer_config.json"):
+    def load_printer_json(self, json_file="/etc/printer_config.json"):
+        json_file = str(files('zebra_day'))+json_file
         if not os.path.exists(json_file):
             os.system("""echo '{ "labs" : {} }' >>""" + json_file)
         fh = open(json_file)
@@ -86,7 +90,8 @@ class zpl:
         self.printers = json.load(fh)
 
 
-    def clear_printers_json(self, json_file="zebra_day/etc/printer_config.json"):
+    def clear_printers_json(self, json_file="/etc/printer_config.json"):
+        json_file = str(files('zebra_day'))+json_file
         os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
         fh = open(json_file)
         self.printers_filename = json_file
@@ -94,7 +99,7 @@ class zpl:
 
 
     def replace_printer_json_from_template(self):
-        os.system('cp zebra_day/etc/printer_config.template.json zebra_day/etc/printer_config.json')
+        os.system(f'cp {str(files('zebra_day'))}/etc/printer_config.template.json {str(files('zebra_day'))}/etc/printer_config.json')
 
 
     def get_valid_label_styles_for_lab(self,lab=None):
@@ -110,9 +115,9 @@ class zpl:
 
     def formulate_zpl(self,uid_barcode=None, alt_a=None, alt_b=None, alt_c=None, alt_d=None, alt_e=None, alt_f=None, label_zpl_style=None):
 
-        zpl_file = f"zebra_day/etc/label_styles/{label_zpl_style}.zpl"
+        zpl_file = str(files('zebra_day'))+f"/etc/label_styles/{label_zpl_style}.zpl"
         if not os.path.exists(zpl_file):
-            zpl_file = f"zebra_day/etc/label_styles/tmps/{label_zpl_style}.zpl"
+            zpl_file = str(files('zebra_day'))+f"/etc/label_styles/tmps/{label_zpl_style}.zpl"
             if not os.path.exists(zpl_file):
                 raise Exception(f"ZPL File : {zpl_file} does not exist in the TOPLEVEL or TMPS zebra_day/etc/label_styles dir.")
 
@@ -124,7 +129,6 @@ class zpl:
 
 
     def generate_label_png(self,zpl_string=None, png_fn=None):
-
         if zpl_string in [None] or png_fn in [None]:
             raise Exception('ERROR: zpl_string and png_fn may not be None.')
 
@@ -163,7 +167,7 @@ class zpl:
 
         ret_s = None
         if printer_ip in ['dl_png']:
-            png_fn = f"zebra_day/files/zpl_label_{label_zpl_style}_{rec_date}.png"
+            png_fn = str(files('zebra_day'))+f"/files/zpl_label_{label_zpl_style}_{rec_date}.png"
             ret_s = self.generate_label_png(zpl_string, png_fn)
 
         else:
@@ -180,17 +184,6 @@ class zpl:
         return ret_s
 
 
-# Due to some bizarre packaging thing I havent been able to puzzle out, when pip installed from pypy, included files are not found and you need to fetch this objec via:
-## import zebra_day.print_mgr as zdpm
-## z=zdpm.zplo()
-def zplo():
-    import zebra_day.print_mgr as zdpm
-    os.chdir(os.path.dirname(zdpm.__file__))
-    os.chdir('..')
-    zp = zdpm.zpl()
-    return zp
-
-
 def main():
     ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:\
 )?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
@@ -200,9 +193,7 @@ def main():
 
     print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...)")
     os.system('sleep 2.2')
-    import zebra_day.print_mgr as zdpm
-    os.chdir(os.path.dirname(zdpm.__file__))
-    os.chdir('..')
+
     zp = zdpm.zpl()
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_root)
 
