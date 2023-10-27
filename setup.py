@@ -7,7 +7,8 @@ setup(
     author='John Major',
     author_email='john@daylilyinformatics.com',
     url='https://github.com/Daylily-Informatics/zebra_day',
-    packages=find_packages(),
+    packages=find_packages('zebra_day'),
+    package_dir={'': 'zebra_day'},
     install_requires=[
         'yaml_config_day',
         'requests',

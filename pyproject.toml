@@ -1,0 +1,26 @@
+[project]
+name = "zebra_day"
+version = "0.0.33"
+description = "A Python library to manage a zebra printer fleet and an api for ZPL print requests."
+authors = [
+  { name = "John Major", email = "john@daylilyinformatics.com" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = "==3.10"
+dependencies = [
+"yaml_config_day",
+"requests",
+"pytz",
+"cherrypy",
+"ipython",
+ ]
+
+[project.urls]
+"Homepage" = "https://github.com/Daylily-Informatics/zebra_day"
+"Bug Tracker" = "https://github.com/Daylily-Informatics/zebra_day"
