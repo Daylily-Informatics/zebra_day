@@ -4,6 +4,7 @@ import socket
 import datetime
 import json
 import requests
+from importlib.resources import files
 
 
 def get_current_date():
@@ -39,7 +40,8 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
 class zpl:
 
     def __init__(self, debug=0,json_config='zebra_day/etc/printer_config.json'):
-        self.load_printer_json(json_config)
+
+        self.load_printer_json(data_text = files('zebra_day').joinpath(json_config).read_text())
         self.debug = False if debug in [0,'0'] else True
 
 
