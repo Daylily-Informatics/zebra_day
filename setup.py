@@ -25,6 +25,7 @@ setup(
             'etc/old_printer_config/*',
             'files/*',
             'static/*',
+            'logs/*',
         ],
     },
     entry_points={
