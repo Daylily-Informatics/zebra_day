@@ -1,7 +1,0 @@
-recursive-include zebra_day/bin *
-recursive-include zebra_day/etc *
-recursive-include zebra_day/etc/label_styles *
-recursive-include zebra_day/etc/label_styles/tmps *
-recursive-include zebra_day/etc/old_printer_config *
-recursive-include zebra_day/files *
-recursive-include zebra_day/static *

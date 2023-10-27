@@ -52,7 +52,7 @@ class zpl:
 
         self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na"}
 
-        res = os.popen(f"zebra_day/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        res = os.popen(str(files('zebra_day'))+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
             ii = i.rstrip()
             sl = ii.split('|')
@@ -71,6 +71,7 @@ class zpl:
     # USING SELF.PRINTERS
     def save_printer_json(self, json_filename="/etc/printer_config.json"):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
+        os.system(f"mkdir -p {str(files('zebra_day'))}/etc/old_printer_config/")
         bkup_pconfig_fn = f"{str(files('zebra_day'))}/etc/old_printer_config/{rec_date}_printer_config.json"
         json_filename = str(files('zebra_day'))+json_filename
 
@@ -81,8 +82,7 @@ class zpl:
         self.load_printer_json(json_filename)
 
 
-    def load_printer_json(self, json_file="/etc/printer_config.json"):
-        json_file = str(files('zebra_day'))+json_file
+    def load_printer_json(self, json_file=""):
         if not os.path.exists(json_file):
             os.system("""echo '{ "labs" : {} }' >>""" + json_file)
         fh = open(json_file)
@@ -90,6 +90,10 @@ class zpl:
         self.printers = json.load(fh)
 
 
+    def create_new_printers_json_with_single_test_printer(self):
+        pass
+
+    
     def clear_printers_json(self, json_file="/etc/printer_config.json"):
         json_file = str(files('zebra_day'))+json_file
         os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
@@ -98,6 +102,7 @@ class zpl:
         self.printers = json.load(fh)
 
 
+    # Seems not to be working
     def replace_printer_json_from_template(self):
         os.system(f'cp {str(files('zebra_day'))}/etc/printer_config.template.json {str(files('zebra_day'))}/etc/printer_config.json')
 
@@ -184,7 +189,15 @@ class zpl:
         return ret_s
 
 
+def start_zday():
+    import zebra_day.print_mgr as zdpm
+    zp = zdpm.zpl()
+    os.system(f"python {str(files('zebra_day'))}/bin/zserve.py "+os.path.dirname(zdpm.__file__))
+
+    
 def main():
+    import zebra_day.print_mgr as zdpm
+    
     ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:\
 )?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
     print(ipcmd)
@@ -201,7 +214,7 @@ def main():
     print(f'\nNow starting zebra_day web GUI\n\n\n\t\t\t**** THE ZDAY WEB GUI WILL BE ACCESSIBLE VIA THE URL: {ip}:8118 \n\n\n\tThe zday web server will continue running, and not return this shell to a command prompt until it is shut down\n\t.... you may shut down this web service by hitting ctrl+c.\n\n')
     os.system('sleep 1.3')
 
-    os.system('python zebra_day/bin/zserve.py')
+    os.system(f"python {str(files('zebra_day'))}/bin/zserve.py "+os.path.dirname(zdpm.__file__))
 
     print('\n\n\n ** EXITING ZDAY QUICKSTART **\n\n\t\tif the zday web gui did not run ( if you immediately got the command prompt back, it did not run ), check and see if there is a service already running at {ip}:8118 . Otherwise, check out the zday cherrypy STDOUT emitted just above what you are reading now.  Cut&Paste that into chatgpt and see if a solution is presented!')
 

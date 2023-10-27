@@ -10,15 +10,20 @@ import tempfile
 
 import zebra_day.print_mgr as zdpm
 
-FILES_DIR = "zebra_day/etc/label_styles"
+FILE_PREFIX = "" if len(sys.argv) == 1 else sys.argv[1]  # To the top dir of what would be the git top dir
 
-ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=somestring && python zebra_day/bin/zserve.py and the index (for now) will not load unless you send along the same string with the HTTP request using the envcheck variable.  If not detected, set to skip and this is not checked.  NOTE!  This is hugely crude and something much better needs to be done before anything here is exposed routinely in the wild.  A quick improvement coming soon, session level auth and so on.
+os.chdir(FILE_PREFIX+'/..')
+
+FILES_DIR = FILE_PREFIX+"/etc/label_styles"
+
+ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=somestring && python /bin/zserve.py and the index (for now) will not load unless you send along the same string with the HTTP request using the envcheck variable.  If not detected, set to skip and this is not checked.  NOTE!  This is hugely crude and something much better needs to be done before anything here is exposed routinely in the wild.  A quick improvement coming soon, session level auth and so on.
 
 class Zserve(object):
 
     def __init__(self):
+
         self.zp = zdpm.zpl()
-        self.css_file = "zebra_day/static/style.css"
+        self.css_file = FILE_PREFIX+"/static/style.css"
         try:
             ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
             print(ipcmd)
@@ -33,11 +38,11 @@ class Zserve(object):
     def chg_ui_style(self,css_file=None):
 
         if css_file not in [None]:
-            self.css_file = "zebra_day/static/"+css_file
+            self.css_file = "/zebra_day/static/"+css_file
             raise cherrypy.HTTPRedirect("/") 
             
         ret_html = "<h1>Change The Zebra Day UI Style</h1><ul><small><a href=/>home</a></small><br><ul><hr><br><ul>Available Style CSS Files:<br><ul>"
-        for i in sorted(os.listdir('zebra_day/static')):
+        for i in sorted(os.listdir(FILE_PREFIX+'/static')):
             if i.endswith('.css'):
                 ret_html += f"<li><a href=chg_ui_style?css_file={i} >{i}</a>"
         ret_html += "</ul></ul></ul>"
@@ -53,7 +58,7 @@ class Zserve(object):
         except Exception as e:
             self.detected_printer_ips = {}
 
-        res = os.popen(f"zebra_day/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        res = os.popen(FILE_PREFIX+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
             ii = i.rstrip()
             sl = ii.split('|')
@@ -65,7 +70,7 @@ class Zserve(object):
                 status = sl[4]
                 self.detected_printer_ips[ip] = [model, serial, status]
                 ret_html = ret_html + f"""
-                <li>{zp} ::: <a href={ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
+                <li>{zp} ::: <a href=http://{ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
 
         self._restart()
 
@@ -79,11 +84,11 @@ class Zserve(object):
         If you wish to restore from one of these files, download the one you'd like, open in a text editor, then copy the contents of the file into <a href=view_pstation_json>the printers json editing form</a> and save a new json file. <br><ul><i><small>note:  the existing file will have a backup created and accessible here</small></i>.<br><br><ul><hr><br>
         <ul>"""
 
-        bkup_d = "zebra_day/etc/old_printer_config/"
+        bkup_d = FILE_PREFIX+"/etc/old_printer_config/"
 
         for i in sorted(os.listdir(bkup_d)):
             bkup_fn = f"{bkup_d}{i}"
-            ret_html = ret_html + f"<li><a href={bkup_fn} >{bkup_fn}</a>"
+            ret_html = ret_html + f"<li><a href=zebra_day/{bkup_fn.split('zebra_day')[-1]} >{bkup_fn}</a>"
 
         return self.wrap_content(ret_html)
 
@@ -209,7 +214,7 @@ class Zserve(object):
         </small>
         </ul></ul>
         </ul></ul></ul>
-        <small> <a href=chg_ui_style style='position: fixed; bottom: 0; right: 0;padding: 10px; text-decoration:none;' id="bottomRightLink">change ui style</a></small>
+        <a href=chg_ui_style style='font-size: 40px; position: fixed; bottom: 0; right: 0;padding: 10px; text-decoration:none;' id="bottomRightLink">change ui style</a>
         """
 
         return self.wrap_content(ret_html)
@@ -273,17 +278,17 @@ class Zserve(object):
         ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, client_ip=client_ip)
 
         full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
-
+        
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED<br><ul>"
         if len(ret_s.split('.png')) > 1:
-            addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src={ret_s}><br>"
+            addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src=zebra_day/{ret_s.split('zebra_day')[-1]}><br>"
         ret_html = addl_html + "<a href=/>home</a>"
         return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def _restart(self):
-        os.system(f"touch zebra_day/bin/zserve.py")
+        os.system(f"touch {FILE_PREFIX}/bin/zserve.py")
         os.system('sleep 4')
         ret_html = 'server restarted'
         return self.wrap_content(ret_html)
@@ -342,7 +347,7 @@ class Zserve(object):
     @cherrypy.expose
     def save_pstation_json(self, json_data):
         rec_date = str(datetime.now()).replace(' ','_')
-        bkup_pconfig_fn = f"zebra_day/etc/old_printer_config/{rec_date}_printer_config.json"
+        bkup_pconfig_fn = f"{FILE_PREFIX}/etc/old_printer_config/{rec_date}_printer_config.json"
 
         os.system(f"cp {self.zp.printers_filename} {bkup_pconfig_fn}")
 
@@ -552,11 +557,11 @@ class Zserve(object):
     @cherrypy.expose
     def png_renderer(self,filename,content,lab='',printer='', ftag=''):
 
-        png_tmp_f = tempfile.NamedTemporaryFile(suffix='.png', dir='zebra_day/files', delete=False).name
+        png_tmp_f = tempfile.NamedTemporaryFile(suffix='.png', dir=FILE_PREFIX+'/files', delete=False).name
 
         self.zp.generate_label_png(content,png_fn=png_tmp_f)
 
-        return "zebra_day/files/" + png_tmp_f.split('/')[-1]
+        return "/zebra_day/files/" + png_tmp_f.split('/')[-1]
 
 
 
