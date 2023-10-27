@@ -38,9 +38,18 @@ python --version  # should be 3.10*  # advisable to run in some kind of venv
 
 pip install zebra_day
 
-echo 'load a fresh env'  # sometimes a package installed with pip will not be visible until the env refreshes.
+# you should load a fresh env / open a fresh terminal so the package is available
 
-zday_quickstart  # will do some network scanning for available zebra printers, and launch the web UI.
+# Run the UI w/out probing the network for printers to configure
+
+zday_start
+# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+
+# This one does the same thing, but spends a few min determining if it can see zebra printers on your network, and pre-configures them if detected (you can run this scan at a latter time, and using other interfaces)
+
+zday_quickstart 
+# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+
 
 ```
 <ul>
@@ -226,13 +235,12 @@ Open an ipython shell.
 ```python
 import zebra_day.print_mgr as zdpm
 
-zlab = zdpm.zplo()  ## !!! NOTE (see note below) NOTE !!!
-## !!! NOTE !!! due to something I have not yet sorted out with my pypy packaging, instantiating the print_mgr.zpl() class directly does not allow the class to see its package data files.  This hack solves the problem and returns you the same behaving object.
-
+zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
 print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'scan-results', this may be edited latter.
+
 # The json will loook something like this
 ## {'labs': {'scan-results': {'192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'unk'}}}
 ##               'lab' name     'printer' name(can be edited latter)                              label_zpl_style
@@ -261,7 +269,11 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 * Start the `zebra_day` service.  The current network security for this service is minimal, as such, running this so it is fully visible to the public internet is no advised. Within a local network, or on a well configured AWS(etc) host is fine.
 
 ```bash
-# consider running this via tmux or screen
+# The suggested way from an env zebra_day is installed in is (using tmux or whatnot):
+
+zday_start
+
+# Running it as a script (a bit more fragile)
 conda activate ZDAY # or any python environment where you have pip installed zebra_day (from pypy or local pip)
 python zebra_day/bin/zserve.py  # This service will continue running until stopped or until it crashes. Access and error logs are printed to STDout/err.
 
