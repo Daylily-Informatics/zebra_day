@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='zebra_day',
-    version='0.0.44',
+    version='0.0.45',
     description='A Python library to manage a zebra printer fleet and an api for ZPL print requests.',
     author='John Major',
     author_email='john@daylilyinformatics.com',
@@ -30,6 +30,7 @@ setup(
     entry_points={
         'console_scripts': [
             'zday_quickstart = zebra_day.print_mgr:main',
+            'zday_start = zebra_day.print_mgr:start_zday',
         ],
     },
 )

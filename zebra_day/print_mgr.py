@@ -224,3 +224,8 @@ def main():
 if __name__ == "__main__":
 
     main()
+
+
+if __name__ == "__start_zday__":
+
+    start_zday()
