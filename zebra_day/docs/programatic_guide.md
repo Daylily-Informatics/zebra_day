@@ -5,9 +5,7 @@
 ```python
 import zebra_day.print_mgr as zdpm
 
-zlab = zdpm.zplo()  ## !!! NOTE (see note below) NOTE !!!
-## !!! NOTE !!! due to something I have not yet sorted out with my pypy packaging, instantiating the print_mgr.zpl() class directly does not allow the class to see its package data files.  This hack solves the problem and returns you the same behaving object.
-
+zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
@@ -26,20 +24,17 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 ## Primary Operations
 
 ### Init Object
-> def zplo():
-
-> __init__(self, debug=0,json_config='zebra_day/etc/printer_config.json'):
+> def zpl():
 
 
   ```python
   import zebra_day.print_mgr as zdpm
   
-  zlab = zdpm.zplo()
+  zlab = zdpm.zpl()
   ```
 
   The IP of the machine creating the obj is determined, and the default printer config.json is read.
 
-  * a packaging bug has made a slight hack necessary to get this to work. The expected/normal way to instantiate this object should be `zlab = zdpm.zpl()`, however, this presently does not work.* 
 
 ### Load/Save/Clear Printer Config json
 >  def save_printer_json(self, json_filename="zebra_day/etc/printer_config.json"):
