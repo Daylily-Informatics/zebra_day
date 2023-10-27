@@ -44,7 +44,7 @@ class zpl:
         self.load_printer_json(str(files('zebra_day'))+json_config)
         self.debug = False if debug in [0,'0'] else True
 
-
+    # clean this up so it appeends new lab name nodes instead of overwriting
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
 
         if lab not in self.printers['labs']:
