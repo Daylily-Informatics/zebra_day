@@ -20,6 +20,11 @@ ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=so
 
 class Zserve(object):
 
+
+    def st(self):
+        self.css_file = FILE_PREFIX+"/static/style.css"
+        
+    
     def __init__(self, tff=None):
 
         if tff in ['',None,'None']:
@@ -30,7 +35,7 @@ class Zserve(object):
             
         os.chdir(FILE_PREFIX+'/..')
         self.zp = zdpm.zpl()
-        self.css_file = FILE_PREFIX+"/static/style.css"
+        self.css_file = "zebra_day/static/oakland.css"
         try:
             ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
             print(ipcmd)
@@ -45,7 +50,7 @@ class Zserve(object):
     def chg_ui_style(self,css_file=None):
 
         if css_file not in [None]:
-            self.css_file = "/zebra_day/static/"+css_file
+            self.css_file = "/../zebra_day/static/"+css_file
             raise cherrypy.HTTPRedirect("/") 
             
         ret_html = "<h1>Change The Zebra Day UI Style</h1><ul><small><a href=/>home</a></small><br><ul><hr><br><ul>Available Style CSS Files:<br><ul>"
@@ -454,7 +459,7 @@ class Zserve(object):
 
         return """<html>
         <head>
-        <link rel="stylesheet" href="""+self.css_file+""">
+        <link rel="stylesheet" href=zebra_day/"""+self.css_file.split('zebra_day')[-1]+""">
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
