@@ -23,7 +23,7 @@ class Zserve(object):
     def __init__(self, relpath, abpath):
 
         self.rel_p = relpath
-        self.ab_p = abpath
+        self.abs_p = abpath
         self.zp = zdpm.zpl()
         self.css_file = "static/oakland.css"
         try:
@@ -55,7 +55,7 @@ class Zserve(object):
     @cherrypy.expose
     def probe_network_for_zebra_printers(self, ip_stub=None, scan_wait="0.25"):
         if ip_stub in [None]:
-            ip_stub = ".".join(self.ip.split('.')[:-1)
+            ip_stub = ".".join(self.ip.split('.')[:-1])
         ret_html = f"<h1>Probing {ip_stub} For Zebra Printers</h1><br><a href=printer_status>BACK TO THE NETWORK ZEBRA REPORT</a><ul><hr><ul>"
         try:
             self.detected_printer_ips = {}
@@ -91,8 +91,8 @@ class Zserve(object):
         bkup_d = self.rel_p + "/etc/old_printer_config/"
 
         for i in sorted(os.listdir(bkup_d)):
-            bkup_fn = f"{bkup_d}{i}"
-            ret_html = ret_html + f"<li><a href=zebra_day/{bkup_fn.split('zebra_day')[-1]} >{bkup_fn}</a>"
+            bkup_fn = f"etc/old_printer_config/{i}"
+            ret_html = ret_html + f"<li><a href=etc/old_printer_config/{i} >{i}</a>"
 
         return self.wrap_content(ret_html)
 
@@ -277,14 +277,15 @@ class Zserve(object):
         
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED<br><ul>"
         if len(ret_s.split('.png')) > 1:
-            addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src=zebra_day/{ret_s.split('zebra_day')[-1]}><br>"
+            addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src=files/{ret_s.split('/')[-1]}><br>"
         ret_html = addl_html + "<a href=/>home</a>"
+
         return self.wrap_content(ret_html)
 
 
     @cherrypy.expose
     def _restart(self):
-        os.system(f"touch {FILE_PREFIX}/bin/zserve.py")
+        os.system(f"touch {self.rel_p}/bin/zserve.py")
         os.system('sleep 4')
         ret_html = 'server restarted'
         return self.wrap_content(ret_html)
@@ -360,11 +361,12 @@ class Zserve(object):
 
     @cherrypy.expose
     def edit_zpl(self):
-        files = [f for f in os.listdir(self.rel_p) if os.path.isfile(os.path.join(self.rel_p, f))]
+
+        files = [f for f in os.listdir(self.rel_p+'/etc/label_styles/') if os.path.isfile(os.path.join(self.rel_p+'/etc/label_styles/', f))]
 
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
 
-        filest = [ft for ft in os.listdir(self.rel_p+'/tmps/') if os.path.isfile(os.path.join(self.rel_p+'/tmps/', ft))]
+        filest = [ft for ft in os.listdir(self.rel_p+'/etc/label_styles/tmps/') if os.path.isfile(os.path.join(self.rel_p+'/etc/label_styles/tmps/', ft))]
 
         file_linkst = ['<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft) for ft in filest]
 
@@ -428,7 +430,7 @@ class Zserve(object):
         if not filename:
             return "No file selected"
 
-        filepath = os.path.join(self.rel_p + '/' + dtype + '/', filename)
+        filepath = os.path.join(self.rel_p + '/etc/label_styles/' + dtype + '/', filename)
 
         with open(filepath, 'r') as file:
             content = file.read()
@@ -443,7 +445,7 @@ class Zserve(object):
 
         return """<html>
         <head>
-        <link rel="stylesheet" href=zebra_day/"""+self.css_file.split('zebra_day')[-1]+""">
+        <link rel="stylesheet" href="""+self.css_file+""">
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
@@ -567,7 +569,7 @@ class Zserve(object):
 
         tfn = filename.replace('.zpl',f'.{ftag}.{rec_date}.zpl')
 
-        temp_filepath = os.path.join(self.rel_p, 'tmps/', tfn)
+        temp_filepath = os.path.join(self.rel_p+'/etc/label_styles/tmps/', tfn)
 
         with open(temp_filepath, 'w') as file:
             file.write(content)
@@ -607,10 +609,19 @@ class Zserve(object):
 
 
 if __name__ == '__main__':
-    cw_dir = os.path.abspath('.')
+    rel_path_to_pkg_dir = sys.argv[1]
+    cwd_path = os.path.abspath(rel_path_to_pkg_dir)
+
+    # munge the two paths to get a clean prefix to use
+    lng = cwd_path.rstrip('/.').lstrip('./')
+    srt = rel_path_to_pkg_dir.rstrip('/.').lstrip('./')
+    if len(lng.split('/')) < len(srt.split('/')):
+        raise Exception( f" This path is converting to absolute longer than the relative.... problems. {lng} ... {srt}")
+
     cherrypy.config.update(  {
         'tools.staticdir.on': True,
-        'tools.staticdir.dir': cw_dir,
+        'tools.staticdir.dir': cwd_path,
+        'tools.staticdir.index':'index.html',
         'server.socket_host': '0.0.0.0',
         'server.socket_port': 8118,
         'server.thread_pool' : 20,
@@ -618,5 +629,5 @@ if __name__ == '__main__':
         'tools.sessions.on': True,
         'tools.sessions.timeout': 199,  # Session timeout in minutes
     })
-    tff = "" if len(sys.argv) != 2 else sys.argv[1]
-    cherrypy.quickstart(Zserve(tff),'/')
+
+    cherrypy.quickstart(Zserve(f"{srt}", f"/{cwd_path}"),'/')
