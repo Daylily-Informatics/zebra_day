@@ -1,8 +1,6 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [BEING REPLACED NOW v0.0.32 -- PreRelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.0.32)
-
-# warning, the docs are behind some significant changes which are underway.  aplogies!
+## zebra_day Overview [v0.5.0 PreRelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.1.5)
 
 <ul>
     
