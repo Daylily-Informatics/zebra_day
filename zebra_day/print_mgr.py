@@ -366,7 +366,7 @@ class zpl:
         return ret_s
 
 
-def start_zday():
+def zday_start():
     """
     If zebra_day has been pip installed, running `zday_start` will
       start the zebra_day ui on 0.0.0.0:8118 . This offers a lot
