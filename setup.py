@@ -31,7 +31,7 @@ setup(
     entry_points={
         'console_scripts': [
             'zday_quickstart = zebra_day.print_mgr:main',
-            'zday_start = zebra_day.print_mgr:start_zday',
+            'zday_start = zebra_day.print_mgr:zday_start',
         ],
     },
 )

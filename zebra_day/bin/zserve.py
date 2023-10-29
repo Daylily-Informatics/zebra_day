@@ -574,10 +574,10 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             <br>
             <br>
             <code>
-import zebra_day as zd
+ from zebra_day import print_mgr as zd
 </code>
             <br><code>
-            zd_pm = zd.print_mgr.zpl()            
+            zd_pm = zd.zpl()            
             </code>
             <br><br><br>
             
