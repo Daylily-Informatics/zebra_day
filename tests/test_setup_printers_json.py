@@ -22,7 +22,7 @@ def test_printers_clear_reset():
                                                                                 'print_method': 'generate png',
                                                                                 'model': 'na',
                                                                                 'serial': 'na',
-                                                                                'arp_data': ''}}}}
+                                                                                'arp_data': 'na'}}}}
 
 
 def test_manipulating_printers_json():
@@ -58,7 +58,7 @@ def test_manipulating_printers_json():
                                                                                'print_method': 'generate png',
                                                                                'model': 'na',
                                                                                'serial': 'na',
-                                                                               'arp_data': ''}}}}
+                                                                               'arp_data': 'na'}}}}
 
 
     os.system(f"rm {tmp_json}")

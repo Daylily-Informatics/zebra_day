@@ -87,8 +87,11 @@ class zpl:
         json_config = if not specified, the standard active
           (which may be empty) is assumed
         """
-        os.system(f"touch {str(files('zebra_day'))}/etc/printer_config.json")
-        self.load_printer_json(json_config)
+        jcfg = str(files('zebra_day'))+"/etc/printer_config.json"
+        if os.path.exists(jcfg):
+            self.load_printer_json(jcfg, relative=False)
+        else:
+            self.create_new_printers_json_with_single_test_printer(jcfg)
 
 
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results", relative=False):
@@ -181,18 +184,24 @@ class zpl:
         # self.save_printer_json() <---  use the save_printer_json call after calling this. Else, recursion.
         
 
-    def create_new_printers_json_with_single_test_printer(self):
+    def create_new_printers_json_with_single_test_printer(self, fn=None):
         """
         Create a new printers json with just the png printer defined
         """
 
-        self.printers = {"labs" : { "scan-results" : {} } }
+        if fn in [None]:
+            fn = str(files('zebra_day'))+"/etc/printer_config.json"
         
-        self.printers['labs']["scan-results"]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
+        if not hasattr(self, 'printers'):
+            self.printers = {}
+            self.printers_filename = fn
 
-        fn = str(files('zebra_day'))+"/etc/printers_config.json"
-        os.system(f"touch {fn}")
-
+        jdat = None
+        with open(f"{str(files('zebra_day'))}/etc/printer_config.template.json", 'r') as file:
+            jdat = json.load(file)
+            
+        self.printers = jdat
+        
         self.save_printer_json(fn, relative=False)
 
 
