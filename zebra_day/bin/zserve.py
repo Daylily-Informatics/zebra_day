@@ -103,6 +103,7 @@ class Zserve(object):
 
         self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
+        os.system('sleep 2.2')
         raise cherrypy.HTTPRedirect('printer_status')
 
     
@@ -797,8 +798,9 @@ if __name__ == '__main__':
     cwd_path = os.path.abspath(rel_path_to_pkg_dir)
 
     # munge the two paths to get a clean prefix to use
-    lng = cwd_path.rstrip('/.').lstrip('./')
-    srt = rel_path_to_pkg_dir.rstrip('/.').lstrip('./')
+    #  disabled, was causing problems
+    lng = cwd_path
+    srt = rel_path_to_pkg_dir
     if len(lng.split('/')) < len(srt.split('/')):
         raise Exception( f" This path is converting to absolute longer than the relative.... problems. {lng} ... {srt}")
 
