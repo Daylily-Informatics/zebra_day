@@ -502,3 +502,9 @@ If it will work on AWS, it will work anyplace really.
 
 ## Docker
 I'm not anti, but am not putting time towards this anytime soon.
+
+# BadgeLand
+
+[![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
+
+<br>
