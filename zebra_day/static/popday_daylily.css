@@ -11,7 +11,7 @@ body {
     color: #D91E63; /* Bold Pink text, Warhol-esque */
     margin: 0;
     padding: 20px;
-    background-image: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 2.9)), url('../imgs/daylily.png');
+    background-image: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 2.9)), url('./daylily.png');
     background-repeat: repeat;
 }
 

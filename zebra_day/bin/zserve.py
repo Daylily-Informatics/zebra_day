@@ -104,7 +104,7 @@ class Zserve(object):
         self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
         os.system('sleep 2.2')
-        raise cherrypy.HTTPRedirect('printer_status')
+        raise cherrypy.HTTPRedirect(f'printer_status?lab={lab}')
 
     
     @cherrypy.expose
@@ -249,13 +249,28 @@ class Zserve(object):
     @cherrypy.expose
     def build_new_printers_config_json(self):
         ret_html = f"""
-        <h2>Scan Network For Zebra Printers</h2><ul><small><a href=/>home</a></small><br><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >
+        <h2>Scan Network For Zebra Printers</h2><ul><small><a href=/>home</a></small><br><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm' action=probe_zebra_printers_add_to_printers_json >
 Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}        
         Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub > <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>
         """
         return self.wrap_content(ret_html)
+
+    @cherrypy.expose
+    def test_spinner(self):
+        ret_html = f"""
+        <h2>Test Spinner On Submit</h2>
+        <a href=/>XXXX</a>
+        <form id='myForm' action=x >
+ <input type=submit></form> 
+        """
+        return self.wrap_content(ret_html)
     
-        
+    @cherrypy.expose
+    def x(self, s=15):
+        os.system(f'sleep {s}')
+        return self.wrap_content("<div align=center><a href=/>home</a></div>")
+
+    
     @cherrypy.expose
     def send_print_request(self):
         ret_html = ""
@@ -414,20 +429,30 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         rec_date = str(datetime.now()).replace(' ','_')
         bkup_pconfig_fn = f"{self.rel_p}/etc/old_printer_config/{rec_date}_printer_config.json"
 
-        os.system(f"cp {self.zp.printers_filename} {bkup_pconfig_fn}")
-
         try:
-            data = json.loads(json_data)
-            with open(self.zp.printers_filename, 'w') as f:
-                json.dump(data, f, indent=4)
-            self.zp.load_printer_json(json_file=self.zp.printers_filename)
-            self._restart()
-            referrer = cherrypy.request.headers.get('Referer', '/')
-            raise cherrypy.HTTPRedirect(referrer)
-        
-        except json.JSONDecodeError as e:
-            return self.view_pstation_json(error_msg=str(e))
+            os.system(f"cp {self.zp.printers_filename} {bkup_pconfig_fn}")
 
+            try:
+                data = json.loads(json_data)
+                with open(self.zp.printers_filename, 'w') as f:
+                    json.dump(data, f, indent=4)
+                from IPython import embed
+                embed()
+                self.zp.load_printer_json(json_file=self.zp.printers_filename, relative=False)
+
+                os.system('sleep 2')
+                self._restart()
+                referrer = cherrypy.request.headers.get('Referer', '/')
+                raise cherrypy.HTTPRedirect(referrer)
+        
+            except json.JSONDecodeError as e:
+                return self.wrap_content("<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file using a link below the text box.<br>Further error details:<br<ul>"+self.view_pstation_json(error_msg=str(e)))
+            
+        except Exception as ee:
+            return self.wrap_content("<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file the link below the text box.<br>Further error details:<br<ul>"+self.view_pstation_json(error_msg=str(ee)))
+
+        return self.wrap_content('how did you get here?.')
+            
 
     @cherrypy.expose
     def edit_zpl(self):

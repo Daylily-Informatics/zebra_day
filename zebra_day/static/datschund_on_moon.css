@@ -11,7 +11,7 @@ body {
     color: #EFD9B0; /* Color reminiscent of a Dachshund's coat */
     margin: 0;
     padding: 20px;
-    background-image: url('../imgs/datschund.png');
+    background-image: url('./datschund.png');
     background-size: cover;
     background-position: center;
 }

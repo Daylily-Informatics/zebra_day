@@ -11,12 +11,12 @@ body {
     color: #D91E63; /* Bold Pink text, Warhol-esque */
     margin: 0;
     padding: 20px;
-    background-image: url('../imgs/datschund.pngx'); /* A repetitive pattern of daylilies, think Warhol's multiple Monroe's */
+    background-image: linear-gradient(rgba(21, 2, 2, 0.99), rgba(55, 55, 55, 0.8)), url('./datschund.png');
     background-repeat: repeat;
 }
 
 h1, h2 {
-    color: #2E86C1; /* Vibrant blue for headers */
+    color: rgb(222,221,222); /* Vibrant blue for headers */
     border-bottom: 3px solid #2E86C1;
     padding-bottom: 5px;
 }
@@ -39,7 +39,7 @@ li::before {
 }
 
 a {
-    color: #196F3D; /* A deep green for links, contrast with the daylily theme */
+    color: rgb(111,255,10); /* A deep green for links, contrast with the daylily theme */
     text-decoration: none;
     transition: color 0.3s ease;
 }
@@ -49,7 +49,7 @@ a:hover {
 }
 
 small {
-    color: #7D3C98; /* Purple tint for smaller text, keeping with the vibrant palette */
+    color: rgba(221,1,211); /* Purple tint for smaller text, keeping with the vibrant palette */
 }
 
 .spinner-hidden {
