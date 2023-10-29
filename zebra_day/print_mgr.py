@@ -18,9 +18,9 @@ from importlib.resources import files
 
 
 def get_current_date():
-"""
-get the current datetime
-"""
+    """
+    get the current datetime
+    """
 
     current_date = datetime.date.today()
     formatted_date = current_date.strftime("%Y-%m-%d")
@@ -28,10 +28,11 @@ get the current datetime
 
 
 def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
-"""
-The bit which passes the zpl to the specified printer.
-Port is more or less hard coded upstream from here fwiw
-"""
+    """
+    The bit which passes the zpl to the specified printer.
+    Port is more or less hard coded upstream from here fwiw
+    """
+    
     # In the case we are testing only, return None
     if is_test:
         return None
@@ -86,10 +87,11 @@ class zpl:
         json_config = if not specified, the standard active
           (which may be empty) is assumed
         """
-        self.load_printer_json(str(files('zebra_day'))+json_config)
+        os.system(f"touch {str(files('zebra_day'))}/etc/printer_config.json")
+        self.load_printer_json(json_config)
 
 
-    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results", relative=False):
         """
         Scan the network for zebra printers
         NOTE! this should work with no dependencies on a MAC
@@ -131,10 +133,10 @@ class zpl:
                 if ip not in self.printers['labs'][lab]:
                     self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
 
-        self.save_printer_json()
+        self.save_printer_json(self.printers_filename, relative=False)
 
 
-    def save_printer_json(self, json_filename="/etc/printer_config.json"):
+    def save_printer_json(self, json_filename="/etc/printer_config.json", relative=True):
         """
         This saves the current self.printers to the json file the active
           printers.json loads from (assuming it is present, in which case
@@ -144,31 +146,39 @@ class zpl:
         rec_date = str(datetime.datetime.now()).replace(' ','_')
         os.system(f"mkdir -p {str(files('zebra_day'))}/etc/old_printer_config/")
         bkup_pconfig_fn = f"{str(files('zebra_day'))}/etc/old_printer_config/{rec_date}_printer_config.json"
-        json_filename = str(files('zebra_day'))+json_filename
-
-        os.system(f"cp {json_filename} {bkup_pconfig_fn}")
+        if relative:
+            json_filename = str(files('zebra_day')) + '/' + json_filename
+        else:
+            pass
+            
+        os.system(f"cp {self.printers_filename} {bkup_pconfig_fn}")
 
         with open(json_filename, 'w') as json_file:
             json.dump(self.printers, json_file, indent=4)
-        self.load_printer_json(json_filename)
+        self.load_printer_json(json_filename, relative=False)
 
 
-    def load_printer_json(self, json_file=""):
+    def load_printer_json(self, json_file=f"etc/printer_config.json", relative=True):
         """
         Loads printer json from a specified file, saves it to the active json.
         If specified file does not exist, it is created with the base
           printers json
         
-        
         json_file = path to file
         """
+        if relative:
+            json_file = f"{str(files('zebra_day'))}/{json_file}"
+        else:
+            pass
+            
+        print(json_file,file=sys.stderr)
 
         if not os.path.exists(json_file):
-            os.system("""echo '{ "labs" : {} }' >>""" + json_file)
+            raise Exception(f"""The file specified does not exist. Consider specifying the default 'etc/printer_config.json , provided: {json_file}, which had {str(files('zebra_day'))} prefixed to it', for {json_file}""")
         fh = open(json_file)
         self.printers_filename = json_file
         self.printers = json.load(fh)
-        self.save_printer_json()
+        # self.save_printer_json() <---  use the save_printer_json call after calling this. Else, recursion.
         
 
     def create_new_printers_json_with_single_test_printer(self):
@@ -180,7 +190,10 @@ class zpl:
         
         self.printers['labs']["scan-results"]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
 
-        self.save_printer_json()
+        fn = str(files('zebra_day'))+"/etc/printers_config.json"
+        os.system(f"touch {fn}")
+
+        self.save_printer_json(fn, relative=False)
 
 
     def clear_printers_json(self, json_file="/etc/printer_config.json"):
@@ -189,13 +202,13 @@ class zpl:
           def clear_printers_json(self, json_file="/etc/printer_config.json"):
         """
 
-        json_file = str(files('zebra_day'))+json_file
+        json_file = str(files('zebra_day'))+'/'+json_file
         os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
         fh = open(json_file)
         self.printers_filename = json_file
         self.printers = json.load(fh)
 
-        self.save_printer_json()
+        self.save_printer_json(json_file, relative=False)
         
 
     def replace_printer_json_from_template(self):
@@ -210,9 +223,9 @@ class zpl:
         os.system(f"cp {str(files('zebra_day'))}/etc/printer_config.template.json {fn}")
         fh = open(fn)
         self.printers_filename = fn
-	self.printers = json.load(fh)
+        self.printers = json.load(fh)
 
-        self.save_printers_json()
+        self.save_printer_json(self.printers_filename, relative=False)
 
 
 
@@ -268,11 +281,14 @@ class zpl:
 
 
     
-    def generate_label_png(self,zpl_string=None, png_fn=None):
+    def generate_label_png(self,zpl_string=None, png_fn=None, relative=False):
         """
          If not sending to a printer, produce the png of what would be printed
         """
-        
+
+        if relative in [True]:
+            png_fn = str(files('zebra_day'))+'/'+png_fn
+            
         if zpl_string in [None] or png_fn in [None]:
             raise Exception('ERROR: zpl_string and png_fn may not be None.')
 
@@ -337,7 +353,7 @@ class zpl:
         ret_s = None
         if printer_ip in ['dl_png']:
             png_fn = str(files('zebra_day'))+f"/files/zpl_label_{label_zpl_style}_{rec_date}.png"
-            ret_s = self.generate_label_png(zpl_string, png_fn)
+            ret_s = self.generate_label_png(zpl_string, png_fn, False)
 
         else:
             pn = 1
