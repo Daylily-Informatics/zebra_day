@@ -12,7 +12,12 @@ def get_current_date():
     formatted_date = current_date.strftime("%Y-%m-%d")
     return formatted_date
 
-def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
+def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
+
+    # In the case we are testing only, return None
+    if is_test:
+        return None
+    
     # Create a socket object
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     timeout = 5
@@ -26,8 +31,11 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
         # ... the zebra printer will not throw an error if the request
         # content is incorrect, or for any reason except to reject request to the wrong port.
         return_code = sock.sendall(zpl_code.encode())
-        print("ZPL code sent successfully to the printer!")
-
+        if return_code  in [None]:
+            print("ZPL code sent successfully to the printer!", file=sys.stderr)
+        else:
+            raise Exception(f"\n\nPrint request to {printer_ip}:{printer_port} did not return None, but instead: {return_code} ... zpl: {zpl_code}\n")
+            
     except ConnectionError as e:
         raise Exception(f"Error connecting to the printer: {printer_ip} on port {printer_port} \n\n\t"+str(e))
 
@@ -41,7 +49,7 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
 
 class zpl:
 
-    def __init__(self, debug=0,json_config='/etc/printer_config.json'):
+    def __init__(self, debug=0,json_config='/etc/printer_config.json' ):
 
         self.load_printer_json(str(files('zebra_day'))+json_config)
         self.debug = False if debug in [0,'0'] else True
@@ -151,9 +159,9 @@ class zpl:
             # Save the image to a file
             with open(png_fn, "wb") as f:
                 f.write(response.content)
-                print(f"Image saved as {png_fn}")
+                print(f"Image saved as {png_fn}",file=sys.stderr)
         else:
-            print(f"Failed to convert ZPL to image. Status code: {response.status_code}")
+            print(f"Failed to convert ZPL to image. Status code: {response.status_code}",file=sys.stderr)
 
         return png_fn
 
@@ -169,7 +177,7 @@ class zpl:
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
-            print(f"\n\nWARNING:::\nZPL style: {label_zpl_style} is not valid for {lab} {printer_name} ... {self.printers['labs'][lab][printer_name]['label_zpl_styles']}")
+            print(f"\n\nWARNING:::\nZPL style: {label_zpl_style} is not valid for {lab} {printer_name} ... {self.printers['labs'][lab][printer_name]['label_zpl_styles']}",file=sys.stderr)
 
         printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
 
@@ -195,7 +203,7 @@ class zpl:
             ret_s = zpl_string
 
         if self.debug:
-            print(f"\nZPL STRING  :: {zpl_string}\n")
+            print(f"\nZPL STRING  :: {zpl_string}\n",file=sys.stderr)
 
         return ret_s
 

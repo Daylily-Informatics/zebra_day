@@ -103,10 +103,12 @@ class Zserve(object):
 
         self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
-        ret_html = "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
-        return self.wrap_content(ret_html)
+        #ret_html = "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
+        #return self.wrap_content(ret_html)
+        #referrer = cherrypy.request.headers.get('Referer', '/')
+        raise cherrypy.HTTPRedirect('printer_status')
 
-
+    
     @cherrypy.expose
     def printer_status(self,lab="scan-results"):
 
@@ -169,13 +171,23 @@ class Zserve(object):
 
         ret_html = ret_html + f"""</table></ul><ul>
         </ul><br><hr>
-        <h2>Scan Network For Zebra Printers</h2><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub > <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>                 </ul>
+        <h2>Build New Printers Config json // Scan Network For Discoverable Printers</h2><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub >
+        Select (or enter new) lab: 
+        {self._get_labs_datalist()}
+        <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>                 </ul>
         """        
 
 
         return self.wrap_content(ret_html)
 
-
+    
+    def _get_labs_datalist(self):
+        dat_list = "<input type=text name=lab list=lab_names><datalist id=lab_names>"
+        for ln in sorted(self.zp.printers['labs'].keys()):
+            dat_list += f"<option value={ln}>{ln}</option>"
+        dat_list += "</datalist>"
+        return dat_list
+        
     @cherrypy.expose
     def index(self,envcheck='skip'):
         if envcheck != ENVCHECK:
@@ -206,7 +218,8 @@ class Zserve(object):
         <li><a href=view_pstation_json >view and edit json</a>
         <br>
         
-        <li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
+        <li><a href=list_prior_printer_config_files>view backed up printers json config files</a>
+        <li><a href=build_new_printers_config_json>build a new printers config json</a></ul><br>
         </ul></ul>
         <hr>
         <h2>Send Print Requests</h2>
@@ -234,7 +247,16 @@ class Zserve(object):
 
         return self.wrap_content(ret_html)
 
-
+    @cherrypy.expose
+    def build_new_printers_config_json(self):
+        ret_html = f"""
+        <h2>Scan Network For Zebra Printers</h2><ul><small><a href=/>home</a></small><br><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >
+Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}        
+        Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub > <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>
+        """
+        return self.wrap_content(ret_html)
+    
+        
     @cherrypy.expose
     def send_print_request(self):
         ret_html = ""
@@ -370,9 +392,9 @@ class Zserve(object):
 
     @cherrypy.expose
     def clear_printers_json(self):
-
         self.zp.clear_printers_json()
         self._restart()
+        os.system('sleep 1.2')
         referrer = cherrypy.request.headers.get('Referer', '/')
         raise cherrypy.HTTPRedirect(referrer)
 
@@ -382,6 +404,7 @@ class Zserve(object):
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
         self._restart()
+        os.system('sleep 1.2')
         referrer = cherrypy.request.headers.get('Referer', '/')
         raise cherrypy.HTTPRedirect(referrer)
 
@@ -400,7 +423,9 @@ class Zserve(object):
                 json.dump(data, f, indent=4)
             self.zp.load_printer_json(json_file=self.zp.printers_filename)
             self._restart()
-            return "JSON saved successfully!<br><br>Print Stations Updated.<br><br><a href=/>home</a><br><br><a href=view_pstation_json>open current print station json</a>"
+            referrer = cherrypy.request.headers.get('Referer', '/')
+            raise cherrypy.HTTPRedirect(referrer)
+        
         except json.JSONDecodeError as e:
             return self.view_pstation_json(error_msg=str(e))
 
