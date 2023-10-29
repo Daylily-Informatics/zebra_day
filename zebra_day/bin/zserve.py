@@ -221,8 +221,9 @@ class Zserve(object):
         <hr>
         <h2>Send Print Requests</h2>
         <ul>to accessible zebra printers
-        <ul><ul>
-        <li><a href=send_print_request>manually compose & send print request</a>
+        <ul><ul><ul>
+        <li><a href=bpr >(use me) select lab + printer + label style</a>
+        <li><a href=send_print_request >same as above, but only stable label templates</a>
         </ul><br>
         </ul></ul>
         <hr><h2>Edit Label Templates</h2>
@@ -555,16 +556,50 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             <h3>Save A Template</h3>
             <ul>
             Specify a tag to be inserted to your new tempate file, and save when you are ready. Each save will create a new template file.
-
+            <h3>Elevate A Draft Template To Stable</h3>
+            <ul><li>move your draft to a new file which follows the naming conventions to etc/label_styles/.</ul>
+            
             <h2>Use A Template</h2>
             <ul>
             <li>Determine the template name from the filename. For /path/to/template_root/partA_partB.zpl, the value for the 'label_zpl_style' would be 'partA_partB' ( via this UI and programatically).
             <h3>UI</h3>
             <ul>
-            <li> You can send print requests from <a href=build_print_reques >this UI</a> (which is not intended for routine use, but for design of labels and managing/bebugging printer issues) .. <a href=build_print_request?lab=jemm&printer=Download-Label-png&printer_ip=dl_png&label_zpl_style=test_2inX1in >this is an example using the tube_2inX1in zpl template</a>
-            
+            <li> You can send print requests from <a href=build_print_reques >this UI</a> (which is not intended for routine use, but for design of labels and managing/bebugging printer issues) .. <a href=build_print_request?lab=scan-results&printer=Download-Label-png&printer_ip=dl_png&label_zpl_style=test_2inX1in >this is an example using the tube_2inX1in zpl template to send a print request to the PNG rederer</a>. And this is an example using a draft template <a href=build_print_request?lab=scan-results&printer=Download-Label-png&printer_ip=dl_png&label_zpl_style=tube_2inX1in.exampleDraft.2023-10-29_01:29:56.342244 >tube_2inX1in.exampleDraft.2023-10-29_01:29:56.342244</a>    
             </ul>
+            <h3>Progamatically</h3>
+            <ul>
+            <li>Instantiate a zebra_day print manager
+
+            <br>
+            <br>
+            <code>
+import zebra_day as zd
+</code>
+            <br><code>
+            zd_pm = zd.print_mgr.zpl()            
+            </code>
+            <br><br><br>
             
+            <li> Determine the label style code as above, and use it in the <b>print_zpl</b> call. For the 2 examples above, this would look like:
+<br><Br>
+            <li>for the stable template <b>tube_2inX1in</b>
+            <br><ul><br>
+            <code>
+d_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barcode="somebarcode", alt_a="additional info", label_zpl_style="tube_2inX1in")
+            </code>
+</ul><br><br>
+            
+            <li>for the draft template <b> tube_2inX1in.exampleDraft.2023-10-29_01:29:56.342244</b>
+            <br><br>
+     <ul>       <code>
+zd_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barcode="somebarcode", alt_a="additional info", label_zpl_style="tube_2inX1in.exampleDraft.2023-10-29_01:29:56.342244")
+            </code></ul></ul>
+
+            </ul></ul>
+            <h2>to do</h2>
+            <ul>
+            ... use the template file names directly.
+            </ul>
 
         </td></tr></table>
 
@@ -629,6 +664,70 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         #self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
         return self.wrap_content(ret_html)
 
+
+    @cherrypy.expose
+    def bpr(self):
+
+        self.labs_dict = self.zp.printers
+        labs = self.labs_dict["labs"].keys()
+
+        ll = ""
+        for lab in labs:
+            ll += f'<option value="{lab}">{lab}</option>'
+
+        template_sel = "<select name=label_zpl_style ><option value='select one'>select one</option><option value=stable>--stable templates--</option>"
+        
+        for zs in sorted(os.listdir(self.rel_p+'/etc/label_styles/')):
+            if zs.endswith('.zpl'):
+                zs = zs.removesuffix('.zpl')
+                template_sel += f"<option value='{zs}'>{zs}</option>"
+
+        template_sel += f"<option value=draft>--draft templates--</option>"
+
+        for zs in sorted(os.listdir(self.rel_p+'/etc/label_styles/tmps/')):
+            if zs.endswith('.zpl'):
+                zs = zs.removesuffix('.zpl')
+                template_sel += f"<option value='{zs}'>{zs}</option>"
+        template_sel += f"</select>"
+        
+        ret_html = """
+        <script>
+                function populatePrinters() {
+                    var lab = document.getElementById("labsDropdown").value;
+                    var printersDropdown = document.getElementById("printersDropdown");
+                    printersDropdown.innerHTML = "";
+                    var labs = """ + str(self.labs_dict["labs"]) + """;
+                    for (var printer in labs[lab]) {
+                        var option = document.createElement("option");
+                        option.text = printer;
+                        option.value = printer;
+                        printersDropdown.add(option);
+                    }
+                }
+            </script>
+            </head>
+           <body>
+                    <h1>Formulate Print Request, step 1</h1>
+                    <ul><small><a href=/>home</a></smal>
+                    <h2>Select Lab + Printer + ZPL Template</h2>
+                    <ul><hr><br>
+                    <p align=center>You will be prompted for the data to print on the next page</p><br><br><ul><br>
+                    <form name=bpr_form action=build_print_request align=center >
+                    select a lab: <select id="labsDropdown" name=lab onchange="populatePrinters()">
+                <option value="">Select Lab</option>"""+ll+"""
+                </select>
+                
+                select a printer: <select id="printersDropdown" name=printer>
+                    <option value="">Select Printer</option>
+                </select>
+                <br>select a template"""+template_sel+"""<br>
+                    <input type=submit>
+                    </form>
+        """
+        
+        return self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
+    
+    
     @cherrypy.expose
     def png_renderer(self,filename,content,lab='',printer='', ftag=''):
 
