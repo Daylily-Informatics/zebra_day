@@ -436,8 +436,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
                 data = json.loads(json_data)
                 with open(self.zp.printers_filename, 'w') as f:
                     json.dump(data, f, indent=4)
-                from IPython import embed
-                embed()
+
                 self.zp.load_printer_json(json_file=self.zp.printers_filename, relative=False)
 
                 os.system('sleep 2')

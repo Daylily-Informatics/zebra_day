@@ -131,7 +131,7 @@ class zpl:
                 status = sl[4]
                 arp_response = sl[5]
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
 
         self.save_printer_json(self.printers_filename, relative=False)
 
