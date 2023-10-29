@@ -1,4 +1,43 @@
 /* Fonts and Base */
+
+:root {
+    --hrColor: #C400DB;
+}
+
+.hrTiny {
+    height: 1px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrSmall {
+    height: 2px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrMed {
+    height: 3px;
+    width: 100%;
+    background-color: var(--hrColor);
+}
+
+.hrLarge {
+    height: 4px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrVLarge {
+    height: 5px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+h3 {
+    margin-bottom: auto;
+}
+    
 @import url('https://fonts.googleapis.com/css2?family=DejaVu+Sans+Mono&display=swap');
 
 .spinner-hidden {

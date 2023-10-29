@@ -11,7 +11,7 @@ import tempfile
 import zebra_day.print_mgr as zdpm
 
 
-ENVCHECK = os.environ.get('ZDAY','skip')  # Start zserve.py like: export ZDAY=somestring && python /bin/zserve.py and the index (for now) will not load unless you send along the same string with the HTTP request using the envcheck variable.  If not detected, set to skip and this is not checked.  NOTE!  This is hugely crude and something much better needs to be done before anything here is exposed routinely in the wild.  A quick improvement coming soon, session level auth and so on.
+ENVCHECK = os.environ.get('ZDAY','skip')  # If this envvar is set when starring zday, requests to index are ignored unless accomanied by the matching ?envcheck string
 
 class Zserve(object):
 
@@ -103,9 +103,6 @@ class Zserve(object):
 
         self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
 
-        #ret_html = "<a href=/>home</a><br><br><br>New Json Object:" + str(self.zp.printers)
-        #return self.wrap_content(ret_html)
-        #referrer = cherrypy.request.headers.get('Referer', '/')
         raise cherrypy.HTTPRedirect('printer_status')
 
     
@@ -189,7 +186,7 @@ class Zserve(object):
         return dat_list
         
     @cherrypy.expose
-    def index(self,envcheck='skip'):
+    def index(self, envcheck='skip'):
         if envcheck != ENVCHECK:
             #client_ip = cherrypy.request.remote.ip
             os.system('sleep 31')
@@ -361,7 +358,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             with open(fn, 'rb') as f:
                 return f.read()
         except FileNotFoundError:
-            return "File not found."
+            return self.wrap_content("File not found.")
 
 
     @cherrypy.expose
@@ -455,51 +452,9 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
 
 
     @cherrypy.expose
-    def qqqxxx(self):
-        self.labs_dict = self.zp.printers
-        labs = self.labs_dict["labs"].keys()
-
-        html = """<html>
-        <head>
-            <script>
-                function populatePrinters() {
-                    var lab = document.getElementById("labsDropdown").value;
-                    var printersDropdown = document.getElementById("printersDropdown");
-                    printersDropdown.innerHTML = "";
-                    var labs = """ + str(self.labs_dict["labs"]) + """;
-                    for (var printer in labs[lab]) {
-                        var option = document.createElement("option");
-                        option.text = printer;
-                        option.value = printer;
-                        printersDropdown.add(option);
-                    }
-                }
-            </script>
-        </head>
-        <body>
-            <form>
-                <select id="labsDropdown" onchange="populatePrinters()">
-                    <option value="">Select Lab</option>"""
-
-        for lab in labs:
-            html += f'<option value="{lab}">{lab}</option>'
-
-        html += """
-                </select>
-                <select id="printersDropdown">
-                    <option value="">Select Printer</option>
-                </select>
-            </form>
-        </body>
-        </html>"""
-
-        return html
-
-
-    @cherrypy.expose
     def edit(self, filename=None, dtype=''):
         if not filename:
-            return "No file selected"
+            return self.wrap_content("No file selected")
 
         filepath = os.path.join(self.rel_p + '/etc/label_styles/' + dtype + '/', filename)
 
@@ -514,9 +469,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             ll += f'<option value="{lab}">{lab}</option>'
 
 
-        return """<html>
-        <head>
-        <link rel="stylesheet" href="""+self.css_file+""">
+        ret_html = """
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
@@ -552,6 +505,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         </td><td>
          <div style="border: 1;" id="pngContainer"></div>
         <ul><h3>How To Use This Tool</h3>
+            <div class=hrMed > </div>
         <small><a href=https://labelary.com/viewer.html target=labels>For More On ZPL (docs and tools)</a></small><ul>
         <ul><li>Load existing ZPL format files, make edits and preview the effects by producing a PNG.
         <li>When you wish to save a ZPL format you have worked on here, click 'Save As Temp'.  This will use the original ZPL file name to create a timestamped new file with your changes saved to it, the new file name will contain the TAG you specify.  <b>THE ORIGINAL FILE IS NOT CHANGED OR DELETED</b>.
@@ -632,9 +586,11 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
 }}
 
         </script>
-        </body>
-        </html>
+        
         """.format(cont=content, fn=filename,ll=ll)
+
+        #self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
+        return self.wrap_content(ret_html)
 
     @cherrypy.expose
     def png_renderer(self,filename,content,lab='',printer='', ftag=''):
@@ -663,17 +619,25 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         return self.wrap_content(ret_html)
 
 
-    def wrap_content(self, content):
+    def wrap_content(self, content, close_head_section=True, add_spinner=True):
         header = f"""
         <html>
         <head>
+        <link rel="stylesheet" href="static/general.css">
         <link rel="stylesheet" href="{self.css_file}">
-        </head>
-        <body>
-        <div id="spinner" class="spinner-hidden">
-        <div class="loader"></div>
-        </div>
         """
+
+        if close_head_section:
+            header += """
+            </head>
+            """
+            if add_spinner:
+                header += """
+                <body>
+                <div id="spinner" class="spinner-hidden">
+                <div class="loader"></div>
+                </div>
+                """
 
         footer = """
         <script>
