@@ -18,8 +18,8 @@ class Zserve(object):
 
     def st(self):
         self.css_file = "static/style.css"
-        
-    
+
+
     def __init__(self, relpath, abpath):
 
         self.rel_p = relpath
@@ -41,8 +41,8 @@ class Zserve(object):
 
         if css_file not in [None]:
             self.css_file = "static/"+css_file
-            raise cherrypy.HTTPRedirect("/") 
-            
+            raise cherrypy.HTTPRedirect("/")
+
         ret_html = "<h1>Change The Zebra Day UI Style</h1><ul><small><a href=/>home</a></small><br><ul><hr><br><ul>Available Style CSS Files:<br><ul>"
         for i in sorted(os.listdir(self.rel_p+'/static')):
             if i.endswith('.css'):
@@ -72,9 +72,10 @@ class Zserve(object):
                 model = sl[2]
                 serial = sl[3]
                 status = sl[4]
-                self.detected_printer_ips[ip] = [model, serial, status]
+                arp_data = sl[5]
+                self.detected_printer_ips[ip] = [model, serial, status, arp_data]
                 ret_html = ret_html + f"""
-                <li>{zp} ::: <a href=http://{ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status}"""
+                <li>{zp} ::: <a href=http://{ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status} ::: {arp_data}"""
 
         self._restart()
 
@@ -113,7 +114,7 @@ class Zserve(object):
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
 
         printer_deets = {}
-        ret_html = f"<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><br><ul><hr>Scan Network For Zebra Printers : <form action=probe_network_for_zebra_printers id='myForm' > Network Stub To Scan : <input type=text name=ip_stub value='{self.ip_root}' class='navigational-link' > Scan Wait(s)<input type=text name=scan_wait value='0.25'><input type=submit></form><br><ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style</th><th>Status on Network</th></tr>"
+        ret_html = f"""<h1>Printer Status Summary For {lab}</h1><small><a href=/>BACK HOME</a></small><ul><hr>        <br>        <ul><table border=1 ><tr><th>Printer Name</th><th>Printer IP</th><th>Label Style Available</th><th>Status on Network</th></tr>"""
 
         pips = {}
         try:
@@ -127,8 +128,20 @@ class Zserve(object):
             if pip in self.detected_printer_ips:
                 del(pips[pip])
 
-            printer_deets[pname] = [pip, "<small><a href=edit_zpl >available zpl templates here</a></small>"]  # "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
+            serial = self.zp.printers['labs'][lab][pname]['serial'].replace(' ','_')
+            model = self.zp.printers['labs'][lab][pname]['model']
+            lzs_links = "<small>"
+            default = ' >'
+            for lzs in self.zp.printers['labs'][lab][pname]['label_zpl_styles']:
+                lzs_links += f"""<small>{default} <a href=edit_zpl >{lzs}</a> (<a target=pl href="_print_label?lab={lab}&printer={pname}&printer_ip={pip}&label_zpl_style={lzs}&uid_barcode={pip}&alt_a={model}&alt_b={serial}&alt_c={lab}&alt_d={lab}"  >test</a>)<br>"""
+                if default in [' >']:
+                    lzs_links += "<br><ul><div style='height: 1px; background-color: pink; width:97%;' class=hrTiny >"
+                default = ""
+            lzs_links += "</ul></small>"
+
+            printer_deets[pname] = [pip, lzs_links]  # "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
             print(pname, pip)
+            print(f"curl -m {pip}")
             cres = os.popen(f"curl -m 4 {pip}").readlines()
             for ci in cres:
                 if len(ci.split('Status:')) > 1:
@@ -139,12 +152,13 @@ class Zserve(object):
             try:
                 pip2 = printer_deets[pret][0]
 
-                pip2a = f"{self.zp.printers['labs'][lab][pret]['model']} / {self.zp.printers['labs'][lab][pret]['serial']}" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
+                pip2a = f"<small>{self.zp.printers['labs'][lab][pret]['model']} <br>{self.zp.printers['labs'][lab][pret]['serial']}</small>" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
                 serial = self.zp.printers['labs'][lab][pret]['serial'].replace(' ','_')
                 model = self.zp.printers['labs'][lab][pret]['model']
-                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><br><small><a target=pl href="_print_label?lab={lab}&printer={pret}&printer_ip={pip2}&label_zpl_style=labware_2inX1in&uid_barcode={pip2}&alt_a={model}&alt_b={serial}&alt_c={pret}&alt_d={lab}"  >print-test-label</a></small></td><td>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
+                arp_data = self.zp.printers['labs'][lab][pret]['arp_data']
+                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small>{arp_data}</small><br></td><td valign=top ><br>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
             except Exception as e:
                 print(e)
                 ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
@@ -153,7 +167,11 @@ class Zserve(object):
         for zi in pips:
             zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
 
-        ret_html = ret_html + "</table></ul><h3>Detected, But Not Configured, Zebra Printers</h3><small>you must scan the network before this will present info</small><ul>" + zaddl + "</ul></ul>"
+        ret_html = ret_html + f"""</table></ul><ul>
+        </ul><br><hr>
+        <h2>Scan Network For Zebra Printers</h2><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub > <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>                 </ul>
+        """        
+
 
         return self.wrap_content(ret_html)
 
@@ -164,7 +182,7 @@ class Zserve(object):
             #client_ip = cherrypy.request.remote.ip
             os.system('sleep 31')
             return ''
-        
+
         llinks = ""
         try:
             for lb in self.zp.printers['labs'].keys():
@@ -187,7 +205,8 @@ class Zserve(object):
         <ul><ul>
         <li><a href=view_pstation_json >view and edit json</a>
         <br>
-        <br><li><small>scan network for new zebra printers, and add to printers.json config used by this package  <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value='"""+self.ip_root+"""' name=ip_stub > <input type=submit></form> </small><li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
+        
+        <li><a href=list_prior_printer_config_files>view backed up printers json config files</a>                 </ul><br>
         </ul></ul>
         <hr>
         <h2>Send Print Requests</h2>
@@ -210,7 +229,7 @@ class Zserve(object):
         </small>
         </ul></ul>
         </ul></ul></ul>
-        <a href=chg_ui_style style='font-size: 40px; position: fixed; bottom: 0; right: 0;padding: 10px; text-decoration:none;' id="bottomRightLink">change ui style</a>
+        <div style="position: fixed; border:5px; bottom: 0; right: 0;padding: 8px; text-decoration:none;" ><a href=chg_ui_style style='font-size: 18px;' id="bottomRightLink">change ui style</a></div>
         """
 
         return self.wrap_content(ret_html)
@@ -221,7 +240,7 @@ class Zserve(object):
         ret_html = ""
 
         for lab in sorted(self.zp.printers['labs']):
-            ret_html = ret_html + f"<h1>Lab {lab}</h1><small><a href=/>home</a><br><ul><hr><ul>"
+            ret_html = ret_html + f"<h1>Lab {lab}</h1><small><a href=/>home</a><br><ul><hr><table width=90% align=center ><tr width=100% ><td width=40%><ul>"
             for printer in sorted(self.zp.printers['labs'][lab]):
                 pip = self.zp.printers['labs'][lab][printer]['ip_address']
                 plab = self.zp.printers['labs'][lab][printer]['label_zpl_styles']
@@ -230,7 +249,24 @@ class Zserve(object):
                     ret_html = ret_html + f"<li>{plabi} ----- <a href=build_print_request?lab='{lab}'&printer='{printer}'&printer_ip='{pip}'&label_zpl_style='{plabi}'>PRINT THIS TYPE</a>"
                 ret_html = ret_html + "</ul><br>"
 
+        # was going to expose the in development labels styles... maybe latter, as they can be manu
+        # for ft in sorted(os.listdir(self.rel_p+'/etc/label_styles/tmps/')):
+
+        ret_html += "</td><td width=40% align=center>"
+
+
+        ret_html = ret_html + " </td></tr></table>"
+
         return self.wrap_content(ret_html)
+
+
+    @cherrypy.expose
+    def build_and_send_raw_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename='',ftag=''):
+
+        # override zpl_label_style
+        client_ip = cherrypy.request.remote.ip
+
+        self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=None, zpl_content=content, client_ip=client_ip)
 
 
     @cherrypy.expose
@@ -274,7 +310,7 @@ class Zserve(object):
         ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, client_ip=client_ip)
 
         full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
-        
+
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED<br><ul>"
         if len(ret_s.split('.png')) > 1:
             addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src=files/{ret_s.split('/')[-1]}><br>"
@@ -332,13 +368,23 @@ class Zserve(object):
 
         return self.wrap_content(ret_html)
 
+    @cherrypy.expose
+    def clear_printers_json(self):
 
+        self.zp.clear_printers_json()
+        self._restart()
+        referrer = cherrypy.request.headers.get('Referer', '/')
+        raise cherrypy.HTTPRedirect(referrer)
+
+        
+        
     @cherrypy.expose
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
-        ret_html = "Done. <a href=/>home</a>."
-        ret_html = ret_html + "<br>server is restarted? " + self._restart()
-        return self.wrap_content(ret_html)
+        self._restart()
+        referrer = cherrypy.request.headers.get('Referer', '/')
+        raise cherrypy.HTTPRedirect(referrer)
+
 
 
     @cherrypy.expose
@@ -372,8 +418,8 @@ class Zserve(object):
 
         ret_html = """
         <a href=/>home</a><br><ul>
-        To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'.  ie: test_2inX1in' <br><ul><hr><br>stable ZPL templates<br>
-            <ul>
+        To specify a template to use (via the programatic API or <a href=send_print_request>this GUI</a>), use the file name string (not including the path prefix) and remove the trailing '.zpl'. <ul><br><br><ul> ie: <b>test_2inX1in</b></ul> <br><ul><hr><ul><br>stable ZPL templates<br>
+
                 {}
             </ul>
 
@@ -467,19 +513,17 @@ class Zserve(object):
         <form method="post" action="/save" id="textForm">
                 <textarea name="content" rows="30" cols="40">{cont}</textarea><br/>
                 <input type="hidden" name="filename" value="{fn}">
-                TMP File Tag (added to new file name): <input type=text name=ftag value=na >
-                <input type="submit" value="Save Temp File">
+                <br>TMP File Tag (added to new file name): <input style="width: 100px;" type=text name=ftag value=na >
+                <input type="submit" value="Save Tmp File">                <input type="button" value="Render PNG" onclick="submitToPNGrenderer();">
                 <hr>
-                <input type="button" value="Render PNG Of ZPL Label" onclick="submitToPNGrenderer();">
-                <hr>
-                <b>choose a 'Lab' and 'Printer' to test print to</b><select id="labsDropdown" name=lab onchange="populatePrinters()">
+               <select id="labsDropdown" name=lab onchange="populatePrinters()">
                 <option value="">Select Lab</option>{ll}
                 </select>
                 <select id="printersDropdown" name=printer>
                     <option value="">Select Printer</option>
                 </select>
-                <input type="button" value="Test Print To Local Zebra" onclick="submitToRealPrint();">
-            </form><br>
+                <input type="button" value="set lab and printer & print" onclick="submitToRealPrint();">
+            </form>
         </td><td>
          <div style="border: 1;" id="pngContainer"></div>
         <ul><h3>How To Use This Tool</h3>
@@ -514,16 +558,31 @@ class Zserve(object):
                 method: 'POST',
                 body: formData
                 }})}}
-        </script>
-                <script>
-                function submitToRealPrint() {{
-                var form = document.getElementById('textForm');
-                form.action = '/build_print_request';
-                form.submit();
-                }}
-                </script>
-                </script>
-        <script>
+
+            function submitToRealPrint() {{
+            var form = document.getElementById('textForm');
+            var formData = new FormData(form);
+            
+            // Create an XMLHttpRequest object
+            var xhr = new XMLHttpRequest();
+            
+            // Set up the request
+            xhr.open('POST', '/build_and_send_raw_print_request', true);
+            
+            // Handle the response (optional, but can be useful for debugging or feedback)
+            xhr.onload = function() {{
+            if (xhr.status == 200) {{
+            console.log('Request was successful. Response:', xhr.responseText);
+            }} else {{
+            console.log('Request failed. Returned status:', xhr.status);
+            }}
+            }};
+            
+            // Send the form data
+            xhr.send(formData);
+            }}
+            </script>
+            <script>
         function submitToPNGrenderer() {{
     var form = document.getElementById('textForm');
     var formData = new FormData(form);

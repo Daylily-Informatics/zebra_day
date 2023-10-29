@@ -103,6 +103,15 @@ zday_quickstart
     ```bash
     mamba create -n ZDAY -c conda-forge python==3.10 pip ipython
     ```
+#### Nice To Have
+ * For MAC address discovery, `arp` should be installed (both for MAC and Linux).
+##### Ubuntu
+  ```bash
+  sudo apt-get install net-tools
+  ```
+
+##### MAC
+  * Should be pre-installed by default.
 
 ### Install From PIP 
 you can pip install `zebra_day` to any python environment running 3.10.*.  If you plan to run the web UI or use the HTTP API functionality, run this in the above described `ZDAY` conda env.  To install with pip:

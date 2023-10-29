@@ -23,11 +23,13 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100):
         sock.connect((printer_ip, printer_port))
 
         # Send the ZPL code as raw bytes
-        sock.sendall(zpl_code.encode())
+        # ... the zebra printer will not throw an error if the request
+        # content is incorrect, or for any reason except to reject request to the wrong port.
+        return_code = sock.sendall(zpl_code.encode())
         print("ZPL code sent successfully to the printer!")
 
     except ConnectionError as e:
-        print(f"Error connecting to the printer: {e}")
+        raise Exception(f"Error connecting to the printer: {printer_ip} on port {printer_port} \n\n\t"+str(e))
 
     finally:
         # Close the socket connection
@@ -50,7 +52,7 @@ class zpl:
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
-        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na"}
+        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
 
         res = os.popen(str(files('zebra_day'))+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
@@ -62,8 +64,9 @@ class zpl:
                 model = sl[2]
                 serial = sl[3]
                 status = sl[4]
+                arp_response = sl[5]
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial}  # The label formats set here are the installed defaults
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["blank_0inX0in", "test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
 
         self.save_printer_json()
 
@@ -155,10 +158,14 @@ class zpl:
         return png_fn
 
 
-    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1):
+    # I should add an override where just the printer IP can be specified
+    def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1, zpl_content=None):
         rec_date = str(datetime.datetime.now()).replace(' ','_')
         print_n = int(print_n)
 
+        if printer_name in ['','None',None] and lab in [None,'','None']:
+            raise Exception(f"lab and printer_name are both required to route a zebra print request, the following was what was received: lab:{lab} & printer_name:{printer_name}")
+        
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
@@ -166,9 +173,13 @@ class zpl:
 
         printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
 
-        zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
-
-        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}' >> {str(files('zebra_day'))}/logs/print_requests.log")
+        zpl_string = ''
+        if zpl_content in [None]:
+            zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
+        else:
+            zpl_string = zpl_content
+            
+        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}\t{zpl_content}\n' >> {str(files('zebra_day'))}/logs/print_requests.log")
 
         ret_s = None
         if printer_ip in ['dl_png']:

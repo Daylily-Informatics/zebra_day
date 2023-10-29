@@ -8,7 +8,8 @@
                 ],
                 "print_method": "generate png",
                 "model": "na",
-                "serial": "na"
+                "serial": "na",
+		"arp_data": "na"
             }
         }
     }

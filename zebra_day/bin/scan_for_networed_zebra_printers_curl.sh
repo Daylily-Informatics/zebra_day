@@ -22,7 +22,8 @@ for i in {1..254}; do
 	    combo=$(echo """$content""" | perl -ne 'print $1 if /<TITLE>(.*?)<\/TITLE>/')
 	    serial=$(echo """$combo""" | cut -d '-' -f 1)
 	    zstatus=$(echo """$combo""" | cut -d '-' -f 2)
-	    echo "ZebraPrinter|$ip|$model|$serial|$zstatus"
+	    arp_resp=$(arp -n $ip)
+	    echo "ZebraPrinter|$ip|$model|$serial|$zstatus|$arp_resp"
 	fi
     fi
 done
