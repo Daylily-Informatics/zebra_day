@@ -427,4 +427,4 @@ if __name__ == "__zday_start__":
     entry point for zday_start
     """
     
-    start_zday()
+    zday_start()
