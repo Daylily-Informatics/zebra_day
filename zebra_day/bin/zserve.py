@@ -489,54 +489,91 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             <h2>Editing: """+filename+"""</h2><small><ul><hr><a href=/>home</a> /// <a href=edit_zpl >back to label list</a> /// <a href=https://labelary.com/zpl.html target=x >zpl intro</a></small><br>
         <table border=1><tr><td style="vertical-align: top;"  >
         <form method="post" action="/save" id="textForm">
-                <textarea name="content" rows="30" cols="40">{cont}</textarea><br/>
+                <textarea name="content" rows="26" cols="40">{cont}</textarea><br/>
                 <input type="hidden" name="filename" value="{fn}">
                 <br>TMP File Tag (added to new file name): <input style="width: 100px;" type=text name=ftag value=na >
-                <input type="submit" value="Save Tmp File">                <input type="button" value="Render PNG" onclick="submitToPNGrenderer();">
+                <input type="submit" value="save draft">                <input type="button" value="Render PNG" onclick="submitToPNGrenderer();">
                 <hr>
-               <select id="labsDropdown" name=lab onchange="populatePrinters()">
+            <hr>
+            <br><h3>PRINT IRL:</h3>
+            <select id="labsDropdown" name=lab onchange="populatePrinters()">
                 <option value="">Select Lab</option>{ll}
                 </select>
                 <select id="printersDropdown" name=printer>
                     <option value="">Select Printer</option>
                 </select>
-                <input type="button" value="set lab and printer & print" onclick="submitToRealPrint();">
+
+                <input type="button" value="just format keys from ZPL" onclick="submitToRealPrint();">
+            <input type="button" value="w/ data inserted to format keys" onclick="submitToLocPrint();">
             </form>
         </td><td>
          <div style="border: 1;" id="pngContainer"></div>
-        <ul><h3>How To Use This Tool</h3>
+        <ul><h2>How To Use This Tool</h2>
             <div class=hrMed > </div>
-        <small><a href=https://labelary.com/viewer.html target=labels>For More On ZPL (docs and tools)</a></small><ul>
-        <ul><li>Load existing ZPL format files, make edits and preview the effects by producing a PNG.
-        <li>When you wish to save a ZPL format you have worked on here, click 'Save As Temp'.  This will use the original ZPL file name to create a timestamped new file with your changes saved to it, the new file name will contain the TAG you specify.  <b>THE ORIGINAL FILE IS NOT CHANGED OR DELETED</b>.
-        <li><a href=edit_zpl >Your New File Appears Here</a>
-        <li>To print using this ZPL template to a printer available on your network, <a href=send_print_request >navigate to available printers</a>. When you arrive at the <b>build_print_request</b> form for a specific printer, you are able to enter in any of the format replacement values specified in the ZPL you created. <b>important</b>, new ZPL files are not default available to use for printing.  However, you can override the  label_style_zpl value to select a different ZPL file.  Valid strings for label_style_zpl are the label style zpl file name, minus the .zpl extension, and no path.  So, for 'plate_1inX0.25in.zpl' you would enter 'plate_1inX0.25in' to use this zpl format.  For any non-default ZPL template files which have been created, the same process applies.  Given a draft ZPL file created on this page, ie: 'tube_2inX1in.2023-10-22_05:25:05.004018.zpl', you may use this template by trimming off the .zpl and entering 'tube_2inX1in.2023-10-22_05:25:05.004018'.
-        </ul>
-        <li>A good way to proceed when designing a new label.  Use the labely tool to generate your ZPL.  Create a zpl template file here with the format wildcards added.  Test using this ZPL, with format substitutions, on the printers you will be using you new template on.
+        <small><a href=https://labelary.com/viewer.html target=labels>Become Aquainted With ZPL  (public docs and tools)</a></small><ul>
+            <h3>Before Labels, Printers</h3>
+            <ul>
+            <li> Each printer supports a maximum area it can print, and the label stock only presents a specific area (ie: 1inch X 1 inch) which the printer can print on. If you are getting unexpected behavior, like partial or no printed data, check these things. Zebra printers will not error if asked to print outside their range, or off the label stock label size.
+            </ul>
+            <h3>ZPL Tempate Files</h3>
+            <ul>
+            <a href=edit_zpl >stable and draft zpl template files can be found here</a>.
+            <li>The template filenames follow the pattern (/path/to/file/)(partA_partB.)(zpl)
+            <ul>
+            <li>zebra_day identifies templates with '(partA_partB)'
+            <li>please do not use '_' in tags you specify for template draft file. Otherwise, these can really be any strings you'd like.  I try to follow the pattern partA=general description, partB=dimensions.
+            </ul>
+            <h4>Stable ZPL Files</h4><ul>
+            A set of files in active use. These can not be overwritten.
+            </ul>
+            <h4>Draft ZPL Files</h4>
+            <ul>
+            All template files created using this tool. These also can not be overwritten, each save from this tool creates a new template file (all of which can be used for print requests, hence their immutability)
+            <br>
+            Moving a draft to the stable tempates is done by moving the zpl file to the reside with the other stable zpls (done manually).
+            </ul>
+            <h3>Create A Template</h3>
+            <ul>
+            <h4>Manually</h4>
+            Draft a zpl file and save to the appropriate place. 
+            <h4>From An Existing Template</h4><ul>
+            Any stable or draft template can be the starting point for a new draft.  <a href=edit_zpl>Select from among these</a>.
+            <ul>
+            <li>When you select a template and land on this page, try rendering it to PNG to make sure it behaves as expected. The png renderer prints what edits to this template will look like, the buttons at the bottom use the unedited template.
 
-        <li> <b>When A ZPL File Is Ready For Wider Use...</b> For now, the file needs to be manually moved to a permanent ZPL file name.  A tool to do this will be available everntually.
-        </ul>
+            </ul>
+            <li>From <a href=edit_zpl >the list of stable and draft zpl files</a>, click on one youd like to use as a template.
+            <li>On the following screen (this one), you may edit the file in the text area.
+            <li>Test your edits by  <b>rendering as a png</b> (which will present the label in this 1/2 of the page). There are two other buttons which work not on the edits to this file, but assuming the original template.  Use one to print the label zpl with the format keys printed as text, use the other to specify values to be used for format keys.
+           
+            <h5>Format Keys</h5>            
+            <ul>
+            Each ZPL template file can specify points to allow insertion of variables when creating a specific print requrest. These format keys are denoted by {{}}, and there are 7 supported. You may use the same format key multiple times in a zpl template file. You may also use none of the keys. The keys are: <i>{{uid_barcode}} and {{alt_a}} {{alt_a}} {{alt_c}} {{alt_d}} {{alt_e}} {{alt_f}} </i>.<br>These may be used however you'd like in your template, 'uid_barcode' is named differently as a convenience.
+            <li>The PNG rendering tool here will not substite in your data to these formay points. It will print them as if they were just text to print. You can also send these raw requests to be printed by a physical printer (with no data inserted).
+            </ul>
+            </ul>
+            <h3>Save A Template</h3>
+            <ul>
+            Specify a tag to be inserted to your new tempate file, and save when you are ready. Each save will create a new template file.
 
-        <h3>ZPL Template Wildcards</h3>
-        This tool is a very simple interface to tinker with the overall features of a ZPL label. You may add format wildcards to the ZPL you edit here, but this interface does not execute format replacement of the ZPL previews generated.
-        <ul><hr>
-        The templates used by this system provide for a set of format wildcards which can be embedded in the ZPL specification file, and values inserted with each new print request.  Not all ZPL formats support all format replacements. The preview pdf generation on this page will not template any values in.  To use a zpl template, and specify format replacement values, <a href=send_print_request >use this interface</a>. <br>The wildcards supported:
-        <ul>
-        <li>{{uid_barcode}} = This will be encoded as the scannable barcode and presented in human readable form (at least for all default label templates)
-        <li>{{alt_a}} = the 'alt_*' wildcards are placehoders for additional information that may be presented beyond the .  These alt_* fields may be used howeever you like with your ZPL templates.
-        <li>{{alt_b}} = <a href=send_print_request >use this interface to test sending wildcards to ZPL templates.</a>
-        <li>... through {{alt_f}}
-        </ul></ul>
+            <h2>Use A Template</h2>
+            <ul>
+            <li>Determine the template name from the filename. For /path/to/template_root/partA_partB.zpl, the value for the 'label_zpl_style' would be 'partA_partB' ( via this UI and programatically).
+            <h3>UI</h3>
+            <ul>
+            <li> You can send print requests from <a href=build_print_reques >this UI</a> (which is not intended for routine use, but for design of labels and managing/bebugging printer issues) .. <a href=build_print_request?lab=jemm&printer=Download-Label-png&printer_ip=dl_png&label_zpl_style=test_2inX1in >this is an example using the tube_2inX1in zpl template</a>
+            
+            </ul>
+            
+
         </td></tr></table>
 
         <script>
             function submitToLocPrint() {{
-                var form = document.getElementById('textForm');                                                                         var formData = new FormData(form);
-
-                fetch('/build_print_request', {{
-                method: 'POST',
-                body: formData
-                }})}}
+            var form = document.getElementById('textForm');
+            form.action = '/build_print_request';
+            form.submit();
+            }}
 
             function submitToRealPrint() {{
             var form = document.getElementById('textForm');
