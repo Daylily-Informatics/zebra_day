@@ -8,30 +8,24 @@ setup(
     author_email='john@daylilyinformatics.com',
     url='https://github.com/Daylily-Informatics/zebra_day',
     packages=find_packages(),
-    install_requires=[
-        'yaml_config_day',
-        'requests',
-        'pytz',
-        'cherrypy',
-        'ipython'
-    ],
+    install_requires=["yaml_config_day==0.0.5", "requests", "pytz==2023.3.post1", "cherrypy==18.8.0", "ipython==8.16.1", "pytest"],
     include_package_data=True,
     package_data={
-        'zebra_day': [
-            'bin/*',
-            'etc/*',
-            'etc/label_styles/*',
-            'etc/label_styles/tmps/*',
-            'etc/old_printer_config/*',
-            'files/*',
-            'static/*',
-            'logs/*',
+        "zebra_day": [
+            "bin/*",
+            "etc/*",
+            "etc/label_styles/*",
+            "etc/label_styles/tmps/*",
+            "etc/old_printer_config/*",
+            "files/*",
+            "static/*",
+            "logs/*",
         ],
     },
     entry_points={
-        'console_scripts': [
-            'zday_quickstart = zebra_day.print_mgr:main',
-            'zday_start = zebra_day.print_mgr:zday_start',
+        "console_scripts": [
+            "zday_quickstart = zebra_day.print_mgr:main",
+            "zday_start = zebra_day.print_mgr:zday_start",
         ],
     },
 )

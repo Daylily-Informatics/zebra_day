@@ -11,17 +11,16 @@ import tempfile
 import zebra_day.print_mgr as zdpm
 
 
-ENVCHECK = os.environ.get('ZDAY','skip')  # If this envvar is set when starring zday, requests to index are ignored unless accomanied by the matching ?envcheck string
+ENVCHECK = os.environ.get(
+    "ZDAY", "skip"
+)  # If this envvar is set when starring zday, requests to index are ignored unless accomanied by the matching ?envcheck string
+
 
 class Zserve(object):
-
-
     def st(self):
         self.css_file = "static/style.css"
 
-
     def __init__(self, relpath, abpath):
-
         self.rel_p = relpath
         self.abs_p = abpath
         self.zp = zdpm.zpl()
@@ -30,42 +29,42 @@ class Zserve(object):
             ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
             print(ipcmd)
             self.ip = os.popen(ipcmd).readline().rstrip()
-            self.ip_root = ".".join(self.ip.split('.')[:-1])
+            self.ip_root = ".".join(self.ip.split(".")[:-1])
         except Exception as e:
-            self.ip = '192.168.1.0' # FAILS
-            self.ip_root = '192.168.1'  # FAILS
-
+            self.ip = "192.168.1.0"  # FAILS
+            self.ip_root = "192.168.1"  # FAILS
 
     @cherrypy.expose
-    def chg_ui_style(self,css_file=None):
-
+    def chg_ui_style(self, css_file=None):
         if css_file not in [None]:
-            self.css_file = "static/"+css_file
+            self.css_file = "static/" + css_file
             raise cherrypy.HTTPRedirect("/")
 
         ret_html = "<h1>Change The Zebra Day UI Style</h1><ul><small><a href=/>home</a></small><br><ul><hr><br><ul>Available Style CSS Files:<br><ul>"
-        for i in sorted(os.listdir(self.rel_p+'/static')):
-            if i.endswith('.css'):
+        for i in sorted(os.listdir(self.rel_p + "/static")):
+            if i.endswith(".css"):
                 ret_html += f"<li><a href=chg_ui_style?css_file={i} >{i}</a>"
         ret_html += "</ul></ul></ul>"
 
         return self.wrap_content(ret_html)
 
-
     @cherrypy.expose
     def probe_network_for_zebra_printers(self, ip_stub=None, scan_wait="0.25"):
         if ip_stub in [None]:
-            ip_stub = ".".join(self.ip.split('.')[:-1])
+            ip_stub = ".".join(self.ip.split(".")[:-1])
         ret_html = f"<h1>Probing {ip_stub} For Zebra Printers</h1><br><a href=printer_status>BACK TO THE NETWORK ZEBRA REPORT</a><ul><hr><ul>"
         try:
             self.detected_printer_ips = {}
         except Exception as e:
             self.detected_printer_ips = {}
 
-        res = os.popen(self.rel_p+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
+        res = os.popen(
+            self.rel_p
+            + f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}"
+        )
         for i in res.readlines():
             ii = i.rstrip()
-            sl = ii.split('|')
+            sl = ii.split("|")
             if len(sl) > 1:
                 zp = sl[0]
                 ip = sl[1]
@@ -74,13 +73,15 @@ class Zserve(object):
                 status = sl[4]
                 arp_data = sl[5]
                 self.detected_printer_ips[ip] = [model, serial, status, arp_data]
-                ret_html = ret_html + f"""
+                ret_html = (
+                    ret_html
+                    + f"""
                 <li>{zp} ::: <a href=http://{ip} target=new>{ip}</a> ::: {model} ::: {serial} ::: {status} ::: {arp_data}"""
+                )
 
         self._restart()
 
         return self.wrap_content(ret_html)
-
 
     @cherrypy.expose
     def list_prior_printer_config_files(self):
@@ -97,20 +98,20 @@ class Zserve(object):
 
         return self.wrap_content(ret_html)
 
+    @cherrypy.expose
+    def probe_zebra_printers_add_to_printers_json(
+        self, ip_stub="192.168.1", scan_wait="0.25", lab="scan-results"
+    ):
+        self.zp.probe_zebra_printers_add_to_printers_json(
+            ip_stub=ip_stub, scan_wait=scan_wait, lab=lab
+        )
+
+        os.system("sleep 2.2")
+        raise cherrypy.HTTPRedirect(f"printer_status?lab={lab}")
 
     @cherrypy.expose
-    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
-
-        self.zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait ,lab=lab)
-
-        os.system('sleep 2.2')
-        raise cherrypy.HTTPRedirect(f'printer_status?lab={lab}')
-
-    
-    @cherrypy.expose
-    def printer_status(self,lab="scan-results"):
-
-        if lab not in self.zp.printers['labs']:
+    def printer_status(self, lab="scan-results"):
+        if lab not in self.zp.printers["labs"]:
             return f"ERROR-- there is no record for this lab, {lab} in the printers.json. Please go <a href=/>home</a> and check the printers.json record to confirm it is valid.  If necessary, you may clear the json and re-build it from a network scan."
 
         printer_deets = {}
@@ -122,93 +123,112 @@ class Zserve(object):
         except Exception as e:
             self.detected_printer_ips = {}
 
-
-        for pname in self.zp.printers['labs'][lab]:
-            pip = self.zp.printers['labs'][lab][pname]['ip_address']
+        for pname in self.zp.printers["labs"][lab]:
+            pip = self.zp.printers["labs"][lab][pname]["ip_address"]
             if pip in self.detected_printer_ips:
-                del(pips[pip])
+                del pips[pip]
 
-            serial = self.zp.printers['labs'][lab][pname]['serial'].replace(' ','_')
-            model = self.zp.printers['labs'][lab][pname]['model']
+            serial = self.zp.printers["labs"][lab][pname]["serial"].replace(" ", "_")
+            model = self.zp.printers["labs"][lab][pname]["model"]
             lzs_links = "<small>"
-            default = ' >'
-            for lzs in self.zp.printers['labs'][lab][pname]['label_zpl_styles']:
+            default = " >"
+            for lzs in self.zp.printers["labs"][lab][pname]["label_zpl_styles"]:
                 lzs_links += f"""<small>{default} <a href=edit_zpl >{lzs}</a> (<a target=pl href="_print_label?lab={lab}&printer={pname}&printer_ip={pip}&label_zpl_style={lzs}&uid_barcode={pip}&alt_a={model}&alt_b={serial}&alt_c={lab}&alt_d={lab}"  >test</a>)<br>"""
-                if default in [' >']:
+                if default in [" >"]:
                     lzs_links += "<br><ul><div style='height: 1px; background-color: pink; width:97%;' class=hrTiny >"
                 default = ""
             lzs_links += "</ul></small>"
 
-            printer_deets[pname] = [pip, lzs_links]  # "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
+            printer_deets[pname] = [
+                pip,
+                lzs_links,
+            ]  # "...".join(self.zp.printers['labs'][lab][pname]['label_zpl_styles'])]
             print(pname, pip)
             print(f"curl -m {pip}")
             cres = os.popen(f"curl -m 4 {pip}").readlines()
             for ci in cres:
-                if len(ci.split('Status:')) > 1:
+                if len(ci.split("Status:")) > 1:
                     printer_deets[pname].append(ci)
 
-        ptype = ''
+        ptype = ""
         for pret in printer_deets:
             try:
                 pip2 = printer_deets[pret][0]
 
-                pip2a = f"<small>{self.zp.printers['labs'][lab][pret]['model']} <br>{self.zp.printers['labs'][lab][pret]['serial']}</small>" # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
+                pip2a = f"<small>{self.zp.printers['labs'][lab][pret]['model']} <br>{self.zp.printers['labs'][lab][pret]['serial']}</small>"  # "" if pip2 not in self.detected_printer_ips else " / ".join(self.detected_printer_ips[pip2])
                 ptype = printer_deets[pret][1]
                 pconnect = printer_deets[pret][2]
-                serial = self.zp.printers['labs'][lab][pret]['serial'].replace(' ','_')
-                model = self.zp.printers['labs'][lab][pret]['model']
-                arp_data = self.zp.printers['labs'][lab][pret]['arp_data']
-                ret_html = ret_html + f'<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small>{arp_data}</small><br></td><td valign=top ><br>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>'
+                serial = self.zp.printers["labs"][lab][pret]["serial"].replace(" ", "_")
+                model = self.zp.printers["labs"][lab][pret]["model"]
+                arp_data = self.zp.printers["labs"][lab][pret]["arp_data"]
+                ret_html = (
+                    ret_html
+                    + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small>{arp_data}</small><br></td><td valign=top ><br>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
+                )
             except Exception as e:
                 print(e)
-                ret_html = ret_html + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
+                ret_html = (
+                    ret_html
+                    + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
+                )
 
         zaddl = ""
         for zi in pips:
             zaddl = zaddl + f"<li>{zi} :: {pips[zi]}"
 
-        ret_html = ret_html + f"""</table></ul><ul>
+        ret_html = (
+            ret_html
+            + f"""</table></ul><ul>
         </ul><br><hr>
         <h2>Build New Printers Config json // Scan Network For Discoverable Printers</h2><ul>this will probe for printers, and with all discovered printers will create a new printers json and over-write the current fleet data for this lab. <form id='myForm'action=probe_zebra_printers_add_to_printers_json >Enter IP Root To Scan: <input type=text value={self.ip_root} name=ip_stub >
         Select (or enter new) lab: 
         {self._get_labs_datalist()}
         <input type=submit></form> <a href=list_prior_printer_config_files>the current printers json will be backed up and can be foud here.</a>                 </ul>
-        """        
-
+        """
+        )
 
         return self.wrap_content(ret_html)
 
-    
     def _get_labs_datalist(self):
         dat_list = "<input type=text name=lab list=lab_names><datalist id=lab_names>"
-        for ln in sorted(self.zp.printers['labs'].keys()):
+        for ln in sorted(self.zp.printers["labs"].keys()):
             dat_list += f"<option value={ln}>{ln}</option>"
         dat_list += "</datalist>"
         return dat_list
-        
+
     @cherrypy.expose
-    def index(self, envcheck='skip'):
+    def index(self, envcheck="skip"):
         if envcheck != ENVCHECK:
-            #client_ip = cherrypy.request.remote.ip
-            os.system('sleep 31')
-            return ''
+            # client_ip = cherrypy.request.remote.ip
+            os.system("sleep 31")
+            return ""
 
         llinks = ""
         try:
-            for lb in self.zp.printers['labs'].keys():
-                llinks = llinks + f"<li><a href=printer_status?lab={lb}  > {lb} Zebra Printer Status </a>"
+            for lb in self.zp.printers["labs"].keys():
+                llinks = (
+                    llinks
+                    + f"<li><a href=printer_status?lab={lb}  > {lb} Zebra Printer Status </a>"
+                )
         except Exception as e:
-            llinks = llinks + "<li> no labs found. try scanning and resetting printers.json"
+            llinks = (
+                llinks + "<li> no labs found. try scanning and resetting printers.json"
+            )
 
         llinks = llinks + "<li> __end__ </ul>"
 
-        ret_html = """
-        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>ip address detected :: """+self.ip+"""</small>
+        ret_html = (
+            """
+        <h1>Daylily Zebra Printer And Print Request Manager</h1><ul><small>ip address detected :: """
+            + self.ip
+            + """</small>
         <hr><ul>
         <hr>
         <h2>Zebra Printer Fleet Status, By Site</h2>
         <ul>detected sites:
-        <ul><ul>"""+llinks+"""</ul><br></ul>
+        <ul><ul>"""
+            + llinks
+            + """</ul><br></ul>
         <hr>
         <h2>Zebra Printer JSON Config</h2>
         <ul>this json file defines the zebra printers available to the package
@@ -243,6 +263,7 @@ class Zserve(object):
         </ul></ul></ul>
         <div style="position: fixed; border:5px; bottom: 0; right: 0;padding: 8px; text-decoration:none;" ><a href=chg_ui_style style='font-size: 18px;' id="bottomRightLink">change ui style</a></div>
         """
+        )
 
         return self.wrap_content(ret_html)
 
@@ -264,25 +285,30 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
  <input type=submit></form> 
         """
         return self.wrap_content(ret_html)
-    
+
     @cherrypy.expose
     def x(self, s=15):
-        os.system(f'sleep {s}')
+        os.system(f"sleep {s}")
         return self.wrap_content("<div align=center><a href=/>home</a></div>")
 
-    
     @cherrypy.expose
     def send_print_request(self):
         ret_html = ""
 
-        for lab in sorted(self.zp.printers['labs']):
-            ret_html = ret_html + f"<h1>Lab {lab}</h1><small><a href=/>home</a><br><ul><hr><table width=90% align=center ><tr width=100% ><td width=40%><ul>"
-            for printer in sorted(self.zp.printers['labs'][lab]):
-                pip = self.zp.printers['labs'][lab][printer]['ip_address']
-                plab = self.zp.printers['labs'][lab][printer]['label_zpl_styles']
+        for lab in sorted(self.zp.printers["labs"]):
+            ret_html = (
+                ret_html
+                + f"<h1>Lab {lab}</h1><small><a href=/>home</a><br><ul><hr><table width=90% align=center ><tr width=100% ><td width=40%><ul>"
+            )
+            for printer in sorted(self.zp.printers["labs"][lab]):
+                pip = self.zp.printers["labs"][lab][printer]["ip_address"]
+                plab = self.zp.printers["labs"][lab][printer]["label_zpl_styles"]
                 ret_html = ret_html + f"<li>{printer} .. {pip}<ul>"
                 for plabi in sorted(plab):
-                    ret_html = ret_html + f"<li>{plabi} ----- <a href=build_print_request?lab='{lab}'&printer='{printer}'&printer_ip='{pip}'&label_zpl_style='{plabi}'>PRINT THIS TYPE</a>"
+                    ret_html = (
+                        ret_html
+                        + f"<li>{plabi} ----- <a href=build_print_request?lab='{lab}'&printer='{printer}'&printer_ip='{pip}'&label_zpl_style='{plabi}'>PRINT THIS TYPE</a>"
+                    )
                 ret_html = ret_html + "</ul><br>"
 
         # was going to expose the in development labels styles... maybe latter, as they can be manu
@@ -290,26 +316,45 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
 
         ret_html += "</td><td width=40% align=center>"
 
-
         ret_html = ret_html + " </td></tr></table>"
 
         return self.wrap_content(ret_html)
 
-
     @cherrypy.expose
-    def build_and_send_raw_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename='',ftag=''):
-
+    def build_and_send_raw_print_request(
+        self,
+        lab,
+        printer,
+        printer_ip="",
+        label_zpl_style="",
+        content="",
+        filename="",
+        ftag="",
+    ):
         # override zpl_label_style
         client_ip = cherrypy.request.remote.ip
 
-        self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=None, zpl_content=content, client_ip=client_ip)
-
+        self.zp.print_zpl(
+            lab=lab,
+            printer_name=printer,
+            label_zpl_style=None,
+            zpl_content=content,
+            client_ip=client_ip,
+        )
 
     @cherrypy.expose
-    def build_print_request(self, lab, printer, printer_ip='', label_zpl_style='',content='', filename='',ftag=''):
-
-        if label_zpl_style in ['','None', None] and filename not in ['','None',None]:
-            label_zpl_style = filename.split('.zpl')[0]
+    def build_print_request(
+        self,
+        lab,
+        printer,
+        printer_ip="",
+        label_zpl_style="",
+        content="",
+        filename="",
+        ftag="",
+    ):
+        if label_zpl_style in ["", "None", None] and filename not in ["", "None", None]:
+            label_zpl_style = filename.split(".zpl")[0]
 
         ret_html = f"""
         <h1>Send Label Print Request</h1>
@@ -317,7 +362,9 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         <h3>{lab} .. {printer} .. {printer_ip} .. {label_zpl_style}</h3><ul><hr><ul>
         """
 
-        ret_html = ret_html + """
+        ret_html = (
+            ret_html
+            + """
         <form action=_print_label>
         <li>UID for Barcode : <input type=text name=uid_barcode ></input><br>
         <li>ALT-A : <input type=text name=alt_a ></input><br>
@@ -327,7 +374,10 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         <li>ALT-E : <input type=text name=alt_e ></input><br>
         <li>ALT-F : <input type=text name=alt_f ></input><br>
         """
-        ret_html = ret_html + f"""
+        )
+        ret_html = (
+            ret_html
+            + f"""
         Override Lab: <input type=text name=lab value={lab} ><br>
         Override Printer: <input type=text name=printer value={printer} ><br>
         Override IP: <input type=text name=printer_ip value={printer_ip} ><br>
@@ -335,55 +385,80 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         <input type=submit>
         </form>
         """
+        )
 
         return self.wrap_content(ret_html)
 
-
     @cherrypy.expose
-    def _print_label(self, lab, printer, printer_ip='', label_zpl_style='', uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f=''):
+    def _print_label(
+        self,
+        lab,
+        printer,
+        printer_ip="",
+        label_zpl_style="",
+        uid_barcode="",
+        alt_a="",
+        alt_b="",
+        alt_c="",
+        alt_d="",
+        alt_e="",
+        alt_f="",
+    ):
         client_ip = cherrypy.request.remote.ip
 
-        ret_s = self.zp.print_zpl(lab=lab ,printer_name=printer, label_zpl_style=label_zpl_style, uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, client_ip=client_ip)
+        ret_s = self.zp.print_zpl(
+            lab=lab,
+            printer_name=printer,
+            label_zpl_style=label_zpl_style,
+            uid_barcode=uid_barcode,
+            alt_a=alt_a,
+            alt_b=alt_b,
+            alt_c=alt_c,
+            alt_d=alt_d,
+            alt_e=alt_e,
+            alt_f=alt_f,
+            client_ip=client_ip,
+        )
 
-        full_url = cherrypy.url() + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
+        full_url = (
+            cherrypy.url()
+            + f"?lab={lab}&printer={printer}&printer_ip={printer_ip}&label_zpl_style={label_zpl_style}&uid_barcode={uid_barcode}&alt_a={alt_a}&alt_b={alt_b}&alt_c={alt_c}&alt_d={alt_d}&alt_e={alt_e}&alt_f={alt_f}"
+        )
 
         addl_html = f"<h2>Zday Label Print Request Sent</h2><ul>The URL for this print request(which you can edit and use incurl) is: {full_url}<hr><ul>SUCCESS, LABEL PRINTED<br><ul>"
-        if len(ret_s.split('.png')) > 1:
+        if len(ret_s.split(".png")) > 1:
             addl_html = f"<a href=/>home</a><br><br>SUCCESFULLY CREATED PNG<br><img src=files/{ret_s.split('/')[-1]}><br>"
         ret_html = addl_html + "<a href=/>home</a>"
 
         return self.wrap_content(ret_html)
 
-
     @cherrypy.expose
     def _restart(self):
         os.system(f"touch {self.rel_p}/bin/zserve.py")
-        os.system('sleep 4')
-        ret_html = 'server restarted'
+        os.system("sleep 4")
+        ret_html = "server restarted"
         return self.wrap_content(ret_html)
-
 
     @cherrypy.expose
     def dl_bin_file(self, fn=None):
-
         # Set the content type and disposition headers for the file
-        cherrypy.response.headers['Content-Type'] = 'image/png'
-        cherrypy.response.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
+        cherrypy.response.headers["Content-Type"] = "image/png"
+        cherrypy.response.headers[
+            "Content-Disposition"
+        ] = f'attachment; filename="{fn}"'
 
         # Open and serve the PNG file as a static file
         try:
-            with open(fn, 'rb') as f:
+            with open(fn, "rb") as f:
                 return f.read()
         except FileNotFoundError:
             return self.wrap_content("File not found.")
 
-
     @cherrypy.expose
     def view_pstation_json(self, error_msg=None):
-
-        with open(self.zp.printers_filename, 'r') as f:
+        with open(self.zp.printers_filename, "r") as f:
             data = json.load(f)
-        error_display = f'<p style="color:red;">{error_msg}</p>' if error_msg else ''
+        error_display = f'<p style="color:red;">{error_msg}</p>' if error_msg else ""
         ret_html = f"""
                <br><a href=/>home</a><br>
                 {error_display}
@@ -408,62 +483,76 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
     def clear_printers_json(self):
         self.zp.clear_printers_json()
         self._restart()
-        os.system('sleep 1.2')
-        referrer = cherrypy.request.headers.get('Referer', '/')
+        os.system("sleep 1.2")
+        referrer = cherrypy.request.headers.get("Referer", "/")
         raise cherrypy.HTTPRedirect(referrer)
 
-        
-        
     @cherrypy.expose
     def reset_pstation_json(self):
         self.zp.replace_printer_json_from_template()
         self._restart()
-        os.system('sleep 1.2')
-        referrer = cherrypy.request.headers.get('Referer', '/')
+        os.system("sleep 1.2")
+        referrer = cherrypy.request.headers.get("Referer", "/")
         raise cherrypy.HTTPRedirect(referrer)
-
-
 
     @cherrypy.expose
     def save_pstation_json(self, json_data):
-        rec_date = str(datetime.now()).replace(' ','_')
-        bkup_pconfig_fn = f"{self.rel_p}/etc/old_printer_config/{rec_date}_printer_config.json"
+        rec_date = str(datetime.now()).replace(" ", "_")
+        bkup_pconfig_fn = (
+            f"{self.rel_p}/etc/old_printer_config/{rec_date}_printer_config.json"
+        )
 
         try:
             os.system(f"cp {self.zp.printers_filename} {bkup_pconfig_fn}")
 
             try:
                 data = json.loads(json_data)
-                with open(self.zp.printers_filename, 'w') as f:
+                with open(self.zp.printers_filename, "w") as f:
                     json.dump(data, f, indent=4)
-                from IPython import embed
-                embed()
-                self.zp.load_printer_json(json_file=self.zp.printers_filename, relative=False)
 
-                os.system('sleep 2')
+                self.zp.load_printer_json(
+                    json_file=self.zp.printers_filename, relative=False
+                )
+
+                os.system("sleep 2")
                 self._restart()
-                referrer = cherrypy.request.headers.get('Referer', '/')
+                referrer = cherrypy.request.headers.get("Referer", "/")
                 raise cherrypy.HTTPRedirect(referrer)
-        
-            except json.JSONDecodeError as e:
-                return self.wrap_content("<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file using a link below the text box.<br>Further error details:<br<ul>"+self.view_pstation_json(error_msg=str(e)))
-            
-        except Exception as ee:
-            return self.wrap_content("<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file the link below the text box.<br>Further error details:<br<ul>"+self.view_pstation_json(error_msg=str(ee)))
 
-        return self.wrap_content('how did you get here?.')
-            
+            except json.JSONDecodeError as e:
+                return self.wrap_content(
+                    "<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file using a link below the text box.<br>Further error details:<br<ul>"
+                    + self.view_pstation_json(error_msg=str(e))
+                )
+
+        except Exception as ee:
+            return self.wrap_content(
+                "<br><br><br><h2>POSSIBLE ERROR SAVING CONFIG JSON</h2><br><ul><ul>Please <a href=/ > go back to the home page, and then visit this page agian</a> .... *IF* you do not see your edits when coming back from the home page (not refreshing this page), then try clearing the json file the link below the text box.<br>Further error details:<br<ul>"
+                + self.view_pstation_json(error_msg=str(ee))
+            )
+
+        return self.wrap_content("how did you get here?.")
 
     @cherrypy.expose
     def edit_zpl(self):
-
-        files = [f for f in os.listdir(self.rel_p+'/etc/label_styles/') if os.path.isfile(os.path.join(self.rel_p+'/etc/label_styles/', f))]
+        files = [
+            f
+            for f in os.listdir(self.rel_p + "/etc/label_styles/")
+            if os.path.isfile(os.path.join(self.rel_p + "/etc/label_styles/", f))
+        ]
 
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
 
-        filest = [ft for ft in os.listdir(self.rel_p+'/etc/label_styles/tmps/') if os.path.isfile(os.path.join(self.rel_p+'/etc/label_styles/tmps/', ft))]
+        filest = [
+            ft
+            for ft in os.listdir(self.rel_p + "/etc/label_styles/tmps/")
+            if os.path.isfile(os.path.join(self.rel_p + "/etc/label_styles/tmps/", ft))
+        ]
 
-        file_linkst = ['<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft) for ft in filest]
+        file_linkst = [
+            '<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft)
+            for ft in filest
+        ]
 
         ret_html = """
         <a href=/>home</a><br><ul>
@@ -473,19 +562,23 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             </ul>
 
         <br><br><hr><br>draft ZPL templates<ul> {} </ul>
-        """.format("<li>" + "</li><li>".join(file_links) + "</li>", "<li>" + "</li><li>".join(file_linkst) + "</li>")
+        """.format(
+            "<li>" + "</li><li>".join(file_links) + "</li>",
+            "<li>" + "</li><li>".join(file_linkst) + "</li>",
+        )
 
         return self.wrap_content(ret_html)
 
-
     @cherrypy.expose
-    def edit(self, filename=None, dtype=''):
+    def edit(self, filename=None, dtype=""):
         if not filename:
             return self.wrap_content("No file selected")
 
-        filepath = os.path.join(self.rel_p + '/etc/label_styles/' + dtype + '/', filename)
+        filepath = os.path.join(
+            self.rel_p + "/etc/label_styles/" + dtype + "/", filename
+        )
 
-        with open(filepath, 'r') as file:
+        with open(filepath, "r") as file:
             content = file.read()
 
         self.labs_dict = self.zp.printers
@@ -495,14 +588,16 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         for lab in labs:
             ll += f'<option value="{lab}">{lab}</option>'
 
-
-        ret_html = """
+        ret_html = (
+            """
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
                     var printersDropdown = document.getElementById("printersDropdown");
                     printersDropdown.innerHTML = "";
-                    var labs = """ + str(self.labs_dict["labs"]) + """;
+                    var labs = """
+            + str(self.labs_dict["labs"])
+            + """;
                     for (var printer in labs[lab]) {
                         var option = document.createElement("option");
                         option.text = printer;
@@ -513,7 +608,9 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             </script>
             </head>
         <body>
-            <h2>Editing: """+filename+"""</h2><small><ul><hr><a href=/>home</a> /// <a href=edit_zpl >back to label list</a> /// <a href=https://labelary.com/zpl.html target=x >zpl intro</a></small><br>
+            <h2>Editing: """
+            + filename
+            + """</h2><small><ul><hr><a href=/>home</a> /// <a href=edit_zpl >back to label list</a> /// <a href=https://labelary.com/zpl.html target=x >zpl intro</a></small><br>
         <table border=1><tr><td style="vertical-align: top;"  >
         <form method="post" action="/save" id="textForm">
                 <textarea name="content" rows="26" cols="40">{cont}</textarea><br/>
@@ -685,15 +782,16 @@ zd_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barc
 
         </script>
         
-        """.format(cont=content, fn=filename,ll=ll)
+        """.format(
+                cont=content, fn=filename, ll=ll
+            )
+        )
 
-        #self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
+        # self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
         return self.wrap_content(ret_html)
-
 
     @cherrypy.expose
     def bpr(self):
-
         self.labs_dict = self.zp.printers
         labs = self.labs_dict["labs"].keys()
 
@@ -702,27 +800,30 @@ zd_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barc
             ll += f'<option value="{lab}">{lab}</option>'
 
         template_sel = "<select name=label_zpl_style ><option value='select one'>select one</option><option value=stable>--stable templates--</option>"
-        
-        for zs in sorted(os.listdir(self.rel_p+'/etc/label_styles/')):
-            if zs.endswith('.zpl'):
-                zs = zs.removesuffix('.zpl')
+
+        for zs in sorted(os.listdir(self.rel_p + "/etc/label_styles/")):
+            if zs.endswith(".zpl"):
+                zs = zs.removesuffix(".zpl")
                 template_sel += f"<option value='{zs}'>{zs}</option>"
 
         template_sel += f"<option value=draft>--draft templates--</option>"
 
-        for zs in sorted(os.listdir(self.rel_p+'/etc/label_styles/tmps/')):
-            if zs.endswith('.zpl'):
-                zs = zs.removesuffix('.zpl')
+        for zs in sorted(os.listdir(self.rel_p + "/etc/label_styles/tmps/")):
+            if zs.endswith(".zpl"):
+                zs = zs.removesuffix(".zpl")
                 template_sel += f"<option value='{zs}'>{zs}</option>"
         template_sel += f"</select>"
-        
-        ret_html = """
+
+        ret_html = (
+            """
         <script>
                 function populatePrinters() {
                     var lab = document.getElementById("labsDropdown").value;
                     var printersDropdown = document.getElementById("printersDropdown");
                     printersDropdown.innerHTML = "";
-                    var labs = """ + str(self.labs_dict["labs"]) + """;
+                    var labs = """
+            + str(self.labs_dict["labs"])
+            + """;
                     for (var printer in labs[lab]) {
                         var option = document.createElement("option");
                         option.text = printer;
@@ -740,46 +841,48 @@ zd_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barc
                     <p align=center>You will be prompted for the data to print on the next page</p><br><br><ul><br>
                     <form name=bpr_form action=build_print_request align=center >
                     select a lab: <select id="labsDropdown" name=lab onchange="populatePrinters()">
-                <option value="">Select Lab</option>"""+ll+"""
+                <option value="">Select Lab</option>"""
+            + ll
+            + """
                 </select>
                 
                 select a printer: <select id="printersDropdown" name=printer>
                     <option value="">Select Printer</option>
                 </select>
-                <br>select a template"""+template_sel+"""<br>
+                <br>select a template"""
+            + template_sel
+            + """<br>
                     <input type=submit>
                     </form>
         """
-        
+        )
+
         return self.wrap_content(ret_html, close_head_section=False, add_spinner=False)
-    
-    
-    @cherrypy.expose
-    def png_renderer(self,filename,content,lab='',printer='', ftag=''):
-
-        png_tmp_f = tempfile.NamedTemporaryFile(suffix='.png', dir=self.rel_p+'/files', delete=False).name
-
-        self.zp.generate_label_png(content,png_fn=png_tmp_f)
-
-        return "files/" + png_tmp_f.split('/')[-1]
-
-
 
     @cherrypy.expose
-    def save(self, filename, content, lab='',printer='', ftag=''):
-        rec_date = str(datetime.now()).replace(' ','_')
+    def png_renderer(self, filename, content, lab="", printer="", ftag=""):
+        png_tmp_f = tempfile.NamedTemporaryFile(
+            suffix=".png", dir=self.rel_p + "/files", delete=False
+        ).name
 
-        tfn = filename.replace('.zpl',f'.{ftag}.{rec_date}.zpl')
+        self.zp.generate_label_png(content, png_fn=png_tmp_f)
 
-        temp_filepath = os.path.join(self.rel_p+'/etc/label_styles/tmps/', tfn)
+        return "files/" + png_tmp_f.split("/")[-1]
 
-        with open(temp_filepath, 'w') as file:
+    @cherrypy.expose
+    def save(self, filename, content, lab="", printer="", ftag=""):
+        rec_date = str(datetime.now()).replace(" ", "_")
+
+        tfn = filename.replace(".zpl", f".{ftag}.{rec_date}.zpl")
+
+        temp_filepath = os.path.join(self.rel_p + "/etc/label_styles/tmps/", tfn)
+
+        with open(temp_filepath, "w") as file:
             file.write(content)
 
         ret_html = "Changes saved to temp file! <br>You may either: (<a href=edit_zpl >go back to the zpl file list</a>) -or- (<a href='/'>go home</a>)"
 
         return self.wrap_content(ret_html)
-
 
     def wrap_content(self, content, close_head_section=True, add_spinner=True):
         header = f"""
@@ -818,7 +921,7 @@ zd_pm.print_zpl( lab="scan-results", printer_name="Download-Label-png", uid_barc
         return header + content + footer
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     rel_path_to_pkg_dir = sys.argv[1]
     cwd_path = os.path.abspath(rel_path_to_pkg_dir)
 
@@ -826,19 +929,23 @@ if __name__ == '__main__':
     #  disabled, was causing problems
     lng = cwd_path
     srt = rel_path_to_pkg_dir
-    if len(lng.split('/')) < len(srt.split('/')):
-        raise Exception( f" This path is converting to absolute longer than the relative.... problems. {lng} ... {srt}")
+    if len(lng.split("/")) < len(srt.split("/")):
+        raise Exception(
+            f" This path is converting to absolute longer than the relative.... problems. {lng} ... {srt}"
+        )
 
-    cherrypy.config.update(  {
-        'tools.staticdir.on': True,
-        'tools.staticdir.dir': cwd_path,
-        'tools.staticdir.index':'index.html',
-        'server.socket_host': '0.0.0.0',
-        'server.socket_port': 8118,
-        'server.thread_pool' : 20,
-        'server.socket_queue_size': 20,
-        'tools.sessions.on': True,
-        'tools.sessions.timeout': 199,  # Session timeout in minutes
-    })
+    cherrypy.config.update(
+        {
+            "tools.staticdir.on": True,
+            "tools.staticdir.dir": cwd_path,
+            "tools.staticdir.index": "index.html",
+            "server.socket_host": "0.0.0.0",
+            "server.socket_port": 8118,
+            "server.thread_pool": 20,
+            "server.socket_queue_size": 20,
+            "tools.sessions.on": True,
+            "tools.sessions.timeout": 199,  # Session timeout in minutes
+        }
+    )
 
-    cherrypy.quickstart(Zserve(f"{srt}", f"/{cwd_path}"),'/')
+    cherrypy.quickstart(Zserve(f"{srt}", f"/{cwd_path}"), "/")
