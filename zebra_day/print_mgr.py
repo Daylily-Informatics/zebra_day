@@ -92,11 +92,8 @@ class zpl:
         json_config = if not specified, the standard active
           (which may be empty) is assumed
         """
-        jcfg = str(files('zebra_day'))+"/etc/printer_config.json"
-        if os.path.exists(jcfg):
-            self.load_printer_json(jcfg, relative=False)
-        else:
-            self.create_new_printers_json_with_single_test_printer(jcfg)
+        os.system(f"touch {str(files('zebra_day'))}/etc/printer_config.json")
+        self.load_printer_json(json_config)
 
     def probe_zebra_printers_add_to_printers_json(
         self, ip_stub="192.168.1", scan_wait="0.25", lab="scan-results", relative=False
@@ -149,9 +146,21 @@ class zpl:
                 serial = sl[3]
                 status = sl[4]
                 arp_response = sl[5]
-
-                if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
+                if ip not in self.printers["labs"][lab]:
+                    self.printers["labs"][lab][ip] = {
+                        "ip_address": ip,
+                        "label_zpl_styles": [
+                            "blank_0inX0in",
+                            "test_2inX1in",
+                            "tube_2inX1in",
+                            "plate_1inX0.25in",
+                            "tube_2inX0.3in",
+                        ],
+                        "print_method": "unk",
+                        "model": model,
+                        "serial": serial,
+                        "arp_data": arp_response,
+                    }  # The label formats set here are the installed defaults
 
         self.save_printer_json(self.printers_filename, relative=False)
 
@@ -202,26 +211,25 @@ class zpl:
         self.printers = json.load(fh)
         # self.save_printer_json() <---  use the save_printer_json call after calling this. Else, recursion.
 
-    def create_new_printers_json_with_single_test_printer(self, fn=None):
+    def create_new_printers_json_with_single_test_printer(self):
         """
         Create a new printers json with just the png printer defined
         """
 
+        self.printers = {"labs": {"scan-results": {}}}
 
-        if fn in [None]:
-            fn = str(files('zebra_day'))+"/etc/printer_config.json"
-        
-        if not hasattr(self, 'printers'):
-            self.printers = {}
-            self.printers_filename = fn
+        self.printers["labs"]["scan-results"]["Download-Label-png"] = {
+            "ip_address": "dl_png",
+            "label_zpl_styles": ["test_2inX1in"],
+            "print_method": "generate png",
+            "model": "na",
+            "serial": "na",
+            "arp_data": "",
+        }
 
+        fn = str(files("zebra_day")) + "/etc/printers_config.json"
+        os.system(f"touch {fn}")
 
-        jdat = None
-        with open(f"{str(files('zebra_day'))}/etc/printer_config.template.json", 'r') as file:
-            jdat = json.load(file)
-            
-        self.printers = jdat
-        
         self.save_printer_json(fn, relative=False)
 
     def clear_printers_json(self, json_file="/etc/printer_config.json"):
@@ -483,9 +491,9 @@ def main():
     """
 
     import zebra_day.print_mgr as zdpm
-    
-    ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
 
+    ipcmd = "(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:\
+)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"
     print(ipcmd)
     ip = os.popen(ipcmd).readline().rstrip()
     ip_root = ".".join(ip.split(".")[:-1])
