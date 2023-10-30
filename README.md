@@ -1,6 +1,8 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.1.11 PreRelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.1.11)
+
+## zebra_day Overview [v0.2.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.2.0)
+
 
 <ul>
     
@@ -502,3 +504,9 @@ If it will work on AWS, it will work anyplace really.
 
 ## Docker
 I'm not anti, but am not putting time towards this anytime soon.
+
+# BadgeLand
+
+[![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
+
+<br>
