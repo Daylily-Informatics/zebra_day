@@ -1,0 +1,176 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Monoid', monospace;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(200,200,200,0.1), 
+        rgba(100,100,100,0.1) 10px, 
+        rgba(0,0,0,0.1) 10px, 
+        rgba(0,0,0,0.1) 20px
+    ); /* Zebra stripes for the body */
+    color: #333333;
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #FFFFFF; /* White headers to contrast against the stripes */
+    border-bottom: 3px solid #333333; /* Dark border to separate headers */
+    padding-bottom: 5px;
+    background-color: #000000; /* Solid black background to make headers pop */
+    padding: 5px;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+li::before {
+    content: '•'; /* Bullet point */
+    color: #FFFFFF; /* White color to contrast with the stripes */
+    font-weight: bold; /* Emphasize the bullet point */
+    display: inline-block;
+    margin-right: 10px; 
+}
+
+a {
+    color: #FF4500; /* Orange to contrast against the black & white */
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #FF6347; /* Slight variation of orange for hover */
+}
+
+small {
+    color: rgba(22,181,131,0.8);
+}
+
+hr {
+    border: 0;
+    height: 2px;
+    background-image: linear-gradient(to right, #FFFFFF, #000000, #FFFFFF); 
+    margin: 20px 0;
+}
+
+input[type=text], textarea {
+    background-color: #FFFFFF;
+    color: #333333;
+    border: 2px solid #000000;
+    border-radius: 5px;
+    padding: 5px 10px;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+input[type=text]:hover, textarea:hover {
+    border-color: #FF4500;
+}
+
+input[type=text]:focus, textarea:focus {
+    border-color: #FF6347;
+    box-shadow: 0 0 5px #FF6347;
+}
+
+input[type=submit], button {
+    background-color: #FF4500;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+input[type=submit]:hover, button:hover {
+    background-color: #FF6347;
+}
+
+select {
+    background-color: #FFFFFF;
+    color: #333333;
+    border: 2px solid #000000;
+    padding: 5px 10px;
+    border-radius: 5px;
+    appearance: none;
+    cursor: pointer;
+}
+
+textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+    background-color: #FF4500;
+    border-radius: 5px;
+}
+
+textarea::-webkit-scrollbar-track {
+    background-color: #FFFFFF;
+    border-radius: 5px;
+}
+
+input[type="button"] {
+    background-color: #000000;
+    color: #FFFFFF;
+    border: 2px solid #FF4500;
+    padding: 5px 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-family: 'Monoid', monospace;
+}
+
+input[type="button"]:hover {
+    background-color: #FF4500;
+    color: #000000;
+}
+
+input[type="button"]:active {
+    background-color: #FF6347;
+}
+
+input[type="button"]:focus {
+    box-shadow: 0 0 10px #FF6347;
+}
+
+
+#spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+}
+
+#spinner.spinner-hidden {
+    display: none;
+}
+
+.loader {
+    border: 8px solid #ECF0F1;
+    border-top: 8px solid #3498DB;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

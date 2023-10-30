@@ -1,0 +1,6 @@
+yaml_config_day==0.0.5
+requests
+pytz==2023.3.post1
+cherrypy==18.8.0
+ipython==8.16.1
+pytest

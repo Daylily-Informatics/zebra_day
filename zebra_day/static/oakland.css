@@ -1,0 +1,197 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap');
+
+body {
+    font-family: 'Source Code Pro', monospace;
+    background-color: #2C3E50; /* Deep blue reminiscent of the Bay waters */
+    color: #ECF0F1; /* Bright text color for contrast */
+    padding: 20px;
+    margin: 0;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500&display=swap');
+
+textarea::-webkit-scrollbar {
+    width: 10px; /* Adjust width of scrollbar */
+}
+
+textarea::-webkit-scrollbar-thumb {
+    background-color: #ABB2B9; /* Color of the scroll thumb */
+    border-radius: 5px; /* Rounded corners on the thumb */
+    background-clip: padding-box; 
+    border: 2px solid transparent; 
+}
+
+textarea::-webkit-scrollbar-track {
+    background-color: #2C3E50; /* Color of the track */
+    border-radius: 5px; /* Rounded corners on the track */
+}
+
+
+textarea {
+    font-family: 'Source Code Pro', monospace;
+    padding: 10px;
+    border: 2px solid #4A4A4A;
+    border-radius: 5px;
+    background-color: #ABB2B9;
+    color: #333;
+    font-size: 16px;
+    transition: border-color 0.3s;
+
+    /* Placeholder color */
+    ::placeholder {
+        color: #888;
+    }
+
+    /* Focus effect */
+    :focus {
+        outline: none;
+        border-color: #0074D9;
+    }
+
+    /* If you want to add a resize handle only at the bottom */
+    resize: vertical;
+}
+
+h1, h2 {
+    font-weight: bold;
+    border-bottom: 3px solid #3498DB; /* Bright blue to evoke the sky and water */
+    padding: 10px 0;
+    margin-top: 20px;
+}
+
+small {
+    display: block;
+    color: #BDC3C7; /* Slightly muted text for less important info */
+    font-size: 0.85em;
+}
+
+a {
+    color: #3498DB;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #2980B9;
+}
+
+a.navigational-link {
+    font-weight: bold;
+    background-color: #27AE60; /* A vibrant green, like the trees of Oakland's hills */
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+hr {
+    border: 0;
+    border-bottom: 2px dashed #BDC3C7;
+    margin: 20px 0;
+}
+
+ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+ul ul {
+    padding-left: 20px;
+}
+
+input[type=text] {
+    padding: 10px;
+    border: 2px solid #BDC3C7;
+    border-radius: 5px;
+    background-color: #34495E; /* A slightly darker blue for the input fields */
+    color: #ECF0F1;
+    transition: border-color 0.3s ease;
+}
+
+input[type=text]:focus {
+    border-color: #3498DB;
+    outline: none;
+}
+
+input[type=submit] {
+    padding: 10px 20px;
+    background-color: #E74C3C; /* A bright red, reminiscent of the Fox Theater's marquee */
+    border: none;
+    border-radius: 5px;
+    color: #ECF0F1;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+input[type=submit]:hover {
+    background-color: #C0392B;
+}
+
+#bottomRightLink {
+    background-color: #9B59B6; /* A regal purple to add some extra flair */
+    border-radius: 5px;
+    padding: 5px 10px;
+    transition: background-color 0.3s ease;
+}
+
+#bottomRightLink:hover {
+    background-color: #8E44AD;
+}
+
+/* Oakland-themed button styling */
+input[type="button"] {
+    background-color: #008040; /* Green inspired by Lake Merritt's surroundings */
+    border: 2px solid #6B8E23; /* Olive green border */
+    color: #EDEDED; /* Light gray text for contrast */
+    padding: 10px 20px;
+    font-size: 16px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    outline: none;
+    font-family: 'Source Code Pro', monospace;
+}
+
+input[type="button"]:hover {
+    background-color: #6B8E23; /* Olive green on hover */
+    color: #FFFFFF; /* White text on hover */
+}
+
+input[type="button"]:active {
+    background-color: #4B6B16; /* Darker green when pressed */
+    border-color: #4B6B16;
+    color: #DDDDDD;
+}
+
+/* Oakland-themed form select styling */
+select {
+    background-color: #EDEDED; /* Light gray background */
+    border: 2px solid #6B8E23; /* Olive green border */
+    color: #333; /* Dark gray text */
+    padding: 8px 12px;
+    font-size: 16px;
+    border-radius: 5px;
+    appearance: none; /* Remove default styles */
+    font-family: 'Source Code Pro', monospace;
+}
+
+select:focus {
+    border-color: #008040; /* Green border when focused */
+    outline: none;
+}
+
+/* Custom dropdown arrow for select element */
+select::-ms-expand {
+    display: none; /* Hide the default IE/Edge dropdown arrow */
+}
+
+select::-webkit-scrollbar {
+    width: 10px; /* Custom scrollbar width for Chrome, Safari and Opera */
+}
+
+select::-webkit-scrollbar-thumb {
+    background-color: #6B8E23; /* Olive green scrollbar thumb */
+    border-radius: 5px;
+}
+
+select::-webkit-scrollbar-track {
+    background-color: #EDEDED; /* Light gray scrollbar track */
+}

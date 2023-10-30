@@ -1,0 +1,122 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Monoid', monospace;
+    background: repeating-linear-gradient(
+        60deg,
+        rgba(211,44,201,0.1),
+        rgba(211,44,201,0.1) 15px,
+        rgba(52,152,219,0.1) 15px,
+        rgba(52,152,219,0.1) 30px
+    ); /* Triangular pattern using gradient */
+    color: rgba(111, 97, 232,1);
+    margin: 0;
+    padding: 20px;
+}
+
+h1, h2 {
+    color: #F0E442; /* Electric Yellow */
+    border-bottom: 3px solid #8D4DE8; /* Vibrant Purple Border */
+    padding-bottom: 5px;
+    background: linear-gradient(90deg, rgba(241,39,17,1) 0%, rgba(245,175,25,1) 50%, rgba(45,191,73,1) 100%); /* Psychedelic gradient */
+    text-shadow: 2px 2px #00FFFF;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+    margin-left: 21px;
+}
+
+li::before {
+    content: '\25B2'; /* Unicode triangle symbol */
+    color: #F0E442; /* Electric Yellow */
+    margin-right: 7px;
+    font-size: 1rem;
+    vertical-align: middle;
+    animation: pulsate 15s infinite alternate;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes pulsate {
+    0% { color: #D32CC9; }
+    50% { color: #3498db; }
+    100% { color: #F0E442; }
+}
+
+a {
+    color: #8D4DE8;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #E62EFA; /* Electric Pink for Hover */
+}
+
+small {
+    color: #B0B0B0;
+}
+
+.spinner-hidden {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(241,39,17,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+#spinner.spinner-hidden {
+    display: none;
+}
+
+#spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #E62EFA; /* Electric Yellow Spinner */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+.cloader {
+    border: 16px solid #f3f3f3;
+    border-top: 16px solid #8D4DE8; /* Vibrant Purple Spinner */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 2s linear infinite;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, #E62EFA, #D32CC9, #8D4DE8);
+    margin: 20px 0;
+}
+
+/* ... Keep the form styles, just switch out colors to match the new theme ... */
+/* E.g., input[type=text] styles, button styles, etc. */
+
+/* Use the psychedelic colors like #D32CC9 (Pink Purple), #8D4DE8 (Vibrant Purple), 
+#F0E442 (Electric Yellow), etc. in the form element styling. */

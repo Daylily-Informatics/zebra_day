@@ -1,0 +1,140 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'Monoid', monospace;
+    background-color: #FFD700; /* Bold golden background reminiscent of Warhol's color palette */
+    color: #D91E63; /* Bold Pink text, Warhol-esque */
+    margin: 0;
+    padding: 20px;
+    background-image: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 2.9)), url('./daylily.png');
+    background-repeat: repeat;
+}
+
+h1, h2 {
+    color: #2E86C1; /* Vibrant blue for headers */
+    border-bottom: 3px solid #2E86C1;
+    padding-bottom: 5px;
+}
+
+ul {
+    list-style-type: none;
+    padding: 0;
+    margin-left: 21px;
+}
+
+li::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: #D91E63; /* Reusing bold pink color */
+    margin-right: 10px;
+    vertical-align: middle;
+}
+
+a {
+    color: #196F3D; /* A deep green for links, contrast with the daylily theme */
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #2E86C1; /* Vibrant blue on hover */
+}
+
+small {
+    color: #7D3C98; /* Purple tint for smaller text, keeping with the vibrant palette */
+}
+
+.spinner-hidden {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,215,0,0.7); /* Transparent golden background, keeping in theme */
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+#spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+.loader, .cloader {
+    border: 8px solid #7D3C98; /* Purple borders */
+    border-top: 8px solid #2E86C1; /* Blue on top to keep the spinning noticeable */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+hr {
+    border: 0;
+    height: 2px;
+    background-image: linear-gradient(to right, #D91E63, #FFD700, #2E86C1);
+    margin: 20px 0;
+}
+
+input[type=text], textarea, select {
+    background-color: #FFFFFF; /* White background for input fields */
+    color: #D91E63; /* Pink text */
+    border: 2px solid #196F3D; /* Green border */
+    border-radius: 5px;
+    padding: 5px 10px;
+    outline: none;
+    transition: background-color 0.3s ease;
+}
+
+input[type=text]:hover, textarea:hover, select:hover {
+    background-color: #FFFAE5; /* A very light yellow for hover */
+}
+
+input[type=submit], button, input[type="button"] {
+    background-color: #D91E63; /* Pink buttons */
+    color: #FFFFFF; /* White text on buttons */
+    border: none;
+    border-radius: 5px;
+    padding: 8px 15px;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.3s ease;
+}
+
+input[type=submit]:hover, button:hover, input[type="button"]:hover {
+    background-color: #E74C3C; /* Reddish hover effect */
+}
+
+textarea::-webkit-scrollbar {
+    width: 10px;
+}
+
+textarea::-webkit-scrollbar-thumb {
+    background-color: #2E86C1;
+    border-radius: 5px;
+}
+
+textarea::-webkit-scrollbar-track {
+    background-color: #FFD700; /* Golden background to keep in theme */
+    border-radius: 5px;
+}
+
+#spinner.spinner-hidden {
+    display: none;
+}

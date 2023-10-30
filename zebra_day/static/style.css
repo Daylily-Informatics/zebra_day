@@ -1,0 +1,183 @@
+/* Fonts and Base */
+
+:root {
+    --hrColor: #C400DB;
+}
+
+.hrTiny {
+    height: 1px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrSmall {
+    height: 2px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrMed {
+    height: 3px;
+    width: 100%;
+    background-color: var(--hrColor);
+}
+
+.hrLarge {
+    height: 4px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrVLarge {
+    height: 5px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+h3 {
+    margin-bottom: auto;
+}
+    
+@import url('https://fonts.googleapis.com/css2?family=DejaVu+Sans+Mono&display=swap');
+
+.spinner-hidden {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+#spinner.spinner-hidden {
+    display: none;
+}
+
+
+#spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #00FFFF; /* Spinner color */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+.cloader {
+    border: 16px solid #f3f3f3;
+    border-top: 16px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+
+body {
+    font-family: 'DejaVu Sans Mono', monospace;
+    background-color: #f5f7fa; /* Very light blue background, reminiscent of clinical settings */
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+/* Headers: Using deep blue for a professional and medical feel */
+h1, h2, h3, h4, h5, h6 {
+    color: #0052cc;
+    margin-top: 0;
+}
+
+/* Links */
+a {
+    color: #007bff; /* Modern blue */
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: #0052cc; /* Darker blue for hover effect */
+}
+
+/* Lists */
+ul, ol {
+    padding-left: 20px;
+}
+
+li {
+    margin-bottom: 10px;
+}
+
+/* Buttons and Interactive Elements */
+button, input[type="submit"], input[type="button"] {
+    background-color: #007bff; /* Consistent modern blue */
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+button:hover, input[type="submit"]:hover, input[type="button"]:hover {
+    background-color: #0052cc; /* Darker blue for hover */
+}
+
+/* Forms */
+input[type="text"], input[type="email"], input[type="password"], textarea, select {
+    background-color: rgba(11,92,133,.4);
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+/* Divider */
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #e1e1e1; /* Light gray divider */
+    margin: 20px 0;
+}
+
+/* Callouts for Important Info (think of alerts or side notes) */
+.callout {
+    padding: 15px;
+    border-left: 4px solid #00cc99; /* Green to signify life/growth */
+    background-color: #e6f9f5; /* Light green background */
+    margin-bottom: 20px;
+}
+
+/* Dark Mode Toggle (for modernity) */
+.dark-mode-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    color: #0052cc;
+    font-size: 24px;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.dark-mode-toggle:hover {
+    color: #007bff;
+}
+
+/* If you implement dark mode, you'll need styles for it here */
+

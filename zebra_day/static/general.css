@@ -1,0 +1,99 @@
+@font-face {
+    font-family: 'Monoid';
+    src: url('/etc/Monoid-Regular-HalfTight-Dollar-0-1-l.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+body {
+    font-family: 'DejaVu Sans Mono', monospace;
+}
+
+:root {
+    --hrColor: #C400DB;
+}
+
+.hrTiny {
+    height: 1px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrSmall {
+    height: 2px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrMed {
+    height: 3px;
+    width: 100%;
+    background-color: var(--hrColor);
+}
+
+
+.hrLarge {
+    height: 4px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+.hrVLarge {
+    height: 5px;
+    background-color: var(--hrColor);
+    width:100%;
+}
+
+h3 {
+    margin-bottom: auto;
+}
+
+
+.spinner-hidden {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+}
+
+
+#spinner.spinner-hidden {
+    display: none;
+}
+
+
+#spinner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+}
+
+
+.loader, .cloader {
+    border: 8px solid #7D3C98; /* Purple borders */
+    border-top: 8px solid #2E86C1; /* Blue on top to keep the spinning noticeable */
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#spinner.spinner-hidden {
+    display: none;
+}
