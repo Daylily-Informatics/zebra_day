@@ -31,6 +31,7 @@ zebra_day/etc/tmp_printers117.json
 zebra_day/etc/label_styles/blank_0inX0in.zpl
 zebra_day/etc/label_styles/corner_square.zpl
 zebra_day/etc/label_styles/corners_1inX2in.zpl
+zebra_day/etc/label_styles/corners_20cmX30cm.zpl
 zebra_day/etc/label_styles/labware_2inX1in.zpl
 zebra_day/etc/label_styles/plate_1inX0.25in.zpl
 zebra_day/etc/label_styles/test_2inX1in.zpl
