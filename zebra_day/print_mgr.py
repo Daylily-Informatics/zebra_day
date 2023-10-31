@@ -324,7 +324,7 @@ class zpl:
         """
         For use when no use of the printer mapping config json is needed.  This assumes you know which IP is your desired printer. The spcified zpl_content will be sent to that IP+port.
         """
-        send_zpl_code(zpl_string, printer_ip, printer_port=port)
+        send_zpl_code(zpl_content, printer_ip, printer_port=port)
 
         
         
