@@ -9,7 +9,7 @@ import json
 import tempfile
 
 import zebra_day.print_mgr as zdpm
-
+import zebra_day.cmd_mgr as zdcm
 
 ENVCHECK = os.environ.get(
     "ZDAY", "skip"
@@ -48,6 +48,26 @@ class Zserve(object):
 
         return self.wrap_content(ret_html)
 
+    @cherrypy.expose
+    def printer_details(self, printer_name=None, lab=None):
+        
+        ret_html = f"""<h1>Printer Information For {printer_name} In Lab {lab}</h1>
+        <ul><small><a href=/>HOME</a> ... <a href=printer_status?lab={lab}>printer status report</a></small>
+        <hr><ul>
+        <ul>
+        <h2>Json Stored Data</h2>
+        <ul><ul>"""
+
+        for i in sorted(self.zp.printers['labs'][lab][printer_name]):
+            ret_html += f"<li>{i} :::: {self.zp.printers['labs'][lab][printer_name][i]}"
+            
+        ret_html += "</ul></ul><br><h2>Configuration Retrieved From The Zebra Printer</h2><ul><ul>"
+        
+        ret_html += "<li>".join(zdcm.ZebraPrinter(self.zp.printers['labs'][lab][printer_name]['ip_address']).get_configuration().splitlines())
+        ret_html += "</pre></ul>"
+        
+        return self.wrap_content(ret_html)
+    
     @cherrypy.expose
     def probe_network_for_zebra_printers(self, ip_stub=None, scan_wait="0.25"):
         if ip_stub in [None]:
@@ -163,13 +183,13 @@ class Zserve(object):
                 arp_data = self.zp.printers["labs"][lab][pret]["arp_data"]
                 ret_html = (
                     ret_html
-                    + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small>{arp_data}</small><br></td><td valign=top ><br>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small></td></tr>"
+                    + f"<tr><td>{pret}<br><small>{pip2a}</small></td><td><a href=http://{pip2} target=pcheck>{pip2}</a><br><small>{arp_data}</small><br></td><td valign=top ><br>{ptype}</td><td>{pconnect} <small>if state=PAUSED, each printer has a specific pause/unpause button, not one of the menu buttons, which is likely flashing and needs to be pressed</small><small><a target=new href=printer_details?printer_name={pret}&lab={lab} >...printer deets</a></small></td></tr>"
                 )
             except Exception as e:
                 print(e)
                 ret_html = (
                     ret_html
-                    + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT</td></tr>"
+                    + f"<tr><td>{pret}</td><td><a href=http://{pip2} target=pcheck>{pip2}</a></td><td>{ptype}<br></td><td>UNABLE TO CONNECT<br><small><a target=new href=printer_details?printer_name={pret}&lab={lab} >...printer deets</a></small></td></tr>"
                 )
 
         zaddl = ""
