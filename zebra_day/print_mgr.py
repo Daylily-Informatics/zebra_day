@@ -320,6 +320,15 @@ class zpl:
         return png_fn
 
 
+    def print_raw_zpl(self,zpl_content,printer_ip, port=9100):
+        """
+        For use when no use of the printer mapping config json is needed.  This assumes you know which IP is your desired printer. The spcified zpl_content will be sent to that IP+port.
+        """
+        send_zpl_code(zpl_string, printer_ip, printer_port=port)
+
+        
+        
+
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1, zpl_content=None):
         """
         The main print method. Accepts info to determine the desired
