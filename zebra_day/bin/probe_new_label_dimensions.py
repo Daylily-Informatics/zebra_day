@@ -4,19 +4,26 @@ import zebra_day.print_mgr as zdpm
 class ZPLBoundaryTester:
     def __init__(self):
         # Starting coordinates
-        self.x = 0
-        self.y = 0
+        self.x = 235
+        self.y = 20  ##235,20
         
         # Step size (how much we move the print position each time)
         # Adjust based on the printer's resolution (DPI) and desired granularity.
-        self.step = 50
+        self.step = 100
 
         # Flags
         self.first_print_x = True
         self.first_print_y = True
 
+        self.first_x = None
+        self.first_y = None
+        self.first_last_x = None
+        self.first_last_y = None
+        
     def generate_zpl(self):
-        zpl_string = f"^XA^FO{self.x},{self.y}^A0N,50,50^FDX^FS^XZ"
+        #zpl_string = f"^XA^FO{self.x},{self.y}^ADN,30,20^FDXXX^FS^XZ"
+        zpl_string = f"^XA^FO{self.x},{self.y}^BY1^B3N,N,40,N,N^FDX^FS^XZ"
+        #zpl_string = f"^XA^FO{self.x},{self.y}^A0N,100,100^FDX^FS^XZ"
         return zpl_string
 
     def process_feedback(self, feedback):
@@ -25,7 +32,7 @@ class ZPLBoundaryTester:
                 print("Testing completed.")
                 return None
             self.y += self.step
-            self.x = 0
+            self.x += self.step
             self.first_print_x = True
             return self.generate_zpl()
 
