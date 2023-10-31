@@ -26,6 +26,13 @@ def get_current_date():
     formatted_date = current_date.strftime("%Y-%m-%d")
     return formatted_date
 
+def send_zpl_command(zpl_code=None, ip_address='localhost', port=9100):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((ip_address, port))
+        s.sendall(zpl_code.encode())
+        response = s.recv(1024)
+    return response.decode()
+    
 
 def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
     """
@@ -318,8 +325,20 @@ class zpl:
             print(f"Failed to convert ZPL to image. Status code: {response.status_code}",file=sys.stderr)
 
         return png_fn
+                     
+    def send_printer_command(self, ip, port=9100, zpl_string=None):
+        """
+        When sending commands to the zebra printers
+        """
+        pass
 
 
+    def get_printer_config(self,ip,port=9100):
+        zpl_command = '^XA^HH^XZ'
+        printer_config = self.send_printer_command(ip=ip,zpl_string=zpl_command)
+        return printer_config
+    
+                     
     def print_raw_zpl(self,zpl_content,printer_ip, port=9100):
         """
         For use when no use of the printer mapping config json is needed.  This assumes you know which IP is your desired printer. The spcified zpl_content will be sent to that IP+port.
