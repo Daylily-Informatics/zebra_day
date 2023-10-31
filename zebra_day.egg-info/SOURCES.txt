@@ -44,6 +44,7 @@ zebra_day/etc/label_styles/tube_2inX1in.zpl
 zebra_day/etc/label_styles/tube_2inX1inHD.zpl
 zebra_day/etc/label_styles/tmps/hold
 zebra_day/etc/label_styles/tmps/tube_2inX1in.exampleDraft.2023-10-29_01:29:56.342244.zpl
+zebra_day/etc/old_printer_config/2023-10-31_00:56:48.185538_printer_config.json
 zebra_day/files/zpl_label_test_2inX1in_2023-10-29_11:17:14.865698.png
 zebra_day/static/datschund.css
 zebra_day/static/datschund.png
