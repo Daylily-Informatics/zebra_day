@@ -6,6 +6,7 @@ tests/test_creating_labels.py
 tests/test_setup_printers_json.py
 tests/test_web_server.py
 zebra_day/__init__.py
+zebra_day/cmd_mgr.py
 zebra_day/print_mgr.py
 zebra_day.egg-info/PKG-INFO
 zebra_day.egg-info/SOURCES.txt
@@ -13,13 +14,12 @@ zebra_day.egg-info/dependency_links.txt
 zebra_day.egg-info/entry_points.txt
 zebra_day.egg-info/requires.txt
 zebra_day.egg-info/top_level.txt
+zebra_day/bin/#print_zpl_from_file.py#
 zebra_day/bin/__init__.py
 zebra_day/bin/fetch_zebra_config.py
-zebra_day/bin/fetch_zebra_config.py~
 zebra_day/bin/generate_coord_grid_zpl.py
+zebra_day/bin/print_zpl_from_file.py
 zebra_day/bin/probe_new_label_dimensions.py
-zebra_day/bin/probe_new_label_dimensions.py~
-zebra_day/bin/probe_new_label_dimensions2.py~
 zebra_day/bin/scan_for_networed_zebra_printers.py
 zebra_day/bin/scan_for_networed_zebra_printers_arp_scan.sh
 zebra_day/bin/scan_for_networed_zebra_printers_curl.sh
@@ -32,6 +32,8 @@ zebra_day/etc/label_styles/blank_0inX0in.zpl
 zebra_day/etc/label_styles/corner_square.zpl
 zebra_day/etc/label_styles/corners_1inX2in.zpl
 zebra_day/etc/label_styles/corners_20cmX30cm.zpl
+zebra_day/etc/label_styles/corners_smallTube.zpl
+zebra_day/etc/label_styles/corners_smallTube.zpl~
 zebra_day/etc/label_styles/labware_2inX1in.zpl
 zebra_day/etc/label_styles/plate_1inX0.25in.zpl
 zebra_day/etc/label_styles/test_2inX1in.zpl
