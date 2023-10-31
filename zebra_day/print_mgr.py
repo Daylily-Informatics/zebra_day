@@ -1,10 +1,13 @@
 """
-Primay zebra_day module. Primary functions: consistent and clear management
+  Primay zebra_day module. Primary functions: consistent and clear management
   of 1+ networked zebra printers, automated discovery of printers on a
   network. Clear formulation and delivery of ZPL strings to destination
   printers. Management of zpl template files, which may have format value
   components for inserting data on the fly. (elsewhere, a simple ui on
   top of this).
+
+  This module is primarily focused on print request and package config mgmt.
+  See 'cmd_mgr' for interacting with zebras printer config capabilties.
 """
 
 import os
