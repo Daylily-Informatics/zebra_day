@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='zebra_day',
-    version='0.2.14',
+    version='0.2.9.2',
     description='A Python library to manage a zebra printer fleet and an api for ZPL print requests.',
     author='John Major',
     author_email='john@daylilyinformatics.com',

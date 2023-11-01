@@ -11,6 +11,54 @@
                 "serial": "na",
                 "arp_data": "na"
             }
+        },
+        "CA": {
+            "Download-Label-png": {
+                "ip_address": "dl_png",
+                "label_zpl_styles": [
+                    "tube_2inX1in"
+                ],
+                "print_method": "generate png",
+                "model": "na",
+                "serial": "na",
+                "arp_data": ""
+            },
+            "192.168.1.16": {
+                "ip_address": "192.168.1.16",
+                "label_zpl_styles": [
+                    "tube_2inX1in",
+                    "plate_1inX0.25in",
+                    "tube_2inX0.3in"
+                ],
+                "print_method": "unk",
+                "model": "ZTC ZD620-203dpi ZPL",
+                "serial": "D3N203700385 ",
+                "arp_data": "? (192.168.1.16) at b4:f:3b:4c:ba:ed on en0 ifscope [ethernet]"
+            },
+            "192.168.1.17": {
+                "ip_address": "192.168.1.17",
+                "label_zpl_styles": [
+                    "tube_2inX1in",
+                    "plate_1inX0.25in",
+                    "tube_2inX0.3in"
+                ],
+                "print_method": "unk",
+                "model": "ZTC ZD620-203dpi ZPL",
+                "serial": "D3J194806028 ",
+                "arp_data": "? (192.168.1.17) at 0:7:4d:a2:b7:8a on en0 ifscope [ethernet]"
+            },
+            "192.168.1.18": {
+                "ip_address": "192.168.1.18",
+                "label_zpl_styles": [
+                    "tube_2inX1in",
+                    "plate_1inX0.25in",
+                    "tube_2inX0.3in"
+                ],
+                "print_method": "unk",
+                "model": "ZTC GX420d",
+                "serial": "ZBR3715954 ",
+                "arp_data": "? (192.168.1.18) at 0:7:4d:38:b3:72 on en0 ifscope [ethernet]"
+            }
         }
     }
 }
