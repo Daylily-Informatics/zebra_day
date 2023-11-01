@@ -6,7 +6,7 @@ def test_creating_zpl_from_template():
     zd_pm = zd.zpl()
     zd_pm.clear_printers_json()
 
-    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='test_2inX1in')
+    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='tube_2inX1in')
     assert zpl == """^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FDTESTBC^FS\n^FO235,70\n^ADN,30,20\n^FDTESTBC^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ"""
 
 
@@ -16,7 +16,7 @@ def test_creating_a_png_of_label_zpl():
     from zebra_day import print_mgr as zd
     zd_pm = zd.zpl()
     zd_pm.clear_printers_json()
-    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='test_2inX1in')    
+    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='tube_2inX1in')    
     tmp_png = f"{os.path.dirname(zd.__file__)}/files/test_png_{random.randint(0,101010)}.png"
     tmp_full_png = zd_pm.generate_label_png(zpl_string=zpl, png_fn=tmp_png, relative=False)
 
@@ -31,7 +31,7 @@ def test_printing_label():
     zd_pm.clear_printers_json()
 
     zd_pm.create_new_printers_json_with_single_test_printer()
-    tmp_png_2 =  zd_pm.print_zpl(lab="scan-results", printer_name="Download-Label-png", uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style="test_2inX1in", client_ip='pkg', print_n=1, zpl_content=None)
+    tmp_png_2 =  zd_pm.print_zpl(lab="scan-results", printer_name="Download-Label-png", uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style="tube_2inX1in", client_ip='pkg', print_n=1, zpl_content=None)
 
     assert os.path.exists(tmp_png_2)
 

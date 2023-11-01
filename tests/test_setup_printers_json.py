@@ -54,7 +54,7 @@ def test_manipulating_printers_json():
     zd_pm.create_new_printers_json_with_single_test_printer()
     
     assert zd_pm.printers == {'labs': {'scan-results': {'Download-Label-png': {'ip_address': 'dl_png',
-                                                                               'label_zpl_styles': ['test_2inX1in'],
+                                                                               'label_zpl_styles': ['tube_2inX1in'],
                                                                                'print_method': 'generate png',
                                                                                'model': 'na',
                                                                                'serial': 'na',
