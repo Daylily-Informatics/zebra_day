@@ -2,13 +2,16 @@ import os
 
 def test_creating_zpl_from_template():
 
+
     from zebra_day import print_mgr as zd
     zd_pm = zd.zpl()
     zd_pm.clear_printers_json()
 
     zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='tube_2inX1in')
-    assert zpl == """^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FDTESTBC^FS\n^FO235,70\n^ADN,30,20\n^FDTESTBC^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ"""
 
+    x = """^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FDTESTBC^FS\n^FO235,70\n^ADN,30,20\n^FDTESTBC^FS\n^FO235,115\n^ADN,25,12\n^FDA^FS\n^FO235,145\n^ADN,25,12\n^FDB^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDC^FS\n^FO300,180\n^ADN,25,12\n^FDD^FS\n^FO490,180\n^ADN,25,12\n^FDE^FS\n^XZ"""
+
+    assert x == zpl
 
 def test_creating_a_png_of_label_zpl():
 
