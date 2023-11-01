@@ -1,6 +1,6 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.2.1](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.2.1)
+## zebra_day Overview [v0.2.9.3 - prerelease](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.2.9.3)
 
 <ul>
     
