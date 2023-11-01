@@ -123,7 +123,7 @@ class zpl:
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
-        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["test_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
+        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["tube_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
 
         res = os.popen(str(files('zebra_day'))+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
         for i in res.readlines():
@@ -138,7 +138,7 @@ class zpl:
                 arp_response = sl[5]
 
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["test_2inX1in","tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
+                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
 
         self.save_printer_json(self.printers_filename, relative=False)
 

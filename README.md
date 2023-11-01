@@ -498,10 +498,15 @@ more info coming soon.  The instructions for getting the package s/w up and runn
 
 
 ## Other Providers
-If it will work on AWS, it will work anyplace really.
+If it will work on AWS, it will work anyplace really (with some provider specific tweaks).
 
 ## Docker
 I'm not anti, but am not putting time towards this anytime soon.
+
+# Add'l Future Development
+
+  * Set varios printer config via ZPL commands (presently this package only fetches config).
+
 
 # BadgeLand
 

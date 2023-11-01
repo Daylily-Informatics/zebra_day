@@ -4,7 +4,7 @@
             "Download-Label-png": {
                 "ip_address": "dl_png",
                 "label_zpl_styles": [
-                    "test_2inX1in"
+                    "tube_2inX1in"
                 ],
                 "print_method": "generate png",
                 "model": "na",
