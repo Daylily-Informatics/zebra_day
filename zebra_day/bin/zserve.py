@@ -561,7 +561,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
             if os.path.isfile(os.path.join(self.rel_p + "/etc/label_styles/", f))
         ]
 
-        file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in files]
+        file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in sorted(files)]
 
         filest = [
             ft
@@ -571,7 +571,7 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
 
         file_linkst = [
             '<a href="/edit?dtype=tmps&filename={}">{}</a>'.format(ft, ft)
-            for ft in filest
+            for ft in sorted(filest)
         ]
 
         ret_html = """

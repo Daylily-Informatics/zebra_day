@@ -1,0 +1,15 @@
+^XA
+^FO235,10
+^BY2
+^B3N,N,28,N,N
+^FD{uid_barcode}^FS
+^FO235,42
+^ADN,30,20
+^FD{uid_barcode}^FS
+^FO235,75
+^ADN,24,14
+^FD{alt_a}^FS
+^FO455,76
+^ADN,24,14
+^FD{alt_b}^FS
+^XZ
