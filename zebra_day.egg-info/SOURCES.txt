@@ -42,8 +42,11 @@ zebra_day/etc/label_styles/corners_smallTube.zpl
 zebra_day/etc/label_styles/corners_smallTube.zpl~
 zebra_day/etc/label_styles/labware_2inX1in.zpl
 zebra_day/etc/label_styles/plate_1inX0.25in.zpl
+zebra_day/etc/label_styles/smallTubeDot_ninXnin.zpl
+zebra_day/etc/label_styles/smallTube_1inX0.3in.zpl
 zebra_day/etc/label_styles/test_2inX1in.zpl
 zebra_day/etc/label_styles/test_800dX800dCoordinateArray.zpl
+zebra_day/etc/label_styles/tube_20mmX30mmA.zpl
 zebra_day/etc/label_styles/tube_2inX0.3in.zpl
 zebra_day/etc/label_styles/tube_2inX0.5inHD.zpl
 zebra_day/etc/label_styles/tube_2inX1in.zpl
