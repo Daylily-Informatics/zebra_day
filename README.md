@@ -66,6 +66,7 @@ zday_quickstart
 <img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
 
 </ul>
+
 ### It Is 3+ Things
 
   (1) Zebra Printer Management & Configuration
