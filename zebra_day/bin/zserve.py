@@ -445,52 +445,6 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         """
 
         return self.wrap_content(ret_html)
-
-    @cherrypy.expose
-    def dsimple_print_request(
-        self
-       
-    ):
-        lab = ''
-        printer = ''
-        printer_ip=""
-        label_zpl_style=""
-        content=""
-        filename=""
-        ftag=""
-        if label_zpl_style in ["", "None", None] and filename not in ["", "None", None]:
-            label_zpl_style = filename.split(".zpl")[0]
-
-        ret_html = f"""
-        <h1>Send Label Print Request</h1>
-        <ul><small><a href=/>home</a></small><hr><ul>
-        <h3>{lab} .. {printer} .. {printer_ip} .. {label_zpl_style}</h3><ul><hr><ul>
-        """
-
-        ret_html = (
-            ret_html
-            + """
-        <form action=_print_label>
-        <li>UID for Barcode : <input type=text name=uid_barcode ></input><br>
-        <li>ALT-A : <input type=text name=alt_a ></input><br>
-        <li>ALT-B : <input type=text name=alt_b ></input><br>
-        <li>ALT-C : <input type=text name=alt_c ></input><br>
-        <li>ALT-D : <input type=text name=alt_d ></input><br>
-        <li>ALT-E : <input type=text name=alt_e ></input><br>
-        <li>ALT-F : <input type=text name=alt_f ></input><br>
-        """
-        )
-        ret_html = (
-            ret_html
-            + f"""
-        Over-Ride label_style_zpl: <input type=text name=label_zpl_style value={label_zpl_style} ><br>
-        <input type=submit>
-        </form>
-        """
-        )
-
-        return self.wrap_content(ret_html)
-    
     
     @cherrypy.expose
     def build_print_request(
