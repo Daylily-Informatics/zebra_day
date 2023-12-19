@@ -1,5 +1,5 @@
 """
-  Tools to get and (soon) set varios zebra printer config.
+  Tools to manage a zebra printer fleet and expose an API for routing print requests.
 """
 
 import socket

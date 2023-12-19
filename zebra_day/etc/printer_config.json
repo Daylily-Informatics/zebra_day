@@ -58,6 +58,18 @@
                 "model": "ZTC GX420d",
                 "serial": "ZBR3715954 ",
                 "arp_data": "? (192.168.1.18) at 0:7:4d:38:b3:72 on en0 ifscope [ethernet]"
+            },
+            "192.168.1.31": {
+                "ip_address": "192.168.1.31",
+                "label_zpl_styles": [
+                    "tube_2inX1in",
+                    "plate_1inX0.25in",
+                    "tube_2inX0.3in"
+                ],
+                "print_method": "unk",
+                "model": "ZTC ZD620-203dpi ZPL",
+                "serial": "D3J192904307 ",
+                "arp_data": "? (192.168.1.31) at 0:7:4d:9b:f5:f7 on en0 ifscope [ethernet]"
             }
         }
     }

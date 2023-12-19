@@ -18,7 +18,7 @@
 <tr >
 <td >directly access each printers admin console</td>
 <td >integrate with other systems (Salesforce, AWS)</td>
-<td >this s/w is * FREE! * <hr>(commercial alternatives are quite expensive, and often offer less)</td>
+<td > simple print API endpoints <hr>(commercial alternatives are quite expensive, and often offer less)</td>
 </tr>
 </table>
 </ul>
@@ -277,7 +277,19 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 <br><br>
 
+## Print Request HTTP API
 
+### Quick Start
+
+The HTTP API is available via the web UI, and can be used programatically as well.  The following is a quick example of how to send a print request via the HTTP API.
+
+```bash
+curl "http://localhost:8118/_print_label?lab=MA&printer=192.168.1.31&printer_ip=&label_zpl_style=tube_2inX1in&uid_barcode=BARCODE&alt_a=FIELDAAAA&alt_b=FIELDBBBB&alt_c=FIELDCCCC&alt_d=FIELDDDD&alt_e=FIELDEEEE&alt_f=FIELDFFFF"
+
+  # RETURNS 200 OK -or- 500 Internal Server Error (usually b/c the target printer is not reachable)
+
+```
+  > The above would send a print request to the specified printer, identified by it's network IP. Label style can be set, and some styles use more `alt_*` fields than others.  This reuest will return `200` or `500`.   
 
 ## Web UI
 

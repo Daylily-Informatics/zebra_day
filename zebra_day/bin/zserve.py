@@ -250,6 +250,13 @@ class Zserve(object):
             + llinks
             + """</ul><br></ul>
         <hr>
+        <h2>Print Labels Manually UI</h2>
+        <ul>this tool is meant to for infrequent use, the intention of `zebra` is to be used to create more fully featured tools/systems.
+        <ul><ul>
+        <li><a href=simple_print_request>print labels manually</a>
+        </ul></ul></ul>
+        <hr><br> 
+        
         <h2>Zebra Printer JSON Config</h2>
         <ul>this json file defines the zebra printers available to the package
         <ul><ul>
@@ -363,6 +370,129 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         )
 
     @cherrypy.expose
+    def simple_print_request(self):
+        
+        filename = ""
+        ftag = ""
+        files = [
+            f
+            for f in os.listdir(self.rel_p + "/etc/label_styles/")
+            if os.path.isfile(os.path.join(self.rel_p + "/etc/label_styles/", f))
+        ]
+        
+        
+        # Create options for the select element
+        options = ""
+        for file in files:
+            filename = file.split('.zpl')[0]  # Remove the .zpl suffix
+            options += f'<option value="{filename}">{filename}</option>\n'
+
+        # Build the HTML for the select element
+        select_html = f'<select name="label_zpl_style" id="label_zpl_style">\n{options}</select>'
+
+
+        # Fetch the labs and printers data
+        labs_and_printers = self.zp.printers['labs']
+        labs_options = '\n'.join([f'<option value="{lab}">{lab}</option>' for lab in labs_and_printers.keys()])
+
+        ret_html = f"""
+        <h1>Send Label Print Request</h1>
+        <ul><small><a href=/>home</a></small><hr><ul>
+        <h3> .. .. .. </h3><ul><hr><ul>
+        <form action=_print_label>
+
+        <li>UID for Barcode : <input type=text name=uid_barcode ></input><br>
+        <li>ALT-A : <input type=text name=alt_a ></input><br>
+        <li>ALT-B : <input type=text name=alt_b ></input><br>
+        <li>ALT-C : <input type=text name=alt_c ></input><br>
+        <li>ALT-D : <input type=text name=alt_d ></input><br>
+        <li>ALT-E : <input type=text name=alt_e ></input><br>
+        <li>ALT-F : <input type=text name=alt_f ></input><br>
+        
+        <!-- Other inputs here -->
+        <li>Select Lab: 
+            <select id="labSelect" name="lab" onchange="updatePrinters()">
+                <option value="">Select a Lab</option>
+                {labs_options}
+            </select><br>
+        <li>Select Printer: 
+            <select id="printerSelect" name="printer">
+                <option value="">Select a Printer</option>
+            </select><br>
+        Label ZPL Style (be sure it is apporpriate for the label stock): {select_html} <br>
+        <input type=submit>
+        </form>   
+        <script>
+            function updatePrinters() {{
+                var labSelect = document.getElementById('labSelect');
+                var printerSelect = document.getElementById('printerSelect');
+                var selectedLab = labSelect.value;
+                var printers = {json.dumps({lab: list(printers.keys()) for lab, printers in labs_and_printers.items()})};
+
+                // Clear current printer options
+                printerSelect.innerHTML = '<option value="">Select a Printer</option>';
+
+                if (selectedLab in printers) {{
+                    printers[selectedLab].forEach(function(printer) {{
+                        var option = document.createElement('option');
+                        option.value = printer;
+                        option.text = printer;
+                        printerSelect.appendChild(option);
+                    }});
+                }}
+            }}
+        </script>
+        """
+
+        return self.wrap_content(ret_html)
+
+    @cherrypy.expose
+    def dsimple_print_request(
+        self
+       
+    ):
+        lab = ''
+        printer = ''
+        printer_ip=""
+        label_zpl_style=""
+        content=""
+        filename=""
+        ftag=""
+        if label_zpl_style in ["", "None", None] and filename not in ["", "None", None]:
+            label_zpl_style = filename.split(".zpl")[0]
+
+        ret_html = f"""
+        <h1>Send Label Print Request</h1>
+        <ul><small><a href=/>home</a></small><hr><ul>
+        <h3>{lab} .. {printer} .. {printer_ip} .. {label_zpl_style}</h3><ul><hr><ul>
+        """
+
+        ret_html = (
+            ret_html
+            + """
+        <form action=_print_label>
+        <li>UID for Barcode : <input type=text name=uid_barcode ></input><br>
+        <li>ALT-A : <input type=text name=alt_a ></input><br>
+        <li>ALT-B : <input type=text name=alt_b ></input><br>
+        <li>ALT-C : <input type=text name=alt_c ></input><br>
+        <li>ALT-D : <input type=text name=alt_d ></input><br>
+        <li>ALT-E : <input type=text name=alt_e ></input><br>
+        <li>ALT-F : <input type=text name=alt_f ></input><br>
+        """
+        )
+        ret_html = (
+            ret_html
+            + f"""
+        Over-Ride label_style_zpl: <input type=text name=label_zpl_style value={label_zpl_style} ><br>
+        <input type=submit>
+        </form>
+        """
+        )
+
+        return self.wrap_content(ret_html)
+    
+    
+    @cherrypy.expose
     def build_print_request(
         self,
         lab,
@@ -412,8 +542,8 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
     @cherrypy.expose
     def _print_label(
         self,
-        lab,
-        printer,
+        lab=None,
+        printer='',
         printer_ip="",
         label_zpl_style="",
         uid_barcode="",
@@ -423,7 +553,11 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
         alt_d="",
         alt_e="",
         alt_f="",
+        labSelect=""
     ):
+        if lab == None:
+            lab = labSelect
+        
         client_ip = cherrypy.request.remote.ip
 
         ret_s = self.zp.print_zpl(
