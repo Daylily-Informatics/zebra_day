@@ -651,6 +651,9 @@ Choose Existing, Or Enter New Lab Code:         {self._get_labs_datalist()}
 
         file_links = ['<a href="/edit?filename={}">{}</a>'.format(f, f) for f in sorted(files)]
 
+        if not os.path.exists(self.rel_p + "/etc/label_styles/tmps/"):
+            os.makedirs(self.rel_p + "/etc/label_styles/tmps/")
+            
         filest = [
             ft
             for ft in os.listdir(self.rel_p + "/etc/label_styles/tmps/")
