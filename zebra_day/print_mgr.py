@@ -90,6 +90,10 @@ class zpl:
         json_config = if not specified, the standard active
           (which may be empty) is assumed
         """
+        zpl_tmps = str(files('zebra_day'))+f"/etc/label_styles/tmps/"
+        if not os.path.exists(zpl_tmps):
+            os.system(f"mkdir -p {zpl_tmps}")
+        
         jcfg = str(files('zebra_day'))+"/etc/printer_config.json"
         if os.path.exists(jcfg):
             self.load_printer_json(jcfg, relative=False)
