@@ -52,6 +52,7 @@ zebra_day/etc/label_styles/tube_2inX0.5inHD.zpl
 zebra_day/etc/label_styles/tube_2inX1in.zpl
 zebra_day/etc/label_styles/tube_2inX1inHD.zpl
 zebra_day/etc/label_styles/tmps/tmp_zpl_templates.here
+zebra_day/files/hold
 zebra_day/logs/print_requests.log
 zebra_day/static/datschund.css
 zebra_day/static/datschund.png
