@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: zebra-day
-Version: 0.3.5
+Version: 0.3.6
 Summary: A Python library to manage a zebra printer fleet and an api for ZPL print requests.
 Home-page: https://github.com/Daylily-Informatics/zebra_day
 Author: John Major
