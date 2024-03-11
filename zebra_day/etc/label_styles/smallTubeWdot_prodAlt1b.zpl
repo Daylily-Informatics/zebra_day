@@ -1,3 +1,3 @@
 ^XA
-^FO520,60^A0N,26,26^FD{alt_b}^FS
+^FO250,50^A0N,26,26^FD{alt_b}^FS
 ^XZ

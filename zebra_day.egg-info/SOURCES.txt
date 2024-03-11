@@ -41,6 +41,7 @@ zebra_day/etc/label_styles/corners_smallTube.zpl
 zebra_day/etc/label_styles/corners_unspecifiedDimensions.zpl
 zebra_day/etc/label_styles/generic_2inX1in.zpl
 zebra_day/etc/label_styles/plate_1inX0.25in.zpl
+zebra_day/etc/label_styles/plate_1inX0.25inHD.zpl
 zebra_day/etc/label_styles/smallTubeWdotHD_prod.zpl
 zebra_day/etc/label_styles/smallTubeWdot_corners.zpl
 zebra_day/etc/label_styles/smallTubeWdot_prod.zpl
