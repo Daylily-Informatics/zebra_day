@@ -1,0 +1,11 @@
+services:
+  zebra-day:
+    container_name: zebra_day
+    build: .
+    network_mode: host # can set top your own network as needed
+    ports:
+      - "8118:8118"
+    volumes:
+      - ./etc:/app/zebra_day/etc
+      - ./logs:/app/zebra_day/logs
+    command: zday_start
