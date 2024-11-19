@@ -522,7 +522,9 @@ more info coming soon.  The instructions for getting the package s/w up and runn
 If it will work on AWS, it will work anyplace really (with some provider specific tweaks).
 
 ## Docker
-I'm not anti, but am not putting time towards this anytime soon.
+Find an example in the docker folder at the top level of this project. Copy the Dockerfile and the docker-compose.yml to a local folder on your computer.
+In that folder, `mkdir etc && chmod 777 etc && mkdir logs && chmod 777 logs` to setup the example folders.
+Tthen run `sudo docker compose up --build -d` to run it then reach it at http://<your-ip>:8118. This doesn't auto-detect printers so you'll have to run the printer discovery and probably manually edit your JSON file.
 
 # Add'l Future Development
 
