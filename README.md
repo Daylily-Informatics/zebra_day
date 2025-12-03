@@ -4,7 +4,7 @@
 
 <ul>
     
-<table border="1" >
+<table border="1" > 
 <tr >
 <td > * auto discovery * of networked printers</td>
 <td> ui configurable printer fleet details</td>
