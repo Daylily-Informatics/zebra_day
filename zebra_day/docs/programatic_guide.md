@@ -37,13 +37,20 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 
 ### Load/Save/Clear Printer Config json
->  def save_printer_json(self, json_filename="zebra_day/etc/printer_config.json"):
 
->  def load_printer_json(self, json_file="zebra_day/etc/printer_config.json"):
+> As of v0.6.0, printer configuration is stored in XDG-compliant locations:
+> - **Linux**: `~/.config/zebra_day/printer_config.json`
+> - **macOS**: `~/Library/Preferences/zebra_day/printer_config.json`
+>
+> Use `zday info` to see the exact path on your system.
 
->  def clear_printers_json(self, json_file="zebra_day/etc/printer_config.json"):
-
->  def replace_printer_json_from_template(self):
+```python
+# These methods now use the XDG paths automatically
+zlab.save_printer_json()
+zlab.load_printer_json()
+zlab.clear_printers_json()
+zlab.replace_printer_json_from_template()
+```
 
 When clearing or writing a new config.json, the existing one is saved to a backup location. Users can open these and effectively rollback if errors are made. Replace from template means overwriting the active one with the json example file which accompanies the repo.
 

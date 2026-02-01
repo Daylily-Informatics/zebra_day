@@ -242,6 +242,24 @@ python -m build              # Creates dist/*.whl and dist/*.tar.gz
 * `zebra_day` is now installed in your current python environment.
 * reload your environment/shell.
 
+### File Locations (XDG-compliant)
+
+zebra_day v0.6.0+ uses XDG Base Directory specification for file storage:
+
+| Type | macOS | Linux |
+|------|-------|-------|
+| **Config** | `~/Library/Preferences/zebra_day/` | `~/.config/zebra_day/` |
+| **Data** | `~/Library/Application Support/zebra_day/` | `~/.local/share/zebra_day/` |
+| **Logs** | `~/Library/Logs/zebra_day/` | `~/.local/state/zebra_day/` |
+| **Cache** | `~/Library/Caches/zebra_day/` | `~/.cache/zebra_day/` |
+
+Key files:
+- `printer_config.json` - Printer fleet configuration (in config dir)
+- `label_styles/` - ZPL template files (in data dir)
+- `label_styles/tmps/` - Draft templates (in data dir)
+
+Use `zday info` to see the exact paths on your system.
+
 <br><br><br>
 
 </ul>
@@ -272,40 +290,56 @@ python -m build              # Creates dist/*.whl and dist/*.tar.gz
 * zebra printers -> power on and connect via cable or wifi to the same network the machine you installed `zebra_day` is on.
 * activate the environment you have `zebra_day` installed into.
 * If you have just pip installed `zebra_day` in the shell you are in, start a new shell.
-* run `zday_quickstart`, which will detect you IP address, scan the detected network for zebra printers, build a printer fleet config for printers detected, and launch the `zebra_day` web gui (the IP:port will be printed for you if the launch succeeds, open the IP:port in a web browser with visibility to the IP).
 
-### Example Output From `zday_quickstart`
+```bash
+# First-time setup: scan network for printers and initialize configuration
+zday bootstrap
+
+# Start the web UI (runs in background by default)
+zday gui start
+
+# Or start in foreground for debugging
+zday gui start --foreground
+```
+
+### Example Output From `zday bootstrap`
 <pre>
+$ zday bootstrap
 
-zday_quickstart
-
-(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2> /dev/null
-
+Detecting local IP address...
 IP detected: 192.168.1.12 ... using IP root: 192.168.1
 
- ..... now scanning for zebra printers on this network (which may take a few minutes...
+Scanning for Zebra printers on network (this may take a few minutes)...
 
-Zebra Printer Scan Complete.  Results:{'labs': {'scan-results': {'Download-Label-png': {'ip_address': 'dl_png', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'generate png', 'model': 'na', 'serial': 'na'}, '192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['blank_0inX0in', 'test_2inX1in', 'tube_2inX1in', 'plate_1inX0.25in', 'tube_2inX0.3in'], 'print_method': 'unk', 'model': 'ZTC GX420d', 'serial': 'ZBR7563510 '}}}}
+Zebra Printer Scan Complete.
+Found 2 printers:
+  - 192.168.1.7 (ZTC GX420d)
+  - 192.168.1.20 (ZD620)
 
-Now starting zebra_day web GUI
+Configuration saved to: ~/.config/zebra_day/printer_config.json
 
-
-     	       **** THE ZDAY WEB GUI WILL BE ACCESSIBLE VIA THE URL: 192.168.1.12:8118
-
-               The zday web server will continue running, and not return this shell to a command prompt until it is shut down
-
-               .... you may shut down this web service by hitting ctrl+c.
-
-
-INFO:     Started server process [12345]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8118 (Press CTRL+C to quit)
+Run 'zday gui start' to launch the web interface.
 </pre>
 
-  > If `zday_quickstart` ends with `Uvicorn running on...` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
+### Example Output From `zday gui start`
+<pre>
+$ zday gui start
 
-#### zebra_day Web GUI Launched From `zday_quickstart`
+Starting zebra_day web server...
+Server running at: http://192.168.1.12:8118
+
+Modern UI:  http://192.168.1.12:8118/
+Legacy UI:  http://192.168.1.12:8118/legacy
+API Docs:   http://192.168.1.12:8118/docs
+
+Server started in background (PID: 12345)
+Use 'zday gui status' to check status
+Use 'zday gui stop' to stop the server
+</pre>
+
+  > The web service runs in the background. Use `zday gui status` to check if it's running, and `zday gui stop` to stop it.
+
+#### zebra_day Web GUI
 
 ##### Home Page 
  <img src=zebra_day/imgs/zday_quick_gui.png>
@@ -381,37 +415,51 @@ curl "http://localhost:8118/_print_label?lab=MA&printer=192.168.1.31&printer_ip=
 ## Web UI
 
 ### Quick Start
-* Start the `zebra_day` service.  The current network security for this service is minimal, as such, running this so it is fully visible to the public internet is no advised. Within a local network, or on a well configured AWS(etc) host is fine.
 
 ```bash
-# The suggested way from an env zebra_day is installed in is (using tmux or whatnot):
+# Start the web server (runs in background)
+zday gui start
 
-zday_start
+# Check status
+zday gui status
+
+# View logs
+zday gui logs --tail 50
+
+# Stop the server
+zday gui stop
+
+# Or run in foreground for debugging
+zday gui start --foreground
 
 # Or run via uvicorn directly (more control over options)
-conda activate ZDAY # or any python environment where you have pip installed zebra_day
 uvicorn zebra_day.web.app:create_app --host 0.0.0.0 --port 8118 --factory
-
-# ctrl-c to shutdown the web service
-
 ```
 
-* The web UI should now be accessible at `YOUR.HOST.IP.ADDR:8118`, or if physically on the box you're running the service on, `localhost:8118`.
-  * Unreachable?  Are the ports open?  Is the uvicorn service started above still running, or has it exited?
+### Modern vs Legacy UI
 
-* You can send a label print request via the UI (the process is a little involved ATM)... also, you can send the service requests via HTTP, ie, the programatic print request from above, can be similarly accomplished with this URL
+zebra_day v0.6.0 includes a redesigned modern UI alongside the preserved legacy interface:
 
-```http
-http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&printer_ip=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID&alt_a=&alt_b=&alt_c=&alt_d=&alt_e=&alt_f=
-```
+| Interface | URL | Description |
+|-----------|-----|-------------|
+| **Modern UI** | `http://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
+| **Legacy UI** | `http://localhost:8118/legacy` | Original interface, fully functional |
+| **API Docs** | `http://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
+| **ReDoc** | `http://localhost:8118/redoc` | Alternative API documentation |
 
-_or_ with the unused (in this ZPL template!) fields removed, this URL
+Both interfaces provide full functionality. The modern UI offers:
+- Dashboard with printer fleet statistics
+- Streamlined navigation
+- Improved template editor
+- Better mobile responsiveness
+
+### Print via HTTP API
 
 ```http
 http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
 ```
 
-* There will be more details on the web tools available via this GUI in the `Web UI Guide`.
+* See the [Web UI Guide](zebra_day/docs/zebra_day_ui_guide.md) for full details.
 
 ### [Web UI Guide](zebra_day/docs/zebra_day_ui_guide.md)
 
@@ -446,9 +494,10 @@ zebra_day supports optional AWS Cognito authentication for production deployment
 
 3. **Start server with authentication**:
    ```bash
-   zday_start --auth cognito
-   # or
-   zday_quickstart --auth cognito
+   zday gui start --auth cognito
+
+   # Check auth status
+   zday cognito status
    ```
 
 #### Authentication Modes

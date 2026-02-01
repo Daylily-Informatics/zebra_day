@@ -92,8 +92,11 @@ zebra_day = [
     "etc/old_printer_config/*",
     "files/*",
     "static/*",
+    "static/js/*",
     "logs/*",
     "templates/*",
+    "templates/modern/*",
+    "templates/legacy/*",
     "web/*",
 ]
 

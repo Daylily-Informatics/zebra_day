@@ -1,8 +1,24 @@
 # ZDAY UI GUIDE
 
-## ALL PAGES
-* everything which can be accomplished via this UI can also be acheived with the library code directly (more so in fact)
-  
+## Modern vs Legacy UI (v0.6.0+)
+
+zebra_day v0.6.0 introduces a redesigned modern UI alongside the preserved legacy interface:
+
+| Interface | URL | Description |
+|-----------|-----|-------------|
+| **Modern UI** | `http://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
+| **Legacy UI** | `http://localhost:8118/legacy` | Original interface (documented below), fully functional |
+| **API Docs** | `http://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
+| **ReDoc** | `http://localhost:8118/redoc` | Alternative API documentation |
+
+Both interfaces provide full functionality. Choose based on your preference.
+
+---
+
+## Legacy UI Documentation
+
+> The screenshots below show the Legacy UI. Everything which can be accomplished via this UI can also be achieved with the library code directly (more so in fact).
+
 ### Home, 4 Primary Tool Clusters Available
 
 #### _1_ Automated Zebra Printer Discovery & Centralized Management /// _2_ Zebra Printer Status And Activity Reports /// _3_ ZPL Label Template Design + Preview + Deployment of New Styles /// _4_ Manual Print Request Formulation For Any Printer + ZPL Combination Desired

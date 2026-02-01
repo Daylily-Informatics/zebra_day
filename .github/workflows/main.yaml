@@ -34,10 +34,12 @@ jobs:
         run: mypy zebra_day --ignore-missing-imports
 
   test:
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,12 +54,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Smoke test - CLI entry points
+        run: |
+          zday --help
+          zday info
+
+      - name: Smoke test - Core imports
+        run: |
+          python -c "import zebra_day.print_mgr; print('print_mgr: OK')"
+          python -c "import zebra_day.cli; print('cli: OK')"
+          python -c "import zebra_day.paths; print('paths: OK')"
+          python -c "from zebra_day.web.app import create_app; print('web.app: OK')"
+
       - name: Run pytest
         run: pytest --cov=zebra_day --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
-        if: matrix.python-version == '3.12'
+        if: matrix.python-version == '3.12' && matrix.os == 'ubuntu-latest'
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
