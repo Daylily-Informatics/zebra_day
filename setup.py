@@ -8,7 +8,19 @@ setup(
     author_email='john@daylilyinformatics.com',
     url='https://github.com/Daylily-Informatics/zebra_day',
     packages=find_packages(),
-    install_requires=["yaml_config_day==0.0.5", "requests", "pytz==2023.3.post1", "cherrypy==18.8.0", "ipython==8.16.1", "pytest"],
+    install_requires=[
+        "yaml_config_day==0.0.5",
+        "requests",
+        "pytz==2023.3.post1",
+        "cherrypy==18.8.0",
+    ],
+    extras_require={
+        "dev": [
+            "pytest>=7.4.3",
+            "pytest-cov>=4.0.0",
+            "ipython>=8.16.1",
+        ],
+    },
     include_package_data=True,
     package_data={
         "zebra_day": [

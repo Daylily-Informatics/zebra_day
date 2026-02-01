@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Send Label Print Request</h1>
+<ul>
+    <small><a href="/">home</a></small>
+    <hr>
+    
+    <form id="myForm" action="/_print_label" method="get">
+        <ul>
+            <li>
+                <label>UID for Barcode:</label>
+                <input type="text" name="uid_barcode">
+            </li>
+            <li>
+                <label>ALT-A:</label>
+                <input type="text" name="alt_a">
+            </li>
+            <li>
+                <label>ALT-B:</label>
+                <input type="text" name="alt_b">
+            </li>
+            <li>
+                <label>ALT-C:</label>
+                <input type="text" name="alt_c">
+            </li>
+            <li>
+                <label>ALT-D:</label>
+                <input type="text" name="alt_d">
+            </li>
+            <li>
+                <label>ALT-E:</label>
+                <input type="text" name="alt_e">
+            </li>
+            <li>
+                <label>ALT-F:</label>
+                <input type="text" name="alt_f">
+            </li>
+            <li>
+                <label>Select Lab:</label>
+                <select id="labSelect" name="lab" onchange="updatePrinters()">
+                    <option value="">Select a Lab</option>
+                    {% for lab in labs %}
+                    <option value="{{ lab }}">{{ lab }}</option>
+                    {% endfor %}
+                </select>
+            </li>
+            <li>
+                <label>Select Printer:</label>
+                <select id="printerSelect" name="printer">
+                    <option value="">Select a Printer</option>
+                </select>
+            </li>
+            <li>
+                <label>Label ZPL Style:</label>
+                <select name="label_zpl_style">
+                    {% for template in templates %}
+                    <option value="{{ template }}">{{ template }}</option>
+                    {% endfor %}
+                </select>
+            </li>
+        </ul>
+        <br>
+        <input type="submit" value="Print Label">
+    </form>
+</ul>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var labsAndPrinters = {{ labs_and_printers | safe }};
+
+    function updatePrinters() {
+        var labSelect = document.getElementById('labSelect');
+        var printerSelect = document.getElementById('printerSelect');
+        var selectedLab = labSelect.value;
+
+        // Clear current printer options
+        printerSelect.innerHTML = '<option value="">Select a Printer</option>';
+
+        if (selectedLab in labsAndPrinters) {
+            labsAndPrinters[selectedLab].forEach(function(printer) {
+                var option = document.createElement('option');
+                option.value = printer;
+                option.text = printer;
+                printerSelect.appendChild(option);
+            });
+        }
+    }
+</script>
+{% endblock %}
+

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Edit ZPL Templates</h1>
+<ul>
+    <small><a href="/">home</a></small>
+    <hr>
+    
+    <p>To specify a template to use (via the programmatic API or the GUI), use the file name string (not including the path prefix) and remove the trailing '.zpl'.</p>
+    <p>Example: <b>tube_2inX1in</b></p>
+    
+    <hr>
+    
+    <h2>Stable ZPL Templates</h2>
+    <ul>
+        {% for template in stable_templates %}
+        <li><a href="/edit?filename={{ template }}">{{ template }}</a></li>
+        {% else %}
+        <li>No stable templates found</li>
+        {% endfor %}
+    </ul>
+    
+    <hr>
+    
+    <h2>Draft ZPL Templates</h2>
+    <ul>
+        {% for template in draft_templates %}
+        <li><a href="/edit?dtype=tmps&filename={{ template }}">{{ template }}</a></li>
+        {% else %}
+        <li>No draft templates found</li>
+        {% endfor %}
+    </ul>
+</ul>
+{% endblock %}
+

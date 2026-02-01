@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Printer Information For {{ printer_name }} In Lab {{ lab }}</h1>
+<ul>
+    <small><a href="/">HOME</a> ... <a href="/printer_status?lab={{ lab }}">printer status report</a></small>
+    <hr>
+    
+    <h2>JSON Stored Data</h2>
+    <ul>
+        {% for key, value in printer_info.items() %}
+        <li><strong>{{ key }}</strong>: {{ value }}</li>
+        {% endfor %}
+    </ul>
+    
+    <br>
+    <h2>Configuration Retrieved From The Zebra Printer</h2>
+    <ul>
+        <pre>{{ printer_config }}</pre>
+    </ul>
+</ul>
+{% endblock %}
+

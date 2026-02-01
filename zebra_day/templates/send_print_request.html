@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Send Print Request</h1>
+<small><a href="/">home</a></small>
+<hr>
+
+{% for lab_name, printers in labs.items() %}
+<h2>Lab: {{ lab_name }}</h2>
+<table border="1" width="90%">
+    <tr>
+        <th>Printer</th>
+        <th>Available Label Styles</th>
+    </tr>
+    {% for printer_name, printer_info in printers.items() %}
+    <tr>
+        <td>
+            <strong>{{ printer_name }}</strong><br>
+            <small>{{ printer_info.ip_address }}</small>
+        </td>
+        <td>
+            {% for style in printer_info.label_zpl_styles %}
+            <a href="/build_print_request?lab={{ lab_name }}&printer={{ printer_name }}&printer_ip={{ printer_info.ip_address }}&label_zpl_style={{ style }}">{{ style }}</a><br>
+            {% endfor %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+<br>
+{% endfor %}
+{% endblock %}
+

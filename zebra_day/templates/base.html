@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Zebra Day{% endblock %}</title>
+    <link rel="stylesheet" href="/static/general.css">
+    <link rel="stylesheet" href="/{{ css_theme }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div id="spinner" class="spinner-hidden">
+        <div class="loader"></div>
+    </div>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <div style="position: fixed; border: 5px; bottom: 0; right: 0; padding: 8px; text-decoration: none;">
+        <a href="/chg_ui_style" style="font-size: 18px;" id="bottomRightLink">change ui style</a>
+    </div>
+
+    <script>
+        // Spinner logic for forms
+        document.querySelectorAll('form[id="myForm"]').forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                document.getElementById('spinner').classList.remove('spinner-hidden');
+            });
+        });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
+

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Printer Status Summary For {{ lab }}</h1>
+<small><a href="/">BACK HOME</a></small>
+<ul>
+    <hr>
+    <br>
+    <table border="1">
+        <tr>
+            <th>Printer Name</th>
+            <th>Printer IP</th>
+            <th>Label Styles Available</th>
+            <th>Status on Network</th>
+        </tr>
+        {% for printer in printers %}
+        <tr>
+            <td>
+                {{ printer.name }}<br>
+                <small>{{ printer.model }}<br>{{ printer.serial }}</small>
+            </td>
+            <td>
+                {% if printer.ip_address != 'dl_png' %}
+                <a href="http://{{ printer.ip_address }}" target="_blank">{{ printer.ip_address }}</a>
+                {% else %}
+                {{ printer.ip_address }}
+                {% endif %}
+                <br><small>{{ printer.arp_data }}</small>
+            </td>
+            <td>
+                {% for style in printer.label_zpl_styles %}
+                <small>
+                    <a href="/edit_zpl">{{ style }}</a>
+                    (<a href="/_print_label?lab={{ lab }}&printer={{ printer.name }}&label_zpl_style={{ style }}&uid_barcode={{ printer.ip_address }}&alt_a={{ printer.model }}&alt_b={{ printer.serial }}&alt_c={{ lab }}&alt_d={{ lab }}" target="_blank">test</a>)
+                </small><br>
+                {% endfor %}
+            </td>
+            <td>
+                {{ printer.status }}
+                <br><small><a href="/printer_details?printer_name={{ printer.name }}&lab={{ lab }}" target="_blank">...printer details</a></small>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</ul>
+
+<br><hr>
+<h2>Build New Printers Config JSON // Scan Network</h2>
+<ul>
+    <p>This will probe for printers, and with all discovered printers will create a new printers JSON and overwrite the current fleet data for this lab.</p>
+    <form id="myForm" action="/probe_zebra_printers_add_to_printers_json">
+        <label>Enter IP Root To Scan:</label>
+        <input type="text" value="{{ ip_root }}" name="ip_stub">
+        <br>
+        <label>Select (or enter new) lab:</label>
+        <input type="text" name="lab" list="lab_names" value="{{ lab }}">
+        <datalist id="lab_names">
+            {% for lab_name in labs %}
+            <option value="{{ lab_name }}">{{ lab_name }}</option>
+            {% endfor %}
+        </datalist>
+        <br>
+        <input type="submit" value="Scan Network">
+    </form>
+    <small><a href="/list_prior_printer_config_files">The current printers JSON will be backed up and can be found here.</a></small>
+</ul>
+{% endblock %}
+

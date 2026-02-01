@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h2>Editing: {{ filename }}</h2>
+<small>
+    <a href="/">home</a> /// 
+    <a href="/edit_zpl">back to label list</a> /// 
+    <a href="https://labelary.com/zpl.html" target="_blank">ZPL intro</a>
+</small>
+<hr>
+
+<table border="1" width="100%">
+    <tr>
+        <td style="vertical-align: top; width: 40%;">
+            <form method="post" action="/save" id="textForm">
+                <textarea name="content" rows="26" cols="45">{{ content }}</textarea>
+                <br>
+                <input type="hidden" name="filename" value="{{ filename }}">
+                <br>
+                <label>TMP File Tag:</label>
+                <input style="width: 100px;" type="text" name="ftag" value="na">
+                <br><br>
+                <input type="submit" value="Save Draft">
+                <input type="button" value="Render PNG" onclick="submitToPNGrenderer();">
+                
+                <hr>
+                <h3>Print IRL:</h3>
+                <select id="labsDropdown" name="lab" onchange="populatePrinters()">
+                    <option value="">Select Lab</option>
+                    {% for lab in labs %}
+                    <option value="{{ lab }}">{{ lab }}</option>
+                    {% endfor %}
+                </select>
+                <select id="printersDropdown" name="printer">
+                    <option value="">Select Printer</option>
+                </select>
+                <br><br>
+                <input type="button" value="Print with format keys" onclick="submitToRealPrint();">
+                <input type="button" value="Print with data" onclick="submitToLocPrint();">
+            </form>
+        </td>
+        <td style="vertical-align: top; width: 60%;">
+            <div id="pngContainer" style="text-align: center;">
+                <p><em>Click "Render PNG" to preview label</em></p>
+            </div>
+            <hr>
+            <h3>Format Keys</h3>
+            <p>Use these placeholders in your ZPL template:</p>
+            <ul>
+                <li><code>{uid_barcode}</code> - UID for barcode</li>
+                <li><code>{alt_a}</code> through <code>{alt_f}</code> - Additional fields</li>
+            </ul>
+        </td>
+    </tr>
+</table>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var labs = {{ labs_dict | safe }};
+
+    function populatePrinters() {
+        var lab = document.getElementById("labsDropdown").value;
+        var printersDropdown = document.getElementById("printersDropdown");
+        printersDropdown.innerHTML = '<option value="">Select Printer</option>';
+        
+        if (lab && labs[lab]) {
+            for (var printer in labs[lab]) {
+                var option = document.createElement("option");
+                option.text = printer;
+                option.value = printer;
+                printersDropdown.add(option);
+            }
+        }
+    }
+
+    function submitToLocPrint() {
+        var form = document.getElementById('textForm');
+        form.action = '/build_print_request';
+        form.submit();
+    }
+
+    function submitToRealPrint() {
+        var form = document.getElementById('textForm');
+        var formData = new FormData(form);
+        
+        fetch('/build_and_send_raw_print_request', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Print request sent:', data);
+            alert('Print request sent!');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    function submitToPNGrenderer() {
+        var form = document.getElementById('textForm');
+        var formData = new FormData(form);
+
+        fetch('/png_renderer', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(pngPath => {
+            const pngImage = document.createElement('img');
+            pngImage.src = pngPath;
+            pngImage.style.maxWidth = '100%';
+            const container = document.getElementById('pngContainer');
+            container.innerHTML = '';
+            container.appendChild(pngImage);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+
+        event.preventDefault();
+    }
+</script>
+{% endblock %}
+

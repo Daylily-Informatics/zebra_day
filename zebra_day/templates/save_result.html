@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Template Saved</h1>
+<small><a href="/">home</a></small>
+<hr>
+
+<p>Changes saved to temp file: <strong>{{ new_filename }}</strong></p>
+
+<ul>
+    <li><a href="/edit_zpl">Go back to the ZPL file list</a></li>
+    <li><a href="/">Go home</a></li>
+</ul>
+{% endblock %}
+

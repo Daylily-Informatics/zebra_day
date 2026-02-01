@@ -1,0 +1,15 @@
+# Development dependencies
+-r requirements.txt
+
+# Testing
+pytest==7.4.3
+pytest-cov>=4.0.0
+
+# Interactive development
+ipython==8.16.1
+
+# Linting & formatting (Phase 5)
+# black>=23.0.0
+# ruff>=0.1.0
+# mypy>=1.0.0
+

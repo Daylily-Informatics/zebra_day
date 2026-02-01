@@ -1,5 +1,5 @@
 """
-  Primay zebra_day module. Primary functions: consistent and clear management
+  Primary zebra_day module. Primary functions: consistent and clear management
   of 1+ networked zebra printers, automated discovery of printers on a
   network. Clear formulation and delivery of ZPL strings to destination
   printers. Management of zpl template files, which may have format value
@@ -7,16 +7,27 @@
   top of this).
 
   This module is primarily focused on print request and package config mgmt.
-  See 'cmd_mgr' for interacting with zebras printer config capabilties.
+  See 'cmd_mgr' for interacting with zebras printer config capabilities.
 """
+from __future__ import annotations
 
-import os
-import sys
-import socket
 import datetime
 import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
 import requests
 from importlib.resources import files
+
+from zebra_day.logging_config import get_logger
+from zebra_day import paths as xdg
+
+_log = get_logger(__name__)
 
 
 
@@ -54,7 +65,7 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
         # content is incorrect, or for any reason except to reject request to the wrong port.
         return_code = sock.sendall(zpl_code.encode())
         if return_code  in [None]:
-            print("ZPL code sent successfully to the printer!", file=sys.stderr)
+            _log.info("ZPL code sent successfully to printer %s:%d", printer_ip, printer_port)
         else:
             raise Exception(f"\n\nPrint request to {printer_ip}:{printer_port} did not return None, but instead: {return_code} ... zpl: {zpl_code}\n")
             
@@ -83,22 +94,34 @@ class zpl:
     zd_pm = zd.zpl()
     """
     
-    def __init__(self, json_config='/etc/printer_config.json' ):
+    def __init__(self, json_config: str | None = None):
         """
-        initialize the class
-        
-        json_config = if not specified, the standard active
-          (which may be empty) is assumed
+        Initialize the class.
+
+        Args:
+            json_config: Path to printer config JSON. If not specified,
+                uses XDG config path or falls back to package path.
         """
-        zpl_tmps = str(files('zebra_day'))+f"/etc/label_styles/tmps/"
-        if not os.path.exists(zpl_tmps):
-            os.system(f"mkdir -p {zpl_tmps}")
-        
-        jcfg = str(files('zebra_day'))+"/etc/printer_config.json"
-        if os.path.exists(jcfg):
-            self.load_printer_json(jcfg, relative=False)
+        # Ensure label styles directories exist
+        xdg.get_label_drafts_dir()  # Creates tmps/ too
+
+        # Determine config file location (XDG first, then package fallback)
+        xdg_config = xdg.get_printer_config_path()
+        pkg_config = Path(str(files('zebra_day'))) / "etc" / "printer_config.json"
+
+        if json_config:
+            jcfg = Path(json_config) if not json_config.startswith('/') else Path(json_config)
+        elif xdg_config.exists():
+            jcfg = xdg_config
+        elif pkg_config.exists():
+            jcfg = pkg_config
         else:
-            self.create_new_printers_json_with_single_test_printer(jcfg)
+            jcfg = xdg_config  # Will create new config here
+
+        if jcfg.exists():
+            self.load_printer_json(str(jcfg), relative=False)
+        else:
+            self.create_new_printers_json_with_single_test_printer(str(jcfg))
 
 
     def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results", relative=False):
@@ -127,12 +150,27 @@ class zpl:
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {}
 
-        self.printers['labs'][lab]["Download-Label-png"] = { "ip_address": "dl_png", "label_zpl_styles": ["tube_2inX1in"],"print_method": "generate png", "model" : "na", "serial" : "na", "arp_data":""}
+        self.printers['labs'][lab]["Download-Label-png"] = {
+            "ip_address": "dl_png",
+            "label_zpl_styles": ["tube_2inX1in"],
+            "print_method": "generate png",
+            "model": "na",
+            "serial": "na",
+            "arp_data": ""
+        }
 
-        res = os.popen(str(files('zebra_day'))+f"/bin/scan_for_networed_zebra_printers_curl.sh {ip_stub} {scan_wait}")
-        for i in res.readlines():
-            ii = i.rstrip()
-            sl = ii.split('|')
+        # Run scanner script using subprocess instead of os.popen
+        script_path = Path(str(files('zebra_day'))) / "bin" / "scan_for_networed_zebra_printers_curl.sh"
+        result = subprocess.run(
+            [str(script_path), ip_stub, scan_wait],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        for line in result.stdout.splitlines():
+            line = line.rstrip()
+            sl = line.split('|')
             if len(sl) > 1:
                 zp = sl[0]
                 ip = sl[1]
@@ -142,31 +180,52 @@ class zpl:
                 arp_response = sl[5]
 
                 if ip not in self.printers['labs'][lab]:
-                    self.printers['labs'][lab][ip] = {"ip_address" : ip, "label_zpl_styles" : ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"], "print_method" : "unk", "model" : model, "serial" : serial, "arp_data": arp_response}  # The label formats set here are the installed defaults
+                    # The label formats set here are the installed defaults
+                    self.printers['labs'][lab][ip] = {
+                        "ip_address": ip,
+                        "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"],
+                        "print_method": "unk",
+                        "model": model,
+                        "serial": serial,
+                        "arp_data": arp_response
+                    }
 
         self.save_printer_json(self.printers_filename, relative=False)
 
 
-    def save_printer_json(self, json_filename="/etc/printer_config.json", relative=True):
+    def save_printer_json(self, json_filename: str = "/etc/printer_config.json", relative: bool = True) -> None:
         """
-        This saves the current self.printers to the json file the active
-          printers.json loads from (assuming it is present, in which case
-          a minimal json is created to get started with.
-        """
+        Save the current self.printers to the specified JSON file.
 
-        rec_date = str(datetime.datetime.now()).replace(' ','_')
-        os.system(f"mkdir -p {str(files('zebra_day'))}/etc/old_printer_config/")
-        bkup_pconfig_fn = f"{str(files('zebra_day'))}/etc/old_printer_config/{rec_date}_printer_config.json"
+        Creates a backup of the previous config in the backups directory.
+
+        Args:
+            json_filename: Path to save the config to
+            relative: If True, path is relative to package directory
+        """
+        # Resolve the target path
         if relative:
-            json_filename = str(files('zebra_day')) + '/' + json_filename
+            json_path = Path(str(files('zebra_day'))) / json_filename.lstrip('/')
         else:
-            pass
-            
-        os.system(f"cp {self.printers_filename} {bkup_pconfig_fn}")
+            json_path = Path(json_filename)
 
-        with open(json_filename, 'w') as json_file:
+        # Create backup if file exists
+        if hasattr(self, 'printers_filename') and Path(self.printers_filename).exists():
+            backup_dir = xdg.get_config_backups_dir()
+            rec_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_path = backup_dir / f"{rec_date}_printer_config.json"
+            try:
+                shutil.copy2(self.printers_filename, backup_path)
+                _log.debug("Backup created: %s", backup_path)
+            except OSError as e:
+                _log.warning("Failed to create backup: %s", e)
+
+        # Save the config
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(json_path, 'w') as json_file:
             json.dump(self.printers, json_file, indent=4)
-        self.load_printer_json(json_filename, relative=False)
+
+        self.load_printer_json(str(json_path), relative=False)
 
 
     def load_printer_json(self, json_file=f"etc/printer_config.json", relative=True):
@@ -182,7 +241,7 @@ class zpl:
         else:
             pass
             
-        print(json_file,file=sys.stderr)
+        _log.debug("Loading printer config from: %s", json_file)
 
         if not os.path.exists(json_file):
             raise Exception(f"""The file specified does not exist. Consider specifying the default 'etc/printer_config.json , provided: {json_file}, which had {str(files('zebra_day'))} prefixed to it', for {json_file}""")
@@ -214,34 +273,42 @@ class zpl:
         self.save_printer_json(fn, relative=False)
 
 
-    def clear_printers_json(self, json_file="/etc/printer_config.json"):
+    def clear_printers_json(self, json_file: str = "/etc/printer_config.json") -> None:
         """
-        Set printers json (in memory and on file) to the minimal json object
-          def clear_printers_json(self, json_file="/etc/printer_config.json"):
-        """
+        Reset printers JSON to empty minimal structure.
 
-        json_file = str(files('zebra_day'))+'/'+json_file
-        os.system(f"""echo '{{"labs" : {{}} }}' > {json_file}""")
-        fh = open(json_file)
-        self.printers_filename = json_file
-        self.printers = json.load(fh)
-
-        self.save_printer_json(json_file, relative=False)
-        
-
-    def replace_printer_json_from_template(self):
+        Args:
+            json_file: Path to the config file (relative to package)
         """
-        Copy the uneditable (with this package) template json
-          which just defines a png printer to the active printers.json
-        
-        Seems not to be working ?
+        json_path = Path(str(files('zebra_day'))) / json_file.lstrip('/')
+
+        # Write empty config using pathlib
+        empty_config = {"labs": {}}
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(json_path, 'w') as f:
+            json.dump(empty_config, f, indent=4)
+
+        self.printers_filename = str(json_path)
+        self.printers = empty_config
+
+        self.save_printer_json(str(json_path), relative=False)
+
+    def replace_printer_json_from_template(self) -> None:
         """
-        
-        fn = f"{str(files('zebra_day'))}/etc/printer_config.json"
-        os.system(f"cp {str(files('zebra_day'))}/etc/printer_config.template.json {fn}")
-        fh = open(fn)
-        self.printers_filename = fn
-        self.printers = json.load(fh)
+        Replace the active printer config with the default template.
+
+        Copies the template JSON to the active config location.
+        """
+        pkg_path = Path(str(files('zebra_day')))
+        template_path = pkg_path / "etc" / "printer_config.template.json"
+        target_path = pkg_path / "etc" / "printer_config.json"
+
+        # Copy template to active config using shutil
+        shutil.copy2(template_path, target_path)
+
+        with open(target_path) as fh:
+            self.printers = json.load(fh)
+        self.printers_filename = str(target_path)
 
         self.save_printer_json(self.printers_filename, relative=False)
 
@@ -320,9 +387,9 @@ class zpl:
             # Save the image to a file
             with open(png_fn, "wb") as f:
                 f.write(response.content)
-                print(f"Image saved as {png_fn}",file=sys.stderr)
+                _log.info("Image saved as %s", png_fn)
         else:
-            print(f"Failed to convert ZPL to image. Status code: {response.status_code}",file=sys.stderr)
+            _log.error("Failed to convert ZPL to image. Status code: %d", response.status_code)
 
         return png_fn
                      
@@ -365,7 +432,11 @@ class zpl:
         if label_zpl_style in [None,'','None']:
             label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
         elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
-            print(f"\n\nWARNING:::\nZPL style: {label_zpl_style} is not valid for {lab} {printer_name} ... {self.printers['labs'][lab][printer_name]['label_zpl_styles']}",file=sys.stderr)
+            _log.warning(
+                "ZPL style '%s' is not valid for %s/%s. Valid styles: %s",
+                label_zpl_style, lab, printer_name,
+                self.printers['labs'][lab][printer_name]['label_zpl_styles']
+            )
 
         printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
 
@@ -374,12 +445,16 @@ class zpl:
             zpl_string = self.formulate_zpl(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
         else:
             zpl_string = zpl_content
-            
-        os.system(f"echo '{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}\t{zpl_content}\n' >> {str(files('zebra_day'))}/logs/print_requests.log")
+
+        # Log print request to file (using pathlib, not shell)
+        log_file = xdg.get_logs_dir() / "print_requests.log"
+        log_entry = f"{lab}\t{printer_name}\t{uid_barcode}\t{label_zpl_style}\t{printer_ip}\t{print_n}\t{client_ip}\t{zpl_content}\n"
+        with open(log_file, 'a') as f:
+            f.write(log_entry)
 
         ret_s = None
         if printer_ip in ['dl_png']:
-            png_fn = str(files('zebra_day'))+f"/files/zpl_label_{label_zpl_style}_{rec_date}.png"
+            png_fn = str(xdg.get_generated_files_dir() / f"zpl_label_{label_zpl_style}_{rec_date}.png")
             ret_s = self.generate_label_png(zpl_string, png_fn, False)
 
         else:
@@ -393,51 +468,63 @@ class zpl:
         return ret_s
 
 
-def zday_start():
+def _get_local_ip() -> str:
+    """Get the local IP address of this machine."""
+    ipcmd = r"""(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"""
+    result = subprocess.run(ipcmd, shell=True, capture_output=True, text=True)
+    return result.stdout.strip().split('\n')[0] if result.stdout.strip() else "127.0.0.1"
+
+
+def zday_start() -> None:
     """
-    If zebra_day has been pip installed, running `zday_start` will
-      start the zebra_day ui on 0.0.0.0:8118 . This offers a lot
-      of the package utilities in a UI. Mostly intended for
-      template design and testing, as well as printer fleet
-      mainainance
+    Start the zebra_day web UI on 0.0.0.0:8118.
+
+    This offers package utilities in a UI, mostly intended for
+    template design, testing, and printer fleet maintenance.
     """
+    from zebra_day.web.app import run_server
 
-    import zebra_day.print_mgr as zdpm
-
-    from zebra_day.bin import zserve
-    os.system(f"python {str(files('zebra_day'))}/bin/zserve.py "+os.path.dirname(zdpm.__file__))
+    _log.info("Starting zebra_day FastAPI server on 0.0.0.0:8118...")
+    run_server(host="0.0.0.0", port=8118, reload=False)
 
 
-def main():
+def main() -> None:
     """
+    Quick start: scan for printers and start the web GUI.
+
     If zebra_day has been pip installed, running zday_quickstart
-      will first attempt a zebra printer discovery scan of your network
-      create a new printers json for what is found and start
-      the zebra_day UI on 0.0.0.0:8118
+    will first attempt a zebra printer discovery scan of your network,
+    create a new printers JSON for what is found, and start
+    the zebra_day UI on 0.0.0.0:8118.
     """
-
     import zebra_day.print_mgr as zdpm
-    
-    ipcmd = """(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null"""
+    from zebra_day.web.app import run_server
 
-    ip = os.popen(ipcmd).readline().rstrip()
+    ip = _get_local_ip()
     ip_root = ".".join(ip.split('.')[:-1])
 
-    print(f"\nIP detected: {ip} ... using IP root: {ip_root}\n\n ..... now scanning for zebra printers on this network (which may take a few minutes...)")
-    os.system('sleep 2.2')
+    _log.info("IP detected: %s ... using IP root: %s", ip, ip_root)
+    _log.info("Scanning for zebra printers on this network (may take a few minutes)...")
+    time.sleep(2.2)
 
     zp = zdpm.zpl()
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_root)
 
-    print(f"\nZebra Printer Scan Complete.  Results:" + str(zp.printers) + "\n\n")
-    print(f'\nNow starting zebra_day web GUI\n\n\n\t\t\t**** THE ZDAY WEB GUI WILL BE ACCESSIBLE VIA THE URL: {ip}:8118 \n\n\n\tThe zday web server will continue running, and not return this shell to a command prompt until it is shut down\n\t.... you may shut down this web service by hitting ctrl+c.\n\n')
-    os.system('sleep 1.3')
+    _log.info("Zebra Printer Scan Complete. Results: %s", zp.printers)
+    _log.info(
+        "Starting zebra_day web GUI at %s:8118. "
+        "Press Ctrl+C to shut down.",
+        ip
+    )
+    time.sleep(1.3)
 
-    os.system(f"python {str(files('zebra_day'))}/bin/zserve.py "+os.path.dirname(zdpm.__file__))
+    run_server(host="0.0.0.0", port=8118, reload=False)
 
-    print('\n\n\n ** EXITING ZDAY QUICKSTART **\n\n\t\tif the zday web gui did not run ( if you immediately got the command prompt back, it did not run ), check and see if there is a service already running at {ip}:8118 . Otherwise, check out the zday cherrypy STDOUT emitted just above what you are reading now.  Cut&Paste that into chatgpt and see if a solution is presented!')
-
-    print('fin')
+    _log.info("EXITING ZDAY QUICKSTART")
+    _log.info(
+        "If the web GUI did not run, check if a service is already running at %s:8118",
+        ip
+    )
 
 
 if __name__ == "__main__":

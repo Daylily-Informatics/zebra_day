@@ -1,6 +1,33 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.3.6](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.3.6)
+## zebra_day Overview [v0.5.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.5.0)
+
+### Build, Deploy, Run, Monitor, Teardown
+
+```bash
+# Build & Install (development mode)
+pip install -e ".[dev]"
+
+# Run Tests
+pytest -v
+
+# Run Linting (requires pip install -e ".[lint]")
+ruff check zebra_day tests
+black --check zebra_day tests
+mypy zebra_day --ignore-missing-imports
+
+# Start Web Server
+zday_start                # Just start the web UI on 0.0.0.0:8118
+zday_quickstart           # Scan for printers first, then start web UI
+
+# Health Checks
+curl http://localhost:8118/healthz    # Basic health check
+curl http://localhost:8118/readyz     # Readiness check (printer mgr initialized)
+
+# API Documentation
+# Visit http://localhost:8118/docs for interactive OpenAPI docs
+# Visit http://localhost:8118/redoc for alternative API documentation
+```
 
 <ul>
     
@@ -141,8 +168,16 @@ pip install zebra_day
 git clone git@github.com:Daylily-Informatics/zebra_day.git
 cd zebra_day
 conda activate ZDAY  # ZDAY was built with mamba earlier
-python setup.py sdist
-pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE.tar.gz
+
+# Modern install (recommended)
+pip install -e .             # Install in editable mode
+pip install -e ".[dev]"      # Include dev dependencies
+pip install -e ".[lint]"     # Include linting tools
+pip install -e ".[all]"      # Include all extras
+
+# Build wheel/sdist
+pip install build
+python -m build              # Creates dist/*.whl and dist/*.tar.gz
 ```
 
 * `zebra_day` is now installed in your current python environment.
@@ -203,20 +238,13 @@ Now starting zebra_day web GUI
                .... you may shut down this web service by hitting ctrl+c.
 
 
-(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGTERM.
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGHUP.
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGUSR1.
-[24/Oct/2023:00:45:51] ENGINE Bus STARTING
-CherryPy Checker:
-The Application mounted at '' has an empty config.
-
-[24/Oct/2023:00:45:51] ENGINE Started monitor thread 'Autoreloader'.
-[24/Oct/2023:00:45:51] ENGINE Serving on http://0.0.0.0:8118
-[24/Oct/2023:00:45:51] ENGINE Bus STARTED
+INFO:     Started server process [12345]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8118 (Press CTRL+C to quit)
 </pre>
 
-  > If `zday_quickstart` ends with `ENGINE Bus STARTED` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
+  > If `zday_quickstart` ends with `Uvicorn running on...` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
 
 #### zebra_day Web GUI Launched From `zday_quickstart`
 
@@ -301,16 +329,16 @@ curl "http://localhost:8118/_print_label?lab=MA&printer=192.168.1.31&printer_ip=
 
 zday_start
 
-# Running it as a script (a bit more fragile)
-conda activate ZDAY # or any python environment where you have pip installed zebra_day (from pypy or local pip)
-python zebra_day/bin/zserve.py  # This service will continue running until stopped or until it crashes. Access and error logs are printed to STDout/err.
+# Or run via uvicorn directly (more control over options)
+conda activate ZDAY # or any python environment where you have pip installed zebra_day
+uvicorn zebra_day.web.app:create_app --host 0.0.0.0 --port 8118 --factory
 
 # ctrl-c to shutdown the web service
 
 ```
 
 * The web UI should now be accessible at `YOUR.HOST.IP.ADDR:8118`, or if physically on the box you're running the service on, `localhost:8118`.
-  * Unreachable?  Are the ports open?  Is the python cherrypy service started above still running, or has it exited?
+  * Unreachable?  Are the ports open?  Is the uvicorn service started above still running, or has it exited?
 
 * You can send a label print request via the UI (the process is a little involved ATM)... also, you can send the service requests via HTTP, ie, the programatic print request from above, can be similarly accomplished with this URL
 

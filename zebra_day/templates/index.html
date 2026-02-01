@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Daylily Zebra Printer And Print Request Manager</h1>
+<ul>
+    <small>IP address detected: {{ local_ip }}</small>
+    <hr>
+    
+    <h2>Zebra Printer Fleet Status, By Site</h2>
+    <ul>
+        <p>Detected sites:</p>
+        <ul>
+            {% for lab in labs %}
+            <li><a href="/printer_status?lab={{ lab }}">{{ lab }} Zebra Printer Status</a></li>
+            {% else %}
+            <li>No labs found. Try scanning and resetting printers.json</li>
+            {% endfor %}
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>Print Labels Manually</h2>
+    <ul>
+        <p>This tool is meant for infrequent use. The intention of zebra_day is to be used to create more fully featured tools/systems.</p>
+        <ul>
+            <li><a href="/simple_print_request">Print labels manually</a></li>
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>Zebra Printer JSON Config</h2>
+    <ul>
+        <p>This JSON file defines the zebra printers available to the package.</p>
+        <ul>
+            <li><a href="/view_pstation_json">View and edit JSON</a></li>
+            <li><a href="/list_prior_printer_config_files">View backed up config files</a></li>
+            <li><a href="/build_new_printers_config_json">Build a new printers config JSON</a></li>
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>Send Print Requests</h2>
+    <ul>
+        <p>To accessible zebra printers:</p>
+        <ul>
+            <li><a href="/bpr">Select lab + printer + label style</a></li>
+            <li><a href="/send_print_request">Same as above, but only stable label templates</a></li>
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>Edit Label Templates</h2>
+    <ul>
+        <p>Modify existing templates, create new templates, preview changes & test print new designs.</p>
+        <ul>
+            <li><a href="/edit_zpl">Edit ZPL files</a></li>
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>API Documentation</h2>
+    <ul>
+        <ul>
+            <li><a href="/docs">OpenAPI Documentation (Swagger UI)</a></li>
+            <li><a href="/redoc">ReDoc Documentation</a></li>
+        </ul>
+    </ul>
+    <hr>
+    
+    <h2>GitHub Docs</h2>
+    <ul>
+        <small>
+            <li><a href="https://github.com/Daylily-Informatics/zebra_day">zebra_day</a></li>
+            <li><a href="https://github.com/Daylily-Informatics/fedex_tracking_day">fedex_tracking_day</a></li>
+            <li><a href="https://github.com/Daylily-Informatics/yaml_config_day">yaml_config_day</a></li>
+        </small>
+    </ul>
+</ul>
+{% endblock %}
+

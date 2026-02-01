@@ -1,0 +1,132 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zebra_day"
+version = "0.5.0"
+description = "A Python library to manage a Zebra printer fleet and an API for ZPL print requests."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "John Major", email = "john@daylilyinformatics.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Manufacturing",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Printing",
+    "Topic :: System :: Hardware",
+]
+keywords = ["zebra", "printer", "zpl", "label", "barcode", "fleet"]
+
+dependencies = [
+    "yaml-config-day>=0.0.5",
+    "requests>=2.28.0",
+    "pytz>=2023.3",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.0.0",
+    "ipython>=8.16.0",
+]
+lint = [
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+]
+all = [
+    "zebra_day[dev,lint,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/Daylily-Informatics/zebra_day"
+Repository = "https://github.com/Daylily-Informatics/zebra_day.git"
+Issues = "https://github.com/Daylily-Informatics/zebra_day/issues"
+
+[project.scripts]
+zday_quickstart = "zebra_day.print_mgr:main"
+zday_start = "zebra_day.print_mgr:zday_start"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["zebra_day*"]
+
+[tool.setuptools.package-data]
+zebra_day = [
+    "bin/*",
+    "etc/*",
+    "etc/label_styles/*",
+    "etc/label_styles/tmps/*",
+    "etc/old_printer_config/*",
+    "files/*",
+    "static/*",
+    "logs/*",
+    "templates/*",
+    "web/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312", "py313"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.venv
+    | build
+    | dist
+    | \.eggs
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
