@@ -6,9 +6,16 @@ uvicorn[standard]>=0.27.0
 jinja2>=3.1.0
 pydantic>=2.0.0
 python-multipart>=0.0.6
+typer>=0.9.0
+rich>=13.0.0
 
 [all]
-zebra_day[dev,docs,lint]
+zebra_day[auth,dev,docs,lint]
+
+[auth]
+daylily-cognito @ git+https://github.com/Daylily-Informatics/daylily-cognito.git@0.1.9
+python-jose[cryptography]>=3.3.0
+boto3>=1.26.0
 
 [dev]
 pytest>=7.4.0

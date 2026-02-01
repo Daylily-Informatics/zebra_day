@@ -499,6 +499,9 @@ def zday_start() -> None:
     """
     Start the zebra_day web UI on 0.0.0.0:8118.
 
+    .. deprecated::
+        Use ``zday gui start`` instead. This command will be removed in v1.0.
+
     This offers package utilities in a UI, mostly intended for
     template design, testing, and printer fleet maintenance.
 
@@ -507,6 +510,16 @@ def zday_start() -> None:
         zday_start --auth none      # Explicit no authentication
         zday_start --auth cognito   # Enable Cognito authentication
     """
+    import warnings
+    warnings.warn(
+        "zday_start is deprecated. Use 'zday gui start' instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _log.warning(
+        "DEPRECATED: zday_start is deprecated. Use 'zday gui start' instead."
+    )
+
     from zebra_day.web.app import run_server
 
     auth_mode = _parse_auth_args()
@@ -518,6 +531,10 @@ def main() -> None:
     """
     Quick start: scan for printers and start the web GUI.
 
+    .. deprecated::
+        Use ``zday bootstrap`` followed by ``zday gui start`` instead.
+        This command will be removed in v1.0.
+
     If zebra_day has been pip installed, running zday_quickstart
     will first attempt a zebra printer discovery scan of your network,
     create a new printers JSON for what is found, and start
@@ -528,6 +545,16 @@ def main() -> None:
         zday_quickstart --auth none      # Explicit no authentication
         zday_quickstart --auth cognito   # Enable Cognito authentication
     """
+    import warnings
+    warnings.warn(
+        "zday_quickstart is deprecated. Use 'zday bootstrap' then 'zday gui start' instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    _log.warning(
+        "DEPRECATED: zday_quickstart is deprecated. Use 'zday bootstrap' then 'zday gui start' instead."
+    )
+
     import zebra_day.print_mgr as zdpm
     from zebra_day.web.app import run_server
 

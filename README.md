@@ -1,12 +1,15 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.5.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.5.0)
+## zebra_day Overview [v0.6.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.6.0)
 
 ### Build, Deploy, Run, Monitor, Teardown
 
 ```bash
 # Build & Install (development mode)
 pip install -e ".[dev]"
+
+# Activate environment (for development)
+source zday_activate      # Sets up env, installs package, enables tab completion
 
 # Run Tests
 pytest -v
@@ -16,9 +19,12 @@ ruff check zebra_day tests
 black --check zebra_day tests
 mypy zebra_day --ignore-missing-imports
 
-# Start Web Server
-zday_start                # Just start the web UI on 0.0.0.0:8118
-zday_quickstart           # Scan for printers first, then start web UI
+# CLI Commands (new in v0.6.0)
+zday --help               # Show all commands
+zday bootstrap            # First-time setup: scan for printers
+zday gui start            # Start web UI in background
+zday gui stop             # Stop web UI
+zday gui status           # Check if web UI is running
 
 # Health Checks
 curl http://localhost:8118/healthz    # Basic health check
@@ -59,23 +65,28 @@ curl http://localhost:8118/readyz     # Readiness check (printer mgr initialized
 * Verify there are zebra printers connected & powered up to the same network that the PC you are installing this s/w to is connected.
     
 ```bash
-python --version  # should be 3.10*  # advisable to run in some kind of venv
+python --version  # should be 3.10+  # advisable to run in some kind of venv
 
 pip install zebra_day
 
-# you should load a fresh env / open a fresh terminal so the package is available
+# You should load a fresh env / open a fresh terminal so the package is available
 
-# Run the UI w/out probing the network for printers to configure
+# First-time setup: scan network for printers and initialize configuration
+zday bootstrap
 
-zday_start
-# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+# Start the web UI (runs in background)
+zday gui start
+# Web UI available at http://0.0.0.0:8118
 
-# This one does the same thing, but spends a few min determining if it can see zebra printers on your network, and pre-configures them if detected (you can run this scan at a latter time, and using other interfaces)
+# Or start in foreground (for debugging)
+zday gui start --foreground
 
-zday_quickstart 
-# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+# Check status
+zday gui status
+zday info
 
-
+# Stop the server
+zday gui stop
 ```
 <ul>
   <a href=zebra_day/docs/zebra_day_ui_guide.md ><hr></a>
@@ -93,6 +104,54 @@ zday_quickstart
 <img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
 
 </ul>
+
+### CLI Reference (v0.6.0+)
+
+The `zday` CLI provides a comprehensive interface for managing your Zebra printer fleet.
+
+```bash
+# Get help on any command
+zday --help
+zday gui --help
+zday printer --help
+
+# Core commands
+zday info         # Show version, config paths, server status
+zday status       # Show printer fleet status, service health
+zday bootstrap    # First-time setup: scan network, initialize config
+
+# GUI server management
+zday gui start [--auth none|cognito] [--host HOST] [--port PORT]
+zday gui stop
+zday gui status
+zday gui logs [--tail N] [--follow]
+zday gui restart
+
+# Printer management
+zday printer scan [--ip-stub IP]   # Scan network for printers
+zday printer list [--lab LAB]      # List configured printers
+zday printer test PRINTER_NAME     # Send test print
+
+# Template management
+zday template list                 # List ZPL templates
+zday template preview TEMPLATE     # Generate PNG preview
+zday template edit TEMPLATE        # Open in editor
+zday template show TEMPLATE        # Display template contents
+
+# Cognito authentication (requires pip install -e ".[auth]")
+zday cognito status               # Show auth configuration
+zday cognito info                 # Setup instructions
+```
+
+#### Migration from v0.5.x
+
+The old commands `zday_start` and `zday_quickstart` still work but are deprecated:
+
+| Old Command | New Command |
+|-------------|-------------|
+| `zday_quickstart` | `zday bootstrap && zday gui start` |
+| `zday_start` | `zday gui start` |
+| `zday_start --auth cognito` | `zday gui start --auth cognito` |
 
 ### It Is 3+ Things
 

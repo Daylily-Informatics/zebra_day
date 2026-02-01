@@ -1,0 +1,207 @@
+#!/bin/sh
+# zebra_day Environment Activation Script
+# ==========================================
+# This script must be SOURCED, not executed:
+#   source ./zday_activate
+#
+# It will:
+#   1. Build the ZDAY conda environment from config/zday_env.yaml if it doesn't exist
+#   2. Activate the ZDAY conda environment (or fall back to .venv)
+#   3. Install zebra_day in development mode
+#   4. Enable tab completion for the 'zday' CLI
+#
+# Prerequisites:
+#   - conda or mamba must be installed and available in PATH
+#   - OR a .venv directory with Python installed
+
+# DO NOT use set -e when sourcing - it will exit the user's shell on any error!
+
+# ========== Colors ==========
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# ========== Configuration ==========
+CONDA_ENV_NAME="ZDAY"
+
+# Find repository root by searching for pyproject.toml
+SCRIPT_DIR="$(pwd)"
+while [ ! -f "${SCRIPT_DIR}/pyproject.toml" ] && [ "${SCRIPT_DIR}" != "/" ]; do
+    SCRIPT_DIR="$(dirname "${SCRIPT_DIR}")"
+done
+
+ENV_FILE="${SCRIPT_DIR}/config/zday_env.yaml"
+VENV_BIN="${SCRIPT_DIR}/.venv/bin"
+
+# ========== Helper Functions ==========
+log_info() {
+    printf "${CYAN}→${NC} %s\n" "$1"
+}
+
+log_success() {
+    printf "${GREEN}✓${NC} %s\n" "$1"
+}
+
+log_warn() {
+    printf "${YELLOW}⚠${NC} %s\n" "$1"
+}
+
+log_error() {
+    printf "${RED}✗${NC} %s\n" "$1"
+}
+
+# ========== Check Prerequisites ==========
+_ZDAY_ACTIVATE_OK=1
+CONDA_CMD=""
+if command -v mamba >/dev/null 2>&1; then
+    CONDA_CMD="mamba"
+elif command -v conda >/dev/null 2>&1; then
+    CONDA_CMD="conda"
+fi
+
+if [ -z "$CONDA_CMD" ]; then
+    log_warn "Neither conda nor mamba found; falling back to local .venv if available"
+fi
+
+# Only continue if prerequisites are met
+if [ "$_ZDAY_ACTIVATE_OK" -eq 0 ]; then
+    unset _ZDAY_ACTIVATE_OK
+else
+
+# ========== Banner ==========
+printf "\n${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+printf "${BOLD}${BLUE}║          zebra_day - Environment Activation                  ║${NC}\n"
+printf "${BOLD}${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}\n\n"
+
+# Attempt conda activation first, otherwise fall back to .venv
+if [ -n "$CONDA_CMD" ] && [ -f "$ENV_FILE" ]; then
+    if $CONDA_CMD env list | grep -q "^${CONDA_ENV_NAME} "; then
+        log_success "Environment '${CONDA_ENV_NAME}' already exists"
+    else
+        log_info "Environment '${CONDA_ENV_NAME}' not found. Building from ${ENV_FILE}..."
+        log_info "This may take a few minutes..."
+        if $CONDA_CMD env create -n "$CONDA_ENV_NAME" -f "$ENV_FILE"; then
+            log_success "Environment '${CONDA_ENV_NAME}' created successfully"
+        else
+            log_warn "Failed to create conda environment (will fall back to .venv if available)"
+            _ZDAY_ACTIVATE_OK=0
+        fi
+    fi
+
+    if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
+        log_info "Activating environment '${CONDA_ENV_NAME}'..."
+        if [ -z "$CONDA_SHLVL" ]; then
+            CONDA_BASE="$($CONDA_CMD info --base 2>/dev/null)"
+            if [ -f "${CONDA_BASE}/etc/profile.d/conda.sh" ]; then
+                . "${CONDA_BASE}/etc/profile.d/conda.sh"
+            fi
+        fi
+        if conda activate "$CONDA_ENV_NAME" 2>/dev/null; then
+            log_success "Activated conda environment: ${CONDA_ENV_NAME}"
+        else
+            log_warn "Failed to activate conda environment (will fall back to .venv if available)"
+            _ZDAY_ACTIVATE_OK=0
+        fi
+    fi
+elif [ -n "$CONDA_CMD" ]; then
+    # Conda available but no env file - try to activate existing env or fall back
+    if $CONDA_CMD env list | grep -q "^${CONDA_ENV_NAME} "; then
+        if [ -z "$CONDA_SHLVL" ]; then
+            CONDA_BASE="$($CONDA_CMD info --base 2>/dev/null)"
+            if [ -f "${CONDA_BASE}/etc/profile.d/conda.sh" ]; then
+                . "${CONDA_BASE}/etc/profile.d/conda.sh"
+            fi
+        fi
+        if conda activate "$CONDA_ENV_NAME" 2>/dev/null; then
+            log_success "Activated existing conda environment: ${CONDA_ENV_NAME}"
+        else
+            _ZDAY_ACTIVATE_OK=0
+        fi
+    else
+        _ZDAY_ACTIVATE_OK=0
+    fi
+else
+    _ZDAY_ACTIVATE_OK=0
+fi
+
+# Fallback to .venv
+if [ "$_ZDAY_ACTIVATE_OK" -eq 0 ]; then
+    if [ -x "${VENV_BIN}/python" ]; then
+        log_info "Falling back to repo-local Python at ${VENV_BIN}/python"
+        export PATH="${VENV_BIN}:${PATH}"
+        log_success "Using repo-local .venv on PATH"
+        _ZDAY_ACTIVATE_OK=1
+    else
+        log_error "No usable environment found (conda unavailable/failed and ${VENV_BIN}/python missing)"
+        _ZDAY_ACTIVATE_OK=0
+    fi
+fi
+
+# ========== Install Package ==========
+if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
+    log_info "Installing zebra_day in development mode..."
+    if pip install -e "${SCRIPT_DIR}" -q 2>/dev/null; then
+        log_success "Package installed in development mode"
+    else
+        log_warn "Failed to install package - some features may not work"
+    fi
+
+    # ========== Check Config File ==========
+    # XDG Base Directory convention
+    if [ "$(uname)" = "Darwin" ]; then
+        ZDAY_CONFIG_DIR="${HOME}/Library/Preferences/zebra_day"
+    else
+        ZDAY_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/zebra_day"
+    fi
+    ZDAY_CONFIG_FILE="${ZDAY_CONFIG_DIR}/printer_config.json"
+
+    if [ -f "$ZDAY_CONFIG_FILE" ]; then
+        log_success "Printer config found: ${ZDAY_CONFIG_FILE}"
+    else
+        log_warn "No printer config found"
+        printf "   Run: ${CYAN}zday bootstrap${NC} to initialize\n"
+    fi
+
+    # ========== Tab Completion ==========
+    _zday_shell="$(basename "$SHELL")"
+    if [ "$_zday_shell" = "zsh" ]; then
+        eval "$(zday --show-completion zsh 2>/dev/null)"
+    elif [ "$_zday_shell" = "bash" ]; then
+        eval "$(zday --show-completion bash 2>/dev/null)"
+    fi
+    log_success "Tab completion enabled for zday CLI"
+
+    # ========== Summary ==========
+    printf "\n${BOLD}${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+    printf "${BOLD}${GREEN}║  ✓ zebra_day environment ready!                              ║${NC}\n"
+    printf "${BOLD}${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}\n\n"
+
+    printf "  ${CYAN}Python:${NC}       $(python --version 2>&1 | cut -d' ' -f2)\n"
+    printf "  ${CYAN}Project Root:${NC} ${SCRIPT_DIR}\n"
+    printf "\n"
+    printf "  ${BOLD}Command Groups:${NC}\n"
+    printf "    ${CYAN}zday gui${NC}       Web UI server management (start, stop, status, logs)\n"
+    printf "    ${CYAN}zday printer${NC}   Printer fleet (scan, list, test)\n"
+    printf "    ${CYAN}zday template${NC}  ZPL templates (list, preview, edit)\n"
+    printf "    ${CYAN}zday cognito${NC}   Authentication (status, info, create)\n"
+    printf "\n"
+    printf "  ${BOLD}Quick Start:${NC}\n"
+    printf "    zday --help       Show all commands\n"
+    printf "    zday bootstrap    First-time setup (scan for printers)\n"
+    printf "    zday gui start    Start the web UI\n"
+    printf "    zday info         Show configuration\n"
+    printf "\n"
+    printf "  ${BOLD}Tip:${NC} Use TAB to autocomplete zday commands and subcommands\n"
+    printf "\n"
+fi
+
+# Close the main if block from prerequisites check
+fi
+
+# Cleanup
+unset _ZDAY_ACTIVATE_OK
+

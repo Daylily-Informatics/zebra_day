@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: zebra_day
-Version: 0.5.0
+Version: 0.6.0
 Summary: A Python library to manage a Zebra printer fleet and an API for ZPL print requests.
 Home-page: https://github.com/Daylily-Informatics/zebra_day
 Author: John Major
@@ -33,6 +33,8 @@ Requires-Dist: uvicorn[standard]>=0.27.0
 Requires-Dist: jinja2>=3.1.0
 Requires-Dist: pydantic>=2.0.0
 Requires-Dist: python-multipart>=0.0.6
+Requires-Dist: typer>=0.9.0
+Requires-Dist: rich>=13.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
@@ -44,15 +46,52 @@ Requires-Dist: mypy>=1.0.0; extra == "lint"
 Provides-Extra: docs
 Requires-Dist: mkdocs>=1.5.0; extra == "docs"
 Requires-Dist: mkdocs-material>=9.0.0; extra == "docs"
+Provides-Extra: auth
+Requires-Dist: daylily-cognito @ git+https://github.com/Daylily-Informatics/daylily-cognito.git@0.1.9 ; extra == "auth"
+Requires-Dist: python-jose[cryptography]>=3.3.0; extra == "auth"
+Requires-Dist: boto3>=1.26.0; extra == "auth"
 Provides-Extra: all
-Requires-Dist: zebra_day[dev,docs,lint]; extra == "all"
+Requires-Dist: zebra_day[auth,dev,docs,lint]; extra == "all"
 Dynamic: author
 Dynamic: home-page
 Dynamic: license-file
 
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.3.6](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.3.6)
+## zebra_day Overview [v0.6.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.6.0)
+
+### Build, Deploy, Run, Monitor, Teardown
+
+```bash
+# Build & Install (development mode)
+pip install -e ".[dev]"
+
+# Activate environment (for development)
+source zday_activate      # Sets up env, installs package, enables tab completion
+
+# Run Tests
+pytest -v
+
+# Run Linting (requires pip install -e ".[lint]")
+ruff check zebra_day tests
+black --check zebra_day tests
+mypy zebra_day --ignore-missing-imports
+
+# CLI Commands (new in v0.6.0)
+zday --help               # Show all commands
+zday bootstrap            # First-time setup: scan for printers
+zday gui start            # Start web UI in background
+zday gui stop             # Stop web UI
+zday gui status           # Check if web UI is running
+
+# Health Checks
+curl http://localhost:8118/healthz    # Basic health check
+curl http://localhost:8118/readyz     # Readiness check (printer mgr initialized)
+
+# API Documentation
+# Visit http://localhost:8118/docs for interactive OpenAPI docs
+# Visit http://localhost:8118/redoc for alternative API documentation
+```
 
 <ul>
     
@@ -84,23 +123,28 @@ Dynamic: license-file
 * Verify there are zebra printers connected & powered up to the same network that the PC you are installing this s/w to is connected.
     
 ```bash
-python --version  # should be 3.10*  # advisable to run in some kind of venv
+python --version  # should be 3.10+  # advisable to run in some kind of venv
 
 pip install zebra_day
 
-# you should load a fresh env / open a fresh terminal so the package is available
+# You should load a fresh env / open a fresh terminal so the package is available
 
-# Run the UI w/out probing the network for printers to configure
+# First-time setup: scan network for printers and initialize configuration
+zday bootstrap
 
-zday_start
-# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+# Start the web UI (runs in background)
+zday gui start
+# Web UI available at http://0.0.0.0:8118
 
-# This one does the same thing, but spends a few min determining if it can see zebra printers on your network, and pre-configures them if detected (you can run this scan at a latter time, and using other interfaces)
+# Or start in foreground (for debugging)
+zday gui start --foreground
 
-zday_quickstart 
-# It will block returning the shell, and while runnig is available on 0.0.0.0:8118
+# Check status
+zday gui status
+zday info
 
-
+# Stop the server
+zday gui stop
 ```
 <ul>
   <a href=zebra_day/docs/zebra_day_ui_guide.md ><hr></a>
@@ -118,6 +162,54 @@ zday_quickstart
 <img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
 
 </ul>
+
+### CLI Reference (v0.6.0+)
+
+The `zday` CLI provides a comprehensive interface for managing your Zebra printer fleet.
+
+```bash
+# Get help on any command
+zday --help
+zday gui --help
+zday printer --help
+
+# Core commands
+zday info         # Show version, config paths, server status
+zday status       # Show printer fleet status, service health
+zday bootstrap    # First-time setup: scan network, initialize config
+
+# GUI server management
+zday gui start [--auth none|cognito] [--host HOST] [--port PORT]
+zday gui stop
+zday gui status
+zday gui logs [--tail N] [--follow]
+zday gui restart
+
+# Printer management
+zday printer scan [--ip-stub IP]   # Scan network for printers
+zday printer list [--lab LAB]      # List configured printers
+zday printer test PRINTER_NAME     # Send test print
+
+# Template management
+zday template list                 # List ZPL templates
+zday template preview TEMPLATE     # Generate PNG preview
+zday template edit TEMPLATE        # Open in editor
+zday template show TEMPLATE        # Display template contents
+
+# Cognito authentication (requires pip install -e ".[auth]")
+zday cognito status               # Show auth configuration
+zday cognito info                 # Setup instructions
+```
+
+#### Migration from v0.5.x
+
+The old commands `zday_start` and `zday_quickstart` still work but are deprecated:
+
+| Old Command | New Command |
+|-------------|-------------|
+| `zday_quickstart` | `zday bootstrap && zday gui start` |
+| `zday_start` | `zday gui start` |
+| `zday_start --auth cognito` | `zday gui start --auth cognito` |
 
 ### It Is 3+ Things
 
@@ -193,8 +285,16 @@ pip install zebra_day
 git clone git@github.com:Daylily-Informatics/zebra_day.git
 cd zebra_day
 conda activate ZDAY  # ZDAY was built with mamba earlier
-python setup.py sdist
-pip install dist/PATH_TO_HIGHEST_VERSIONED_FILE.tar.gz
+
+# Modern install (recommended)
+pip install -e .             # Install in editable mode
+pip install -e ".[dev]"      # Include dev dependencies
+pip install -e ".[lint]"     # Include linting tools
+pip install -e ".[all]"      # Include all extras
+
+# Build wheel/sdist
+pip install build
+python -m build              # Creates dist/*.whl and dist/*.tar.gz
 ```
 
 * `zebra_day` is now installed in your current python environment.
@@ -255,20 +355,13 @@ Now starting zebra_day web GUI
                .... you may shut down this web service by hitting ctrl+c.
 
 
-(ip addr show | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' || ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1') 2>/dev/null
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGTERM.
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGHUP.
-[24/Oct/2023:00:45:51] ENGINE Listening for SIGUSR1.
-[24/Oct/2023:00:45:51] ENGINE Bus STARTING
-CherryPy Checker:
-The Application mounted at '' has an empty config.
-
-[24/Oct/2023:00:45:51] ENGINE Started monitor thread 'Autoreloader'.
-[24/Oct/2023:00:45:51] ENGINE Serving on http://0.0.0.0:8118
-[24/Oct/2023:00:45:51] ENGINE Bus STARTED
+INFO:     Started server process [12345]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8118 (Press CTRL+C to quit)
 </pre>
 
-  > If `zday_quickstart` ends with `ENGINE Bus STARTED` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
+  > If `zday_quickstart` ends with `Uvicorn running on...` and does not return the cursor, the web service is running (and will continue to do so until you ctrl+c in the shell it is running in.  From a web browser, navigate to the URL printed in the quickstart STDOUT, in the above, this would be `192.168.1.12:8118`.
 
 #### zebra_day Web GUI Launched From `zday_quickstart`
 
@@ -353,16 +446,16 @@ curl "http://localhost:8118/_print_label?lab=MA&printer=192.168.1.31&printer_ip=
 
 zday_start
 
-# Running it as a script (a bit more fragile)
-conda activate ZDAY # or any python environment where you have pip installed zebra_day (from pypy or local pip)
-python zebra_day/bin/zserve.py  # This service will continue running until stopped or until it crashes. Access and error logs are printed to STDout/err.
+# Or run via uvicorn directly (more control over options)
+conda activate ZDAY # or any python environment where you have pip installed zebra_day
+uvicorn zebra_day.web.app:create_app --host 0.0.0.0 --port 8118 --factory
 
 # ctrl-c to shutdown the web service
 
 ```
 
 * The web UI should now be accessible at `YOUR.HOST.IP.ADDR:8118`, or if physically on the box you're running the service on, `localhost:8118`.
-  * Unreachable?  Are the ports open?  Is the python cherrypy service started above still running, or has it exited?
+  * Unreachable?  Are the ports open?  Is the uvicorn service started above still running, or has it exited?
 
 * You can send a label print request via the UI (the process is a little involved ATM)... also, you can send the service requests via HTTP, ie, the programatic print request from above, can be similarly accomplished with this URL
 
@@ -389,6 +482,55 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 # Other Topics
 
 ## Security
+
+### Authentication
+
+zebra_day supports optional AWS Cognito authentication for production deployments.
+
+#### Enabling Cognito Authentication
+
+1. **Install auth dependencies**:
+   ```bash
+   pip install -e ".[auth]"
+   ```
+
+2. **Set required environment variables**:
+   ```bash
+   export COGNITO_USER_POOL_ID="us-west-2_XXXXXXXXX"
+   export COGNITO_APP_CLIENT_ID="your-app-client-id"
+   export COGNITO_REGION="us-west-2"  # Optional, defaults to us-west-2
+   export AWS_PROFILE="your-profile"   # Optional, for local development
+   ```
+
+3. **Start server with authentication**:
+   ```bash
+   zday_start --auth cognito
+   # or
+   zday_quickstart --auth cognito
+   ```
+
+#### Authentication Modes
+
+| Mode | CLI Flag | Description |
+|------|----------|-------------|
+| None (default) | `--auth none` | No authentication required. All endpoints are publicly accessible. |
+| Cognito | `--auth cognito` | AWS Cognito JWT authentication. All endpoints except health checks require a valid Bearer token. |
+
+#### Protected Endpoints
+
+When `--auth cognito` is enabled:
+- All UI and API endpoints require a valid JWT Bearer token
+- Health endpoints (`/healthz`, `/readyz`) remain publicly accessible
+- Static files (`/static/*`, `/files/*`, `/etc/*`) remain publicly accessible
+- API documentation (`/docs`, `/redoc`, `/openapi.json`) remains accessible
+
+#### Making Authenticated Requests
+
+Include the JWT token in the Authorization header:
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:8118/api/v1/printers
+```
+
 ### Secrets
 No credentials of any kind are stored or used by `zebra_day`. It solely offers zebra printer management and label print request formatting and brokering services.  It does not need to know how to connect to other systems, other systems will use the library code provided here, or the http api.
 
@@ -396,7 +538,7 @@ No credentials of any kind are stored or used by `zebra_day`. It solely offers z
 In it's present state, `zebra_day` is safe to run on a machine located in a properly configured & secure local network or cloud hosted instance residing in a secure VPN/VPC.
   * `zebra_day` should not be deployed in such a way the host is fully visible to the public internet.
     * a potential exception would be exposing the service via an encryped and secure open port. __POC demonstrating this concept can be found below__.
-    
+
 ### Programatic Use Of `zebra_day` Package/Library
 Using the python library in other python code poses no particularly unique new risk. `zebra_day` may be treated similarly to how other third party tools are handled in each users organization.
 
