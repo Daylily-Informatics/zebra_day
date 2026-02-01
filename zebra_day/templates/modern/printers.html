@@ -32,7 +32,7 @@
 {% if printers %}
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Printers{% if lab %} in {{ lab }}{% endif %}</h3>
+        <h3 class="card-title">Printers{% if lab %} in {{ lab_name | default(lab) }}{% endif %}</h3>
         <a href="/config?action=scan&lab={{ lab | default('') }}" class="btn btn-outline btn-sm">
             <i class="fas fa-sync"></i> Rescan
         </a>
@@ -42,6 +42,7 @@
             <thead>
                 <tr>
                     <th>Printer</th>
+                    <th>Location</th>
                     <th>IP Address</th>
                     <th>Status</th>
                     <th>Label Styles</th>
@@ -53,7 +54,17 @@
                 <tr>
                     <td>
                         <strong>{{ printer.name }}</strong><br>
-                        <small class="text-muted">{{ printer.model | default('Unknown model') }}</small>
+                        <small class="text-muted">{{ printer.manufacturer | default('zebra') | title }} {{ printer.model | default('Unknown model') }}</small>
+                        {% if printer.id != printer.name %}
+                        <br><small class="text-muted">ID: {{ printer.id }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if printer.lab_location %}
+                        <span class="badge badge-info">{{ printer.lab_location }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% if printer.ip_address != 'dl_png' %}
@@ -64,9 +75,9 @@
                     </td>
                     <td>
                         {% if printer.status == 'online' %}
-                        <span class="badge badge-success">Online</span>
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Online</span>
                         {% else %}
-                        <span class="badge badge-error">Offline</span>
+                        <span class="badge badge-error"><i class="fas fa-times-circle"></i> Offline</span>
                         {% endif %}
                     </td>
                     <td>
@@ -78,10 +89,10 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/printers/{{ lab }}/{{ printer.name }}" class="btn btn-sm btn-outline">
+                        <a href="/printers/{{ lab }}/{{ printer.id }}" class="btn btn-sm btn-outline">
                             <i class="fas fa-info-circle"></i> Details
                         </a>
-                        <a href="/print?lab={{ lab }}&printer={{ printer.name }}" class="btn btn-sm btn-primary">
+                        <a href="/print?lab={{ lab }}&printer={{ printer.id }}" class="btn btn-sm btn-primary">
                             <i class="fas fa-print"></i> Print
                         </a>
                     </td>

@@ -113,11 +113,14 @@
         var lab = labSelect.value;
 
         printerSelect.innerHTML = '<option value="">Select printer...</option>';
-        if (lab && labsDict[lab]) {
-            for (var printer in labsDict[lab]) {
+        if (lab && labsDict[lab] && labsDict[lab].printers) {
+            // v2 schema: printers are nested under 'printers' key
+            var printers = labsDict[lab].printers;
+            for (var printerId in printers) {
+                var printerInfo = printers[printerId];
                 var option = document.createElement('option');
-                option.value = printer;
-                option.text = printer;
+                option.value = printerId;
+                option.text = printerInfo.printer_name || printerId;
                 printerSelect.appendChild(option);
             }
         }

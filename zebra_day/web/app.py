@@ -141,11 +141,30 @@ def create_app(
     return app
 
 
+def get_default_cert_paths() -> tuple[Optional[Path], Optional[Path]]:
+    """
+    Get default certificate paths from XDG config directory.
+
+    Returns:
+        Tuple of (cert_path, key_path) or (None, None) if not found.
+    """
+    config_dir = xdg.get_config_dir()
+    cert_dir = config_dir / "certs"
+    cert_file = cert_dir / "server.crt"
+    key_file = cert_dir / "server.key"
+
+    if cert_file.exists() and key_file.exists():
+        return cert_file, key_file
+    return None, None
+
+
 def run_server(
     host: str = "0.0.0.0",
     port: int = 8118,
     reload: bool = False,
     auth: Literal["none", "cognito"] = "none",
+    ssl_certfile: Optional[str] = None,
+    ssl_keyfile: Optional[str] = None,
 ):
     """
     Run the FastAPI server using uvicorn.
@@ -155,17 +174,75 @@ def run_server(
         port: Port to listen on
         reload: Enable auto-reload for development
         auth: Authentication mode - "none" (public) or "cognito" (AWS Cognito)
+        ssl_certfile: Path to SSL certificate file (PEM format)
+        ssl_keyfile: Path to SSL private key file (PEM format)
+
+    If ssl_certfile and ssl_keyfile are not provided, the server will:
+    1. Check SSL_CERT_PATH and SSL_KEY_PATH environment variables
+    2. Check for certificates in ~/.config/zebra_day/certs/
+    3. Fall back to HTTP with a warning if no certificates are found
     """
     import uvicorn
 
     # Store auth mode in environment for factory function
     os.environ["ZEBRA_DAY_AUTH_MODE"] = auth
 
-    uvicorn.run(
-        "zebra_day.web.app:create_app",
-        host=host,
-        port=port,
-        reload=reload,
-        factory=True,
-    )
+    # Resolve SSL certificate paths
+    cert_path = ssl_certfile
+    key_path = ssl_keyfile
+
+    # Check environment variables if not provided
+    if not cert_path:
+        cert_path = os.environ.get("SSL_CERT_PATH")
+    if not key_path:
+        key_path = os.environ.get("SSL_KEY_PATH")
+
+    # Check default XDG paths if still not found
+    if not cert_path or not key_path:
+        default_cert, default_key = get_default_cert_paths()
+        if default_cert and default_key:
+            cert_path = str(default_cert)
+            key_path = str(default_key)
+
+    # Validate certificate files exist
+    use_ssl = False
+    if cert_path and key_path:
+        cert_exists = Path(cert_path).exists()
+        key_exists = Path(key_path).exists()
+        if cert_exists and key_exists:
+            use_ssl = True
+            _log.info("HTTPS enabled with certificates:")
+            _log.info("  Certificate: %s", cert_path)
+            _log.info("  Private key: %s", key_path)
+        else:
+            if not cert_exists:
+                _log.warning("SSL certificate not found: %s", cert_path)
+            if not key_exists:
+                _log.warning("SSL private key not found: %s", key_path)
+            _log.warning("Falling back to HTTP (insecure)")
+    else:
+        _log.warning(
+            "No SSL certificates configured. Running in HTTP mode (insecure). "
+            "For HTTPS, run: mkcert -install && mkcert -cert-file ~/.config/zebra_day/certs/server.crt "
+            "-key-file ~/.config/zebra_day/certs/server.key localhost 127.0.0.1 ::1"
+        )
+
+    # Build uvicorn config
+    uvicorn_kwargs = {
+        "host": host,
+        "port": port,
+        "reload": reload,
+        "factory": True,
+    }
+
+    if use_ssl:
+        uvicorn_kwargs["ssl_certfile"] = cert_path
+        uvicorn_kwargs["ssl_keyfile"] = key_path
+        protocol = "https"
+    else:
+        protocol = "http"
+
+    _log.info("Starting server at %s://%s:%d", protocol, host, port)
+
+    uvicorn.run("zebra_day.web.app:create_app", **uvicorn_kwargs)
 

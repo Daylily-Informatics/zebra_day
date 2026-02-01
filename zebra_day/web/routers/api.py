@@ -39,17 +39,30 @@ class PrintResponse(BaseModel):
 
 
 class PrinterInfo(BaseModel):
-    """Printer information model."""
-    name: str
+    """Printer information model (v2.0.0 schema)."""
+    id: str = Field(..., description="Printer identifier/key in JSON")
     ip_address: str
+    printer_name: Optional[str] = Field(None, description="User-friendly display name")
+    lab_location: Optional[str] = Field(None, description="Location within the lab")
+    manufacturer: str = Field("zebra", description="Printer manufacturer")
     model: str
     serial: str
     label_zpl_styles: List[str]
+    default_label_style: Optional[str] = Field(None, description="Default label style to use when none specified")
     print_method: str
+    notes: Optional[str] = Field("", description="Optional notes")
+
+
+class LabInfo(BaseModel):
+    """Lab information model (v2.0.0 schema)."""
+    id: str = Field(..., description="Lab identifier/key in JSON")
+    lab_name: str = Field(..., description="Human-readable lab name")
+    available_locations: List[str] = Field(default_factory=list, description="Valid location options for printers")
+    printers: List[PrinterInfo]
 
 
 class LabPrinters(BaseModel):
-    """Lab and its printers."""
+    """Lab and its printers (deprecated, use LabInfo)."""
     lab: str
     printers: List[PrinterInfo]
 
@@ -63,6 +76,44 @@ async def list_labs(request: Request) -> List[str]:
     return list(zp.printers.get("labs", {}).keys())
 
 
+@router.get("/labs/{lab}", response_model=LabInfo)
+async def get_lab(request: Request, lab: str) -> LabInfo:
+    """Get lab details including available locations and printers."""
+    zp = request.app.state.zp
+    labs = zp.printers.get("labs", {})
+
+    if lab not in labs:
+        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+
+    lab_data = labs[lab]
+    lab_printers = lab_data.get("printers", {})
+
+    printers = []
+    for printer_id, info in lab_printers.items():
+        printers.append(
+            PrinterInfo(
+                id=printer_id,
+                ip_address=info.get("ip_address", ""),
+                printer_name=info.get("printer_name"),
+                lab_location=info.get("lab_location"),
+                manufacturer=info.get("manufacturer", "zebra"),
+                model=info.get("model", ""),
+                serial=info.get("serial", ""),
+                label_zpl_styles=info.get("label_zpl_styles", []),
+                default_label_style=info.get("default_label_style"),
+                print_method=info.get("print_method", ""),
+                notes=info.get("notes", ""),
+            )
+        )
+
+    return LabInfo(
+        id=lab,
+        lab_name=lab_data.get("lab_name", lab),
+        available_locations=lab_data.get("available_locations", []),
+        printers=printers,
+    )
+
+
 @router.get("/labs/{lab}/printers", response_model=List[PrinterInfo])
 async def list_printers(request: Request, lab: str) -> List[PrinterInfo]:
     """List all printers in a lab."""
@@ -72,16 +123,24 @@ async def list_printers(request: Request, lab: str) -> List[PrinterInfo]:
     if lab not in labs:
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
 
+    # Access printers via nested 'printers' key (v2 schema)
+    lab_printers = labs[lab].get("printers", {})
+
     printers = []
-    for name, info in labs[lab].items():
+    for printer_id, info in lab_printers.items():
         printers.append(
             PrinterInfo(
-                name=name,
+                id=printer_id,
                 ip_address=info.get("ip_address", ""),
+                printer_name=info.get("printer_name"),
+                lab_location=info.get("lab_location"),
+                manufacturer=info.get("manufacturer", "zebra"),
                 model=info.get("model", ""),
                 serial=info.get("serial", ""),
                 label_zpl_styles=info.get("label_zpl_styles", []),
+                default_label_style=info.get("default_label_style"),
                 print_method=info.get("print_method", ""),
+                notes=info.get("notes", ""),
             )
         )
     return printers
@@ -161,3 +220,94 @@ async def get_config(request: Request) -> Dict[str, Any]:
     zp = request.app.state.zp
     return zp.printers
 
+
+# ----- Lab Settings Endpoints -----
+
+class LabUpdateRequest(BaseModel):
+    """Request model for updating lab settings."""
+    lab_name: Optional[str] = Field(None, description="Human-readable lab name")
+    available_locations: Optional[List[str]] = Field(None, description="List of valid locations")
+
+
+class PrinterUpdateRequest(BaseModel):
+    """Request model for updating printer settings."""
+    printer_name: Optional[str] = Field(None, description="User-friendly display name")
+    lab_location: Optional[str] = Field(None, description="Location within the lab")
+    notes: Optional[str] = Field(None, description="Optional notes")
+    label_zpl_styles: Optional[List[str]] = Field(None, description="Allowed ZPL styles")
+    default_label_style: Optional[str] = Field(None, description="Default label style to use when none specified")
+
+
+@router.patch("/labs/{lab}", response_model=LabInfo)
+async def update_lab(request: Request, lab: str, update: LabUpdateRequest) -> LabInfo:
+    """Update lab settings (lab_name, available_locations)."""
+    zp = request.app.state.zp
+    labs = zp.printers.get("labs", {})
+
+    if lab not in labs:
+        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+
+    lab_data = labs[lab]
+
+    if update.lab_name is not None:
+        lab_data["lab_name"] = update.lab_name
+    if update.available_locations is not None:
+        lab_data["available_locations"] = update.available_locations
+
+    # Save changes
+    zp.save_printer_json(zp.printers_filename, relative=False)
+
+    # Return updated lab info
+    return await get_lab(request, lab)
+
+
+@router.patch("/labs/{lab}/printers/{printer_id}")
+async def update_printer(
+    request: Request, lab: str, printer_id: str, update: PrinterUpdateRequest
+) -> PrinterInfo:
+    """Update printer settings (printer_name, lab_location, notes)."""
+    zp = request.app.state.zp
+    labs = zp.printers.get("labs", {})
+
+    if lab not in labs:
+        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+
+    lab_printers = labs[lab].get("printers", {})
+    if printer_id not in lab_printers:
+        raise HTTPException(status_code=404, detail=f"Printer '{printer_id}' not found in lab '{lab}'")
+
+    printer_data = lab_printers[printer_id]
+
+    if update.printer_name is not None:
+        printer_data["printer_name"] = update.printer_name if update.printer_name else None
+    if update.lab_location is not None:
+        printer_data["lab_location"] = update.lab_location if update.lab_location else None
+    if update.notes is not None:
+        printer_data["notes"] = update.notes
+    if update.label_zpl_styles is not None:
+        printer_data["label_zpl_styles"] = update.label_zpl_styles
+    if update.default_label_style is not None:
+        # Validate that the style exists in label_zpl_styles (if it's not empty string)
+        if update.default_label_style and update.default_label_style not in printer_data.get("label_zpl_styles", []):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Default label style '{update.default_label_style}' must be one of: {printer_data.get('label_zpl_styles', [])}"
+            )
+        printer_data["default_label_style"] = update.default_label_style if update.default_label_style else None
+
+    # Save changes
+    zp.save_printer_json(zp.printers_filename, relative=False)
+
+    return PrinterInfo(
+        id=printer_id,
+        ip_address=printer_data.get("ip_address", ""),
+        printer_name=printer_data.get("printer_name"),
+        lab_location=printer_data.get("lab_location"),
+        manufacturer=printer_data.get("manufacturer", "zebra"),
+        model=printer_data.get("model", ""),
+        serial=printer_data.get("serial", ""),
+        label_zpl_styles=printer_data.get("label_zpl_styles", []),
+        default_label_style=printer_data.get("default_label_style"),
+        print_method=printer_data.get("print_method", ""),
+        notes=printer_data.get("notes", ""),
+    )

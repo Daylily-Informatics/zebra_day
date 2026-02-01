@@ -123,9 +123,10 @@ class zpl:
             self.create_new_printers_json_with_single_test_printer(str(jcfg))
 
 
-    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results", relative=False):
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25", lab="scan-results", relative=False):
         """
-        Scan the network for zebra printers
+        Scan the network for zebra printers.
+
         NOTE! this should work with no dependencies on a MAC
         UBUNTU requires system wide net-tools (for arp)
         Others... well, this may not work
@@ -133,29 +134,44 @@ class zpl:
         ---
         Requires:
           curl is pretty standard, arp seems less so
-          arp  
+          arp
         ---
-        
-        ip_stub = all 255 possibilities will be probed beneath this
-        stub provided
 
-        can_wait = seconds to re-try probing until moving on. 0.25
-        default may be too squick
-
-        lab = code for the lab key to add/update to given finding
-        new printers. Existing printers will be over written.
+        ip_stub = all 255 possibilities will be probed beneath this stub provided
+        scan_wait = seconds to re-try probing until moving on. 0.25 default may be too quick
+        lab = code for the lab key to add/update to given finding new printers
         """
+        # Ensure schema version is set
+        if "schema_version" not in self.printers:
+            self.printers["schema_version"] = "2.0.0"
 
+        # Initialize lab with v2 structure if not exists
         if lab not in self.printers['labs']:
-            self.printers['labs'][lab] = {}
+            self.printers['labs'][lab] = {
+                "lab_name": lab,
+                "available_locations": [],
+                "printers": {}
+            }
 
-        self.printers['labs'][lab]["Download-Label-png"] = {
+        # Ensure lab has printers sub-object (migration from v1)
+        if "printers" not in self.printers['labs'][lab]:
+            self.printers['labs'][lab]["printers"] = {}
+            self.printers['labs'][lab].setdefault("lab_name", lab)
+            self.printers['labs'][lab].setdefault("available_locations", [])
+
+        # Add the virtual PNG printer
+        self.printers['labs'][lab]["printers"]["Download-Label-png"] = {
             "ip_address": "dl_png",
-            "label_zpl_styles": ["tube_2inX1in"],
-            "print_method": "generate png",
+            "printer_name": "Download Label as PNG",
+            "lab_location": None,
+            "manufacturer": "virtual",
             "model": "na",
             "serial": "na",
-            "arp_data": ""
+            "label_zpl_styles": ["tube_2inX1in"],
+            "default_label_style": "tube_2inX1in",
+            "print_method": "generate png",
+            "arp_data": "",
+            "notes": ""
         }
 
         # Run scanner script using subprocess instead of os.popen
@@ -178,15 +194,20 @@ class zpl:
                 status = sl[4]
                 arp_response = sl[5]
 
-                if ip not in self.printers['labs'][lab]:
+                if ip not in self.printers['labs'][lab]["printers"]:
                     # The label formats set here are the installed defaults
-                    self.printers['labs'][lab][ip] = {
+                    self.printers['labs'][lab]["printers"][ip] = {
                         "ip_address": ip,
-                        "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"],
-                        "print_method": "unk",
+                        "printer_name": None,  # User can set friendly name later
+                        "lab_location": None,  # User can set location later
+                        "manufacturer": "zebra",
                         "model": model,
                         "serial": serial,
-                        "arp_data": arp_response
+                        "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"],
+                        "default_label_style": "tube_2inX1in",  # Default to first style
+                        "print_method": "socket",
+                        "arp_data": arp_response,
+                        "notes": ""
                     }
 
         self.save_printer_json(self.printers_filename, relative=False)
@@ -274,15 +295,18 @@ class zpl:
 
     def clear_printers_json(self, json_file: str = "/etc/printer_config.json") -> None:
         """
-        Reset printers JSON to empty minimal structure.
+        Reset printers JSON to empty minimal v2.0.0 structure.
 
         Args:
             json_file: Path to the config file (relative to package)
         """
         json_path = Path(str(files('zebra_day'))) / json_file.lstrip('/')
 
-        # Write empty config using pathlib
-        empty_config = {"labs": {}}
+        # Write empty config with v2 schema
+        empty_config = {
+            "schema_version": "2.0.0",
+            "labs": {}
+        }
         json_path.parent.mkdir(parents=True, exist_ok=True)
         with open(json_path, 'w') as f:
             json.dump(empty_config, f, indent=4)
@@ -313,22 +337,24 @@ class zpl:
 
 
 
-    def get_valid_label_styles_for_lab(self,lab=None):
+    def get_valid_label_styles_for_lab(self, lab=None):
         """
+        Get all unique label styles available for printers in a lab.
+
         The intention for this method was to confirm a template
-          being requested for use in printing to some printer
-          was 'allowed' by checking with that printers printer json
-          for the array of valid templates.
+        being requested for use in printing to some printer
+        was 'allowed' by checking with that printers printer json
+        for the array of valid templates.
 
-        This was a huge PITA in testing, could be re-enabled at some point
-
+        This was a huge PITA in testing, could be re-enabled at some point.
         It is used once, but prints a warning only.
         """
-        
         unique_labels = set()
 
-        for printer in self.printers['labs'][lab]:
-            for style in self.printers['labs'][lab][printer]['label_zpl_styles']:
+        # Access printers via nested 'printers' key (v2 schema)
+        lab_printers = self.printers['labs'][lab].get('printers', {})
+        for printer_id, printer_data in lab_printers.items():
+            for style in printer_data.get('label_zpl_styles', []):
                 unique_labels.add(style)
 
         result = list(unique_labels)
@@ -410,39 +436,43 @@ class zpl:
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1, zpl_content=None):
         """
         The main print method. Accepts info to determine the desired
-          printer IP and to request the desired ZPL string to be sent
-          to the printer.
+        printer IP and to request the desired ZPL string to be sent
+        to the printer.
 
-        lab = top level key in self.printers['labs']
-        printer_name = key for printer info (ie: ip_address) needed
-          to satisfy print requests.
-        label_zpl_style = template code, see above for addl deets
-        client_ip = optional, this is logged with print request info
-        print_n = integer, > 0
-        zpl_content = DO NOT USE -- hacky way to directly pass a zpl
-          string to a printer. to do: write a cleaner
-          string+ip method of printing.
+        Args:
+            lab: top level key in self.printers['labs']
+            printer_name: key for printer info (ie: ip_address) needed
+                to satisfy print requests.
+            label_zpl_style: template code, see above for addl deets
+            client_ip: optional, this is logged with print request info
+            print_n: integer, > 0
+            zpl_content: DO NOT USE -- hacky way to directly pass a zpl
+                string to a printer. to do: write a cleaner
+                string+ip method of printing.
         """
-
         if print_n < 1:
             raise Exception(f"\n\nprint_n < 1 , specified {print_n}")
 
-        rec_date = str(datetime.datetime.now()).replace(' ','_')
+        rec_date = str(datetime.datetime.now()).replace(' ', '_')
         print_n = int(print_n)
 
-        if printer_name in ['','None',None] and lab in [None,'','None']:
+        if printer_name in ['', 'None', None] and lab in [None, '', 'None']:
             raise Exception(f"lab and printer_name are both required to route a zebra print request, the following was what was received: lab:{lab} & printer_name:{printer_name}")
-        
-        if label_zpl_style in [None,'','None']:
-            label_zpl_style = self.printers['labs'][lab][printer_name]['label_zpl_styles'][0]  # If a style is not specified, assume the first
-        elif label_zpl_style not in self.printers['labs'][lab][printer_name]['label_zpl_styles']:
+
+        # Access printer via nested 'printers' key (v2 schema)
+        printer_data = self.printers['labs'][lab]['printers'][printer_name]
+
+        if label_zpl_style in [None, '', 'None']:
+            # Use default_label_style if set, otherwise fall back to first in list
+            label_zpl_style = printer_data.get('default_label_style') or printer_data['label_zpl_styles'][0]
+        elif label_zpl_style not in printer_data['label_zpl_styles']:
             _log.warning(
                 "ZPL style '%s' is not valid for %s/%s. Valid styles: %s",
                 label_zpl_style, lab, printer_name,
-                self.printers['labs'][lab][printer_name]['label_zpl_styles']
+                printer_data['label_zpl_styles']
             )
 
-        printer_ip = self.printers['labs'][lab][printer_name]["ip_address"]
+        printer_ip = printer_data["ip_address"]
 
         zpl_string = ''
         if zpl_content in [None]:

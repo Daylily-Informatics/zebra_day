@@ -73,7 +73,8 @@ def get_templates_list(pkg_path: Path) -> tuple[list, list]:
 def get_stats(zp, pkg_path: Path) -> dict:
     """Calculate dashboard statistics."""
     labs = zp.printers.get("labs", {})
-    total_printers = sum(len(printers) for printers in labs.values())
+    # Count printers via nested 'printers' key (v2 schema)
+    total_printers = sum(len(lab_data.get("printers", {})) for lab_data in labs.values())
     stable, draft = get_templates_list(pkg_path)
 
     # Count backup files
@@ -141,15 +142,23 @@ async def modern_printers_by_lab(request: Request, lab: str):
     if lab not in zp.printers.get("labs", {}):
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
 
+    lab_data = zp.printers["labs"][lab]
+    lab_printers = lab_data.get("printers", {})
+
     printers = []
-    for name, info in zp.printers["labs"][lab].items():
+    for name, info in lab_printers.items():
         printers.append({
-            "name": name,
+            "id": name,
+            "name": info.get("printer_name") or name,  # Display name or fallback to ID
+            "printer_name": info.get("printer_name"),
             "ip_address": info.get("ip_address", ""),
+            "lab_location": info.get("lab_location"),
+            "manufacturer": info.get("manufacturer", "zebra"),
             "model": info.get("model", ""),
             "serial": info.get("serial", ""),
             "label_zpl_styles": info.get("label_zpl_styles", []),
             "status": "online" if info.get("ip_address") else "unknown",
+            "notes": info.get("notes", ""),
         })
 
     ip_root = ".".join(request.app.state.local_ip.split(".")[:-1])
@@ -160,23 +169,29 @@ async def modern_printers_by_lab(request: Request, lab: str):
         labs=list(zp.printers.get("labs", {}).keys()),
         printers=printers,
         lab=lab,
+        lab_name=lab_data.get("lab_name", lab),
+        available_locations=lab_data.get("available_locations", []),
         ip_root=ip_root,
     )
     return templates.TemplateResponse("modern/printers.html", context)
 
 
-@router.get("/printers/{lab}/{printer_name}", response_class=HTMLResponse)
-async def modern_printer_detail(request: Request, lab: str, printer_name: str):
+@router.get("/printers/{lab}/{printer_id}", response_class=HTMLResponse)
+async def modern_printer_detail(request: Request, lab: str, printer_id: str):
     """Modern printer detail page."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
     if lab not in zp.printers.get("labs", {}):
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-    if printer_name not in zp.printers["labs"][lab]:
-        raise HTTPException(status_code=404, detail=f"Printer '{printer_name}' not found")
 
-    printer_info = zp.printers["labs"][lab][printer_name]
+    lab_data = zp.printers["labs"][lab]
+    lab_printers = lab_data.get("printers", {})
+
+    if printer_id not in lab_printers:
+        raise HTTPException(status_code=404, detail=f"Printer '{printer_id}' not found")
+
+    printer_info = lab_printers[printer_id]
 
     # Try to get printer configuration
     printer_config = ""
@@ -190,8 +205,11 @@ async def modern_printer_detail(request: Request, lab: str, printer_name: str):
     context = get_modern_context(
         request,
         active_page="printers",
-        printer_name=printer_name,
+        printer_id=printer_id,
+        printer_name=printer_info.get("printer_name") or printer_id,
         lab=lab,
+        lab_name=lab_data.get("lab_name", lab),
+        available_locations=lab_data.get("available_locations", []),
         printer_info=printer_info,
         printer_config=printer_config,
     )
@@ -276,6 +294,53 @@ async def modern_template_edit(
         labs_dict=json.dumps(labs_dict),
     )
     return templates.TemplateResponse("modern/template_editor.html", context)
+
+
+@router.get("/templates/preview")
+async def modern_template_preview(
+    request: Request,
+    filename: str,
+    dtype: str = "",
+):
+    """Generate a PNG preview of a ZPL template.
+
+    Returns the PNG image directly or redirects to the generated file.
+    """
+    zp = request.app.state.zp
+    pkg_path = request.app.state.pkg_path
+
+    # Find the template file
+    if dtype:
+        filepath = pkg_path / "etc" / "label_styles" / dtype / filename
+    else:
+        # Try with .zpl extension if not provided
+        if not filename.endswith(".zpl"):
+            filepath = pkg_path / "etc" / "label_styles" / f"{filename}.zpl"
+        else:
+            filepath = pkg_path / "etc" / "label_styles" / filename
+
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail=f"Template '{filename}' not found")
+
+    try:
+        # Read template content
+        zpl_content = filepath.read_text()
+
+        # Generate PNG preview
+        output_dir = pkg_path / "files"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use template name for output file
+        template_name = filepath.stem
+        output_path = output_dir / f"{template_name}_preview.png"
+
+        result = zp.generate_label_png(zpl_content, str(output_path), False)
+
+        # Return redirect to the generated file
+        return RedirectResponse(url=f"/files/{template_name}_preview.png", status_code=303)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}")
 
 
 @router.get("/config", response_class=HTMLResponse)
@@ -501,15 +566,23 @@ async def legacy_printer_status(request: Request, lab: str = "scan-results"):
     if lab not in zp.printers.get("labs", {}):
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
 
+    lab_data = zp.printers["labs"][lab]
+    lab_printers = lab_data.get("printers", {})
+
     printers = []
-    for name, info in zp.printers["labs"][lab].items():
+    for name, info in lab_printers.items():
         printer_data = {
-            "name": name,
+            "id": name,
+            "name": info.get("printer_name") or name,
+            "printer_name": info.get("printer_name"),
             "ip_address": info.get("ip_address", ""),
+            "lab_location": info.get("lab_location"),
+            "manufacturer": info.get("manufacturer", "zebra"),
             "model": info.get("model", ""),
             "serial": info.get("serial", ""),
             "label_zpl_styles": info.get("label_zpl_styles", []),
             "arp_data": info.get("arp_data", ""),
+            "notes": info.get("notes", ""),
             "status": "unknown",
         }
 
@@ -537,6 +610,7 @@ async def legacy_printer_status(request: Request, lab: str = "scan-results"):
         request,
         title=f"Printer Status - {lab}",
         lab=lab,
+        lab_name=lab_data.get("lab_name", lab),
         printers=printers,
         ip_root=ip_root,
         labs=list(zp.printers.get("labs", {}).keys()),
@@ -559,9 +633,10 @@ async def legacy_simple_print_request(request: Request):
             if f.is_file() and f.suffix == ".zpl":
                 template_names.append(f.stem)
 
+    # Build labs_and_printers from nested 'printers' key (v2 schema)
     labs_and_printers = {
-        lab: list(printers.keys())
-        for lab, printers in zp.printers.get("labs", {}).items()
+        lab: list(lab_data.get("printers", {}).keys())
+        for lab, lab_data in zp.printers.get("labs", {}).items()
     }
 
     context = get_template_context(
@@ -633,10 +708,14 @@ async def legacy_printer_details(request: Request, printer_name: str, lab: str):
 
     if lab not in zp.printers.get("labs", {}):
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-    if printer_name not in zp.printers["labs"][lab]:
+
+    lab_data = zp.printers["labs"][lab]
+    lab_printers = lab_data.get("printers", {})
+
+    if printer_name not in lab_printers:
         raise HTTPException(status_code=404, detail=f"Printer '{printer_name}' not found")
 
-    printer_info = zp.printers["labs"][lab][printer_name]
+    printer_info = lab_printers[printer_name]
 
     # Try to get printer configuration
     printer_config = ""
@@ -649,9 +728,12 @@ async def legacy_printer_details(request: Request, printer_name: str, lab: str):
 
     context = get_template_context(
         request,
-        title=f"Printer Details - {printer_name}",
-        printer_name=printer_name,
+        title=f"Printer Details - {printer_info.get('printer_name') or printer_name}",
+        printer_id=printer_name,
+        printer_name=printer_info.get("printer_name") or printer_name,
         lab=lab,
+        lab_name=lab_data.get("lab_name", lab),
+        available_locations=lab_data.get("available_locations", []),
         printer_info=printer_info,
         printer_config=printer_config,
     )

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">{{ printer_name }}</h1>
-    <p class="page-subtitle">Printer details for {{ lab }}</p>
+    <p class="page-subtitle">Printer details for {{ lab_name | default(lab) }}</p>
 </div>
 
 <!-- Breadcrumb -->
@@ -14,7 +14,7 @@
     <span class="text-muted"> / </span>
     <a href="/printers">Printers</a>
     <span class="text-muted"> / </span>
-    <a href="/printers/{{ lab }}">{{ lab }}</a>
+    <a href="/printers/{{ lab }}">{{ lab_name | default(lab) }}</a>
     <span class="text-muted"> / </span>
     <span>{{ printer_name }}</span>
 </div>
@@ -32,53 +32,149 @@
         </div>
         <table class="table" style="background: transparent; box-shadow: none;">
             <tbody>
-                {% for key, value in printer_info.items() %}
                 <tr>
-                    <td style="width: 40%;"><strong>{{ key }}</strong></td>
+                    <td style="width: 40%;"><strong>Printer ID</strong></td>
+                    <td>{{ printer_id }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Display Name</strong></td>
+                    <td>{{ printer_info.printer_name | default('Not set', true) }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Location</strong></td>
+                    <td>{{ printer_info.lab_location | default('Not set', true) }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Manufacturer</strong></td>
+                    <td>{{ printer_info.manufacturer | default('zebra') | title }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Model</strong></td>
+                    <td>{{ printer_info.model | default('Unknown') }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Serial</strong></td>
+                    <td>{{ printer_info.serial | default('Unknown') }}</td>
+                </tr>
+                <tr>
+                    <td><strong>IP Address</strong></td>
                     <td>
-                        {% if key == 'ip_address' and value != 'dl_png' %}
-                        <a href="http://{{ value }}" target="_blank">{{ value }}</a>
-                        {% elif key == 'status' %}
-                        {% if value == 'online' %}
-                        <span class="badge badge-success">Online</span>
+                        {% if printer_info.ip_address != 'dl_png' %}
+                        <a href="http://{{ printer_info.ip_address }}" target="_blank">{{ printer_info.ip_address }}</a>
                         {% else %}
-                        <span class="badge badge-error">Offline</span>
-                        {% endif %}
-                        {% elif key == 'label_zpl_styles' %}
-                        {% for style in value %}
-                        <span class="badge badge-primary">{{ style }}</span>
-                        {% endfor %}
-                        {% else %}
-                        {{ value }}
+                        {{ printer_info.ip_address }}
                         {% endif %}
                     </td>
                 </tr>
-                {% endfor %}
+                <tr>
+                    <td><strong>Print Method</strong></td>
+                    <td>{{ printer_info.print_method | default('socket') }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Label Styles</strong></td>
+                    <td>
+                        {% for style in printer_info.label_zpl_styles %}
+                        <span class="badge badge-primary">{{ style }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>Default Label Style</strong></td>
+                    <td>
+                        {% if printer_info.default_label_style %}
+                        <span class="badge badge-success">{{ printer_info.default_label_style }}</span>
+                        {% else %}
+                        <span class="text-muted">{{ printer_info.label_zpl_styles[0] if printer_info.label_zpl_styles else 'None' }} (first in list)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if printer_info.notes %}
+                <tr>
+                    <td><strong>Notes</strong></td>
+                    <td>{{ printer_info.notes }}</td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
-    
-    <!-- Quick Actions -->
+
+    <!-- Edit Printer Settings -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Quick Actions</h3>
+            <h3 class="card-title">Edit Settings</h3>
         </div>
-        <div class="quick-actions">
-            <a href="/print?lab={{ lab }}&printer={{ printer_name }}" class="action-card">
-                <i class="fas fa-print"></i>
-                <div>
-                    <strong>Print Label</strong>
-                    <small class="text-muted d-block">Send a print request</small>
-                </div>
-            </a>
-            <a href="/templates" class="action-card">
-                <i class="fas fa-file-code"></i>
-                <div>
-                    <strong>View Templates</strong>
-                    <small class="text-muted d-block">Available label styles</small>
-                </div>
-            </a>
-        </div>
+        <form id="printer-edit-form" class="form-group">
+            <div class="form-group">
+                <label class="form-label">Display Name</label>
+                <input type="text" name="printer_name" class="form-control"
+                       value="{{ printer_info.printer_name | default('', true) }}"
+                       placeholder="e.g., Lab 3 - Bench A">
+                <small class="text-muted">User-friendly name for this printer</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Location</label>
+                {% if available_locations %}
+                <select name="lab_location" class="form-control">
+                    <option value="">-- Select Location --</option>
+                    {% for loc in available_locations %}
+                    <option value="{{ loc }}" {% if printer_info.lab_location == loc %}selected{% endif %}>{{ loc }}</option>
+                    {% endfor %}
+                </select>
+                {% else %}
+                <input type="text" name="lab_location" class="form-control"
+                       value="{{ printer_info.lab_location | default('', true) }}"
+                       placeholder="No locations defined for this lab">
+                <small class="text-muted">Define locations at the lab level first</small>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label class="form-label">Default Label Style</label>
+                <select name="default_label_style" class="form-control">
+                    <option value="">-- Use first in list --</option>
+                    {% for style in printer_info.label_zpl_styles %}
+                    <option value="{{ style }}" {% if printer_info.default_label_style == style %}selected{% endif %}>{{ style }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Style used when printing without specifying a template</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea name="notes" class="form-control" rows="2" placeholder="Optional notes">{{ printer_info.notes | default('', true) }}</textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Quick Actions</h3>
+    </div>
+    <div class="grid grid-3">
+        <a href="/print?lab={{ lab }}&printer={{ printer_id }}" class="action-card">
+            <i class="fas fa-print"></i>
+            <div>
+                <strong>Print Label</strong>
+                <small class="text-muted d-block">Send a print request</small>
+            </div>
+        </a>
+        <a href="/templates" class="action-card">
+            <i class="fas fa-file-code"></i>
+            <div>
+                <strong>View Templates</strong>
+                <small class="text-muted d-block">Available label styles</small>
+            </div>
+        </a>
+        <a href="/printers/{{ lab }}" class="action-card">
+            <i class="fas fa-arrow-left"></i>
+            <div>
+                <strong>Back to Lab</strong>
+                <small class="text-muted d-block">View all printers</small>
+            </div>
+        </a>
     </div>
 </div>
 
@@ -103,7 +199,7 @@
     <p class="text-muted mb-lg">Send a test label to verify the printer is working correctly.</p>
     <div class="grid grid-3">
         {% for style in printer_info.label_zpl_styles[:6] %}
-        <a href="/print?lab={{ lab }}&printer={{ printer_name }}&template={{ style }}&test=1" class="action-card">
+        <a href="/print?lab={{ lab }}&printer={{ printer_id }}&template={{ style }}&test=1" class="action-card">
             <i class="fas fa-tag"></i>
             <div>
                 <strong>{{ style }}</strong>
@@ -113,5 +209,36 @@
         {% endfor %}
     </div>
 </div>
+
+<script>
+document.getElementById('printer-edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const data = {
+        printer_name: form.printer_name.value || null,
+        lab_location: form.lab_location.value || null,
+        default_label_style: form.default_label_style.value || null,
+        notes: form.notes.value || ''
+    };
+
+    try {
+        const response = await fetch('/api/v1/labs/{{ lab }}/printers/{{ printer_id }}', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            showToast('success', 'Saved', 'Printer settings updated successfully');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            const err = await response.json();
+            showToast('error', 'Error', err.detail || 'Failed to save settings');
+        }
+    } catch (err) {
+        showToast('error', 'Error', 'Network error: ' + err.message);
+    }
+});
+</script>
 {% endblock %}
 

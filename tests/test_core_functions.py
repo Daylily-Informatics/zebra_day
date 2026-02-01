@@ -106,15 +106,23 @@ class TestConfigJsonRoundtrip:
         zd_pm = zd.zpl()
         zd_pm.clear_printers_json()
 
-        # Add test data
+        # Add test data with v2 schema structure
         zd_pm.printers["labs"]["roundtrip_test"] = {
-            "TestPrinter": {
-                "ip_address": "10.0.0.99",
-                "label_zpl_styles": ["tube_2inX1in"],
-                "print_method": "socket",
-                "model": "ZD421",
-                "serial": "TEST123",
-                "arp_data": "na",
+            "lab_name": "Roundtrip Test Lab",
+            "available_locations": ["Bench A", "Bench B"],
+            "printers": {
+                "TestPrinter": {
+                    "ip_address": "10.0.0.99",
+                    "printer_name": "Test Printer Display Name",
+                    "lab_location": "Bench A",
+                    "manufacturer": "zebra",
+                    "label_zpl_styles": ["tube_2inX1in"],
+                    "print_method": "socket",
+                    "model": "ZD421",
+                    "serial": "TEST123",
+                    "arp_data": "na",
+                    "notes": ""
+                }
             }
         }
 
@@ -134,7 +142,9 @@ class TestConfigJsonRoundtrip:
 
             assert "labs" in loaded
             assert "roundtrip_test" in loaded["labs"]
-            assert loaded["labs"]["roundtrip_test"]["TestPrinter"]["ip_address"] == "10.0.0.99"
+            # v2 schema: printers are nested
+            assert loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["ip_address"] == "10.0.0.99"
+            assert loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["printer_name"] == "Test Printer Display Name"
 
             # Load into new instance
             zd_pm2 = zd.zpl()
@@ -164,9 +174,11 @@ class TestConfigJsonRoundtrip:
         zd_pm.create_new_printers_json_with_single_test_printer()
 
         assert "scan-results" in zd_pm.printers["labs"]
-        assert "Download-Label-png" in zd_pm.printers["labs"]["scan-results"]
+        # v2 schema: printers are nested under 'printers' key
+        assert "printers" in zd_pm.printers["labs"]["scan-results"]
+        assert "Download-Label-png" in zd_pm.printers["labs"]["scan-results"]["printers"]
         assert (
-            zd_pm.printers["labs"]["scan-results"]["Download-Label-png"]["ip_address"]
+            zd_pm.printers["labs"]["scan-results"]["printers"]["Download-Label-png"]["ip_address"]
             == "dl_png"
         )
 

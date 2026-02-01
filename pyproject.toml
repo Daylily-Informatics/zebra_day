@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zebra_day"
-version = "1.0.1"
+version = "2.0.0"
 description = "A Python library to manage a Zebra printer fleet and an API for ZPL print requests."
 readme = "README.md"
 license = {text = "MIT"}

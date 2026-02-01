@@ -57,12 +57,15 @@
         var lab = document.getElementById("labsDropdown").value;
         var printersDropdown = document.getElementById("printersDropdown");
         printersDropdown.innerHTML = '<option value="">Select Printer</option>';
-        
-        if (lab && labs[lab]) {
-            for (var printer in labs[lab]) {
+
+        if (lab && labs[lab] && labs[lab].printers) {
+            // v2 schema: printers are nested under 'printers' key
+            var printers = labs[lab].printers;
+            for (var printerId in printers) {
+                var printerInfo = printers[printerId];
                 var option = document.createElement("option");
-                option.text = printer;
-                option.value = printer;
+                option.text = printerInfo.printer_name || printerId;
+                option.value = printerId;
                 printersDropdown.add(option);
             }
         }

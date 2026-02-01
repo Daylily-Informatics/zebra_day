@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: zebra_day
-Version: 1.0.1
+Version: 2.0.0
 Summary: A Python library to manage a Zebra printer fleet and an API for ZPL print requests.
 Home-page: https://github.com/Daylily-Informatics/zebra_day
 Author: John Major
@@ -60,7 +60,7 @@ Dynamic: license-file
 
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [1.0.1](https://github.com/Daylily-Informatics/zebra_day/releases/tag/1.0.1)
+## zebra_day Overview [2.0.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/2.0.0)
 
 ### Build, Deploy, Run, Monitor, Teardown
 
@@ -86,13 +86,13 @@ zday gui start            # Start web UI in background
 zday gui stop             # Stop web UI
 zday gui status           # Check if web UI is running
 
-# Health Checks
-curl http://localhost:8118/healthz    # Basic health check
-curl http://localhost:8118/readyz     # Readiness check (printer mgr initialized)
+# Health Checks (use https:// if certificates are configured, http:// otherwise)
+curl https://localhost:8118/healthz    # Basic health check
+curl https://localhost:8118/readyz     # Readiness check (printer mgr initialized)
 
 # API Documentation
-# Visit http://localhost:8118/docs for interactive OpenAPI docs
-# Visit http://localhost:8118/redoc for alternative API documentation
+# Visit https://localhost:8118/docs for interactive OpenAPI docs
+# Visit https://localhost:8118/redoc for alternative API documentation
 ```
 
 <ul>
@@ -181,7 +181,7 @@ zday status       # Show printer fleet status, service health
 zday bootstrap    # First-time setup: scan network, initialize config
 
 # GUI server management
-zday gui start [--auth none|cognito] [--host HOST] [--port PORT]
+zday gui start [--auth none|cognito] [--host HOST] [--port PORT] [--cert FILE] [--key FILE] [--no-https]
 zday gui stop
 zday gui status
 zday gui logs [--tail N] [--follow]
@@ -212,6 +212,64 @@ The old commands `zday_start` and `zday_quickstart` still work but are deprecate
 | `zday_quickstart` | `zday bootstrap && zday gui start` |
 | `zday_start` | `zday gui start` |
 | `zday_start --auth cognito` | `zday gui start --auth cognito` |
+
+### Local HTTPS Setup
+
+The zebra_day web UI supports HTTPS for secure local development. By default, HTTPS is enabled if certificates are found.
+
+#### One-Time Setup (mkcert)
+
+```bash
+# Install mkcert
+# macOS
+brew install mkcert
+
+# Ubuntu/Debian
+sudo apt install mkcert
+
+# Create and install local CA (one-time, requires password)
+mkcert -install
+```
+
+#### Generate Certificates for zebra_day
+
+```bash
+# Create certificate directory
+mkdir -p ~/.config/zebra_day/certs
+
+# Generate locally-trusted certificates
+mkcert -cert-file ~/.config/zebra_day/certs/server.crt \
+       -key-file ~/.config/zebra_day/certs/server.key \
+       localhost 127.0.0.1 ::1
+```
+
+#### HTTPS Options
+
+| Method | Description |
+|--------|-------------|
+| **Auto-detect** | If certs exist in `~/.config/zebra_day/certs/`, HTTPS is enabled automatically |
+| **Explicit paths** | `zday gui start --cert /path/to/cert.crt --key /path/to/key.key` |
+| **Environment vars** | Set `SSL_CERT_PATH` and `SSL_KEY_PATH` |
+| **Force HTTP** | `zday gui start --no-https` |
+
+#### Verify HTTPS
+
+```bash
+# Start server (will use HTTPS if certs are found)
+zday gui start
+
+# Test connection
+curl https://localhost:8118/healthz
+```
+
+#### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Browser shows "Not Secure" | Run `mkcert -install` to trust the local CA |
+| Certificate not found | Check paths: `ls ~/.config/zebra_day/certs/` |
+| Permission denied | Ensure cert files are readable: `chmod 644 ~/.config/zebra_day/certs/*` |
+| Want HTTP only | Use `--no-https` flag: `zday gui start --no-https` |
 
 ### It Is 3+ Things
 
@@ -502,10 +560,12 @@ zebra_day 0.6.0+ includes a redesigned modern UI alongside the preserved legacy 
 
 | Interface | URL | Description |
 |-----------|-----|-------------|
-| **Modern UI** | `http://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
-| **Legacy UI** | `http://localhost:8118/legacy` | Original interface, fully functional |
-| **API Docs** | `http://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
-| **ReDoc** | `http://localhost:8118/redoc` | Alternative API documentation |
+| **Modern UI** | `https://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
+| **Legacy UI** | `https://localhost:8118/legacy` | Original interface, fully functional |
+| **API Docs** | `https://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
+| **ReDoc** | `https://localhost:8118/redoc` | Alternative API documentation |
+
+> **Note:** Use `http://` instead of `https://` if running without certificates (`--no-https`).
 
 Both interfaces provide full functionality. The modern UI offers:
 - Dashboard with printer fleet statistics
@@ -579,7 +639,7 @@ When `--auth cognito` is enabled:
 
 Include the JWT token in the Authorization header:
 ```bash
-curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:8118/api/v1/printers
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" https://localhost:8118/api/v1/printers
 ```
 
 ### Secrets
