@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -39,6 +39,7 @@ def create_app(
     *,
     debug: bool = False,
     css_theme: str = "lsmc.css",
+    auth: Optional[Literal["none", "cognito"]] = None,
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -46,10 +47,20 @@ def create_app(
     Args:
         debug: Enable debug mode
         css_theme: Default CSS theme file name
+        auth: Authentication mode - "none" (public) or "cognito" (AWS Cognito).
+              If None, reads from ZEBRA_DAY_AUTH_MODE env var (defaults to "none").
 
     Returns:
         Configured FastAPI application
     """
+    # Get auth mode from parameter or environment variable
+    if auth is None:
+        auth = os.environ.get("ZEBRA_DAY_AUTH_MODE", "none")  # type: ignore[assignment]
+
+    # Validate auth parameter
+    if auth not in ("none", "cognito"):
+        raise ValueError(f"Invalid auth mode: {auth!r}. Must be 'none' or 'cognito'.")
+
     app = FastAPI(
         title="Zebra Day",
         description="Zebra printer fleet management and label printing",
@@ -59,6 +70,19 @@ def create_app(
 
     # Add request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
+
+    # Configure authentication if enabled
+    if auth == "cognito":
+        from zebra_day.web.auth import CognitoAuthMiddleware, setup_cognito_auth
+
+        cognito_auth = setup_cognito_auth(app)
+        app.add_middleware(CognitoAuthMiddleware, cognito_auth=cognito_auth)
+        app.state.cognito_auth = cognito_auth
+        app.state.auth_mode = "cognito"
+        _log.info("Cognito authentication middleware enabled")
+    else:
+        app.state.auth_mode = "none"
+        _log.info("Authentication disabled (auth=none)")
 
     # Store rate limiter in app state for use in endpoints
     app.state.print_rate_limiter = print_rate_limiter
@@ -117,7 +141,12 @@ def create_app(
     return app
 
 
-def run_server(host: str = "0.0.0.0", port: int = 8118, reload: bool = False):
+def run_server(
+    host: str = "0.0.0.0",
+    port: int = 8118,
+    reload: bool = False,
+    auth: Literal["none", "cognito"] = "none",
+):
     """
     Run the FastAPI server using uvicorn.
 
@@ -125,8 +154,12 @@ def run_server(host: str = "0.0.0.0", port: int = 8118, reload: bool = False):
         host: Host to bind to
         port: Port to listen on
         reload: Enable auto-reload for development
+        auth: Authentication mode - "none" (public) or "cognito" (AWS Cognito)
     """
     import uvicorn
+
+    # Store auth mode in environment for factory function
+    os.environ["ZEBRA_DAY_AUTH_MODE"] = auth
 
     uvicorn.run(
         "zebra_day.web.app:create_app",

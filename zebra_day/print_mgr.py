@@ -475,17 +475,43 @@ def _get_local_ip() -> str:
     return result.stdout.strip().split('\n')[0] if result.stdout.strip() else "127.0.0.1"
 
 
+def _parse_auth_args() -> str:
+    """Parse --auth CLI argument.
+
+    Returns:
+        Auth mode: "none" or "cognito"
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--auth",
+        type=str,
+        choices=["none", "cognito"],
+        default="none",
+        help="Authentication mode: 'none' (public, default) or 'cognito' (AWS Cognito)",
+    )
+    args, _ = parser.parse_known_args()
+    return args.auth
+
+
 def zday_start() -> None:
     """
     Start the zebra_day web UI on 0.0.0.0:8118.
 
     This offers package utilities in a UI, mostly intended for
     template design, testing, and printer fleet maintenance.
+
+    Usage:
+        zday_start                  # Start with no authentication
+        zday_start --auth none      # Explicit no authentication
+        zday_start --auth cognito   # Enable Cognito authentication
     """
     from zebra_day.web.app import run_server
 
-    _log.info("Starting zebra_day FastAPI server on 0.0.0.0:8118...")
-    run_server(host="0.0.0.0", port=8118, reload=False)
+    auth_mode = _parse_auth_args()
+    _log.info("Starting zebra_day FastAPI server on 0.0.0.0:8118 (auth=%s)...", auth_mode)
+    run_server(host="0.0.0.0", port=8118, reload=False, auth=auth_mode)
 
 
 def main() -> None:
@@ -496,9 +522,16 @@ def main() -> None:
     will first attempt a zebra printer discovery scan of your network,
     create a new printers JSON for what is found, and start
     the zebra_day UI on 0.0.0.0:8118.
+
+    Usage:
+        zday_quickstart                  # Start with no authentication
+        zday_quickstart --auth none      # Explicit no authentication
+        zday_quickstart --auth cognito   # Enable Cognito authentication
     """
     import zebra_day.print_mgr as zdpm
     from zebra_day.web.app import run_server
+
+    auth_mode = _parse_auth_args()
 
     ip = _get_local_ip()
     ip_root = ".".join(ip.split('.')[:-1])
@@ -512,13 +545,14 @@ def main() -> None:
 
     _log.info("Zebra Printer Scan Complete. Results: %s", zp.printers)
     _log.info(
-        "Starting zebra_day web GUI at %s:8118. "
+        "Starting zebra_day web GUI at %s:8118 (auth=%s). "
         "Press Ctrl+C to shut down.",
-        ip
+        ip,
+        auth_mode,
     )
     time.sleep(1.3)
 
-    run_server(host="0.0.0.0", port=8118, reload=False)
+    run_server(host="0.0.0.0", port=8118, reload=False, auth=auth_mode)
 
     _log.info("EXITING ZDAY QUICKSTART")
     _log.info(

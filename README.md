@@ -365,6 +365,55 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&
 # Other Topics
 
 ## Security
+
+### Authentication
+
+zebra_day supports optional AWS Cognito authentication for production deployments.
+
+#### Enabling Cognito Authentication
+
+1. **Install auth dependencies**:
+   ```bash
+   pip install -e ".[auth]"
+   ```
+
+2. **Set required environment variables**:
+   ```bash
+   export COGNITO_USER_POOL_ID="us-west-2_XXXXXXXXX"
+   export COGNITO_APP_CLIENT_ID="your-app-client-id"
+   export COGNITO_REGION="us-west-2"  # Optional, defaults to us-west-2
+   export AWS_PROFILE="your-profile"   # Optional, for local development
+   ```
+
+3. **Start server with authentication**:
+   ```bash
+   zday_start --auth cognito
+   # or
+   zday_quickstart --auth cognito
+   ```
+
+#### Authentication Modes
+
+| Mode | CLI Flag | Description |
+|------|----------|-------------|
+| None (default) | `--auth none` | No authentication required. All endpoints are publicly accessible. |
+| Cognito | `--auth cognito` | AWS Cognito JWT authentication. All endpoints except health checks require a valid Bearer token. |
+
+#### Protected Endpoints
+
+When `--auth cognito` is enabled:
+- All UI and API endpoints require a valid JWT Bearer token
+- Health endpoints (`/healthz`, `/readyz`) remain publicly accessible
+- Static files (`/static/*`, `/files/*`, `/etc/*`) remain publicly accessible
+- API documentation (`/docs`, `/redoc`, `/openapi.json`) remains accessible
+
+#### Making Authenticated Requests
+
+Include the JWT token in the Authorization header:
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:8118/api/v1/printers
+```
+
 ### Secrets
 No credentials of any kind are stored or used by `zebra_day`. It solely offers zebra printer management and label print request formatting and brokering services.  It does not need to know how to connect to other systems, other systems will use the library code provided here, or the http api.
 
@@ -372,7 +421,7 @@ No credentials of any kind are stored or used by `zebra_day`. It solely offers z
 In it's present state, `zebra_day` is safe to run on a machine located in a properly configured & secure local network or cloud hosted instance residing in a secure VPN/VPC.
   * `zebra_day` should not be deployed in such a way the host is fully visible to the public internet.
     * a potential exception would be exposing the service via an encryped and secure open port. __POC demonstrating this concept can be found below__.
-    
+
 ### Programatic Use Of `zebra_day` Package/Library
 Using the python library in other python code poses no particularly unique new risk. `zebra_day` may be treated similarly to how other third party tools are handled in each users organization.
 
