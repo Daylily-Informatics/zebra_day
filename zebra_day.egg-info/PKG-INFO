@@ -35,6 +35,8 @@ Requires-Dist: pydantic>=2.0.0
 Requires-Dist: python-multipart>=0.0.6
 Requires-Dist: typer>=0.9.0
 Requires-Dist: rich>=13.0.0
+Requires-Dist: pillow>=10.0.0
+Requires-Dist: zint-bindings>=1.2.0
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"

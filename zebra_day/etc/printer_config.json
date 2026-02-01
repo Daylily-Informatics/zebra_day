@@ -9,7 +9,19 @@
                 "print_method": "generate png",
                 "model": "na",
                 "serial": "na",
-                "arp_data": "na"
+                "arp_data": ""
+            },
+            "192.168.10.117": {
+                "ip_address": "192.168.10.117",
+                "label_zpl_styles": [
+                    "tube_2inX1in",
+                    "plate_1inX0.25in",
+                    "tube_2inX0.3in"
+                ],
+                "print_method": "unk",
+                "model": "ZTC ZD621-203dpi ZPL",
+                "serial": "D9J231814684 ",
+                "arp_data": "? (192.168.10.117) at 60:95:32:2:bf:40 on en0 ifscope [ethernet]"
             }
         }
     }
