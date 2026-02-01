@@ -96,9 +96,14 @@ def create_app(
     app.mount("/static", StaticFiles(directory=str(_STATIC_PATH)), name="static")
 
     # Also mount package directories that need to be served
-    files_dir = _PKG_PATH / "files"
-    if files_dir.exists():
-        app.mount("/files", StaticFiles(directory=str(files_dir)), name="files")
+    # Package files directory (for templates, previews generated in-package)
+    pkg_files_dir = _PKG_PATH / "files"
+    pkg_files_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/files", StaticFiles(directory=str(pkg_files_dir)), name="files")
+
+    # XDG generated files directory (for PNG downloads from dl_png printer)
+    xdg_generated_dir = xdg.get_generated_files_dir()
+    app.mount("/generated", StaticFiles(directory=str(xdg_generated_dir)), name="generated")
 
     etc_dir = _PKG_PATH / "etc"
     if etc_dir.exists():

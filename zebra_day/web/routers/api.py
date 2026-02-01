@@ -6,10 +6,14 @@ All endpoints return JSON and are prefixed with /api/v1/.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+from zebra_day import paths as xdg
 
 router = APIRouter()
 
@@ -65,6 +69,26 @@ class LabPrinters(BaseModel):
     """Lab and its printers (deprecated, use LabInfo)."""
     lab: str
     printers: List[PrinterInfo]
+
+
+class RenderRequest(BaseModel):
+    """Request model for rendering ZPL to PNG."""
+    template: Optional[str] = Field(None, description="ZPL template name (e.g., 'tube_2inX1in')")
+    zpl_content: Optional[str] = Field(None, description="Raw ZPL content (takes precedence over template)")
+    uid_barcode: str = Field("", description="UID for barcode")
+    alt_a: str = Field("", description="Alternative field A")
+    alt_b: str = Field("", description="Alternative field B")
+    alt_c: str = Field("", description="Alternative field C")
+    alt_d: str = Field("", description="Alternative field D")
+    alt_e: str = Field("", description="Alternative field E")
+    alt_f: str = Field("", description="Alternative field F")
+
+
+class RenderResponse(BaseModel):
+    """Response model for render request (when not returning PNG directly)."""
+    success: bool
+    message: str
+    png_url: str = Field(..., description="URL to download the generated PNG")
 
 
 # ----- Endpoints -----
@@ -183,7 +207,7 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
         raise HTTPException(status_code=429, detail=reason)
 
     try:
-        result = zp.print_zpl(
+        zp.print_zpl(
             lab=print_req.lab,
             printer_name=print_req.printer,
             label_zpl_style=print_req.label_zpl_style,
@@ -197,21 +221,122 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
             print_n=print_req.copies,
             client_ip=client_ip,
         )
-
-        # Check if result is a PNG file path
-        if result and ".png" in str(result):
-            png_name = str(result).split("/")[-1]
-            return PrintResponse(
-                success=True,
-                message="PNG generated successfully",
-                png_url=f"/files/{png_name}",
-            )
-
         return PrintResponse(success=True, message="Print request sent successfully")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         rate_limiter.release()
+
+
+@router.post("/render", response_model=RenderResponse)
+async def render_label(request: Request, render_req: RenderRequest) -> RenderResponse:
+    """
+    Render ZPL to PNG image.
+
+    This endpoint generates a PNG image from ZPL content without sending to a printer.
+    You can provide either:
+    - A template name (e.g., 'tube_2inX1in') with field values
+    - Raw ZPL content directly
+
+    Returns a URL to download the generated PNG.
+    """
+    zp = request.app.state.zp
+
+    # Validate that we have either template or zpl_content
+    if not render_req.template and not render_req.zpl_content:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'template' or 'zpl_content' must be provided"
+        )
+
+    try:
+        # Generate ZPL string from template if not provided directly
+        if render_req.zpl_content:
+            zpl_string = render_req.zpl_content
+        else:
+            zpl_string = zp.formulate_zpl(
+                uid_barcode=render_req.uid_barcode,
+                alt_a=render_req.alt_a,
+                alt_b=render_req.alt_b,
+                alt_c=render_req.alt_c,
+                alt_d=render_req.alt_d,
+                alt_e=render_req.alt_e,
+                alt_f=render_req.alt_f,
+                label_zpl_style=render_req.template,
+            )
+
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        template_name = render_req.template or "custom"
+        png_filename = f"zpl_render_{template_name}_{timestamp}.png"
+        png_path = xdg.get_generated_files_dir() / png_filename
+
+        # Render to PNG
+        result = zp.generate_label_png(zpl_string, str(png_path), relative=False)
+
+        return RenderResponse(
+            success=True,
+            message="PNG rendered successfully",
+            png_url=f"/generated/{png_filename}",
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Template not found: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
+
+
+@router.post("/render/png")
+async def render_label_png(request: Request, render_req: RenderRequest):
+    """
+    Render ZPL to PNG and return the image directly.
+
+    Same as /render but returns the PNG file directly instead of a URL.
+    Useful for programmatic access where you want the image bytes.
+    """
+    zp = request.app.state.zp
+
+    # Validate that we have either template or zpl_content
+    if not render_req.template and not render_req.zpl_content:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'template' or 'zpl_content' must be provided"
+        )
+
+    try:
+        # Generate ZPL string from template if not provided directly
+        if render_req.zpl_content:
+            zpl_string = render_req.zpl_content
+        else:
+            zpl_string = zp.formulate_zpl(
+                uid_barcode=render_req.uid_barcode,
+                alt_a=render_req.alt_a,
+                alt_b=render_req.alt_b,
+                alt_c=render_req.alt_c,
+                alt_d=render_req.alt_d,
+                alt_e=render_req.alt_e,
+                alt_f=render_req.alt_f,
+                label_zpl_style=render_req.template,
+            )
+
+        # Generate unique filename
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        template_name = render_req.template or "custom"
+        png_filename = f"zpl_render_{template_name}_{timestamp}.png"
+        png_path = xdg.get_generated_files_dir() / png_filename
+
+        # Render to PNG
+        zp.generate_label_png(zpl_string, str(png_path), relative=False)
+
+        # Return the file directly
+        return FileResponse(
+            path=str(png_path),
+            media_type="image/png",
+            filename=png_filename,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Template not found: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
 
 
 @router.get("/config")

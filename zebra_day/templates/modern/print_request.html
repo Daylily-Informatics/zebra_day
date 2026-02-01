@@ -96,9 +96,14 @@
             <a href="/" class="btn btn-outline">
                 <i class="fas fa-arrow-left"></i> Cancel
             </a>
-            <button type="submit" class="btn btn-primary btn-lg" onclick="showLoading('Sending print request...')">
-                <i class="fas fa-print"></i> Print Label
-            </button>
+            <div class="d-flex" style="gap: var(--spacing-md);">
+                <button type="button" class="btn btn-secondary btn-lg" onclick="downloadPNG()">
+                    <i class="fas fa-download"></i> Download PNG
+                </button>
+                <button type="submit" class="btn btn-primary btn-lg" onclick="showLoading('Sending print request...')">
+                    <i class="fas fa-print"></i> Print Label
+                </button>
+            </div>
         </div>
     </div>
 </form>
@@ -140,6 +145,59 @@
             updatePrinters();
         }
     });
+
+    async function downloadPNG() {
+        var form = document.getElementById('print-form');
+        var template = form.querySelector('select[name="label_zpl_style"]').value;
+
+        if (!template) {
+            showToast('error', 'Error', 'Please select a label template');
+            return;
+        }
+
+        showLoading('Rendering PNG...');
+
+        try {
+            var response = await fetch('/api/v1/render/png', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    template: template,
+                    uid_barcode: form.querySelector('input[name="uid_barcode"]').value || '',
+                    alt_a: form.querySelector('input[name="alt_a"]').value || '',
+                    alt_b: form.querySelector('input[name="alt_b"]').value || '',
+                    alt_c: form.querySelector('input[name="alt_c"]').value || '',
+                    alt_d: form.querySelector('input[name="alt_d"]').value || '',
+                    alt_e: form.querySelector('input[name="alt_e"]').value || '',
+                    alt_f: form.querySelector('input[name="alt_f"]').value || ''
+                })
+            });
+
+            hideLoading();
+
+            if (!response.ok) {
+                var error = await response.json();
+                showToast('error', 'Render Failed', error.detail || 'Unknown error');
+                return;
+            }
+
+            // Download the PNG file
+            var blob = await response.blob();
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = template + '_label.png';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            showToast('success', 'Success', 'PNG downloaded');
+        } catch (e) {
+            hideLoading();
+            showToast('error', 'Error', 'Failed to render PNG: ' + e.message);
+        }
+    }
 </script>
 {% endblock %}
 

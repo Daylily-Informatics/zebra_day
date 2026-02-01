@@ -19,7 +19,7 @@ ruff check zebra_day tests
 black --check zebra_day tests
 mypy zebra_day --ignore-missing-imports
 
-# CLI Commands (new in 0.6.0)
+# CLI Commands
 zday --help               # Show all commands
 zday bootstrap            # First-time setup: scan for printers
 zday gui start            # Start web UI in background
@@ -105,7 +105,7 @@ zday gui stop
 
 </ul>
 
-### CLI Reference (0.6.0+)
+### CLI Reference
 
 The `zday` CLI provides a comprehensive interface for managing your Zebra printer fleet.
 
@@ -302,7 +302,7 @@ python -m build              # Creates dist/*.whl and dist/*.tar.gz
 
 ### File Locations (XDG-compliant)
 
-zebra_day 0.6.0+ uses XDG Base Directory specification for file storage:
+zebra_day uses XDG Base Directory specification for file storage:
 
 | Type | macOS | Linux |
 |------|-------|-------|
@@ -384,11 +384,10 @@ Run 'zday gui start' to launch the web interface.
 $ zday gui start
 
 Starting zebra_day web server...
-Server running at: http://192.168.1.12:8118
+Server running at: https://192.168.1.12:8118
 
-Modern UI:  http://192.168.1.12:8118/
-Legacy UI:  http://192.168.1.12:8118/legacy
-API Docs:   http://192.168.1.12:8118/docs
+Dashboard:  https://192.168.1.12:8118/
+API Docs:   https://192.168.1.12:8118/docs
 
 Server started in background (PID: 12345)
 Use 'zday gui status' to check status
@@ -494,24 +493,28 @@ zday gui start --foreground
 uvicorn zebra_day.web.app:create_app --host 0.0.0.0 --port 8118 --factory
 ```
 
-### Modern vs Legacy UI
+### Web UI
 
-zebra_day 0.6.0+ includes a redesigned modern UI alongside the preserved legacy interface:
+zebra_day 2.0.0+ features a modern, responsive web interface:
 
 | Interface | URL | Description |
 |-----------|-----|-------------|
-| **Modern UI** | `https://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
-| **Legacy UI** | `https://localhost:8118/legacy` | Original interface, fully functional |
+| **Dashboard** | `https://localhost:8118/` | Printer fleet stats, quick actions, navigation |
+| **Printers** | `https://localhost:8118/printers` | Printer status and management |
+| **Print** | `https://localhost:8118/print` | Send print requests |
+| **Templates** | `https://localhost:8118/templates` | ZPL template editor with live preview |
+| **Config** | `https://localhost:8118/config` | Printer configuration management |
 | **API Docs** | `https://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
 | **ReDoc** | `https://localhost:8118/redoc` | Alternative API documentation |
 
 > **Note:** Use `http://` instead of `https://` if running without certificates (`--no-https`).
 
-Both interfaces provide full functionality. The modern UI offers:
+The modern UI offers:
 - Dashboard with printer fleet statistics
 - Streamlined navigation
-- Improved template editor
+- Improved template editor with live PNG preview
 - Better mobile responsiveness
+- Configuration editing with backup management
 
 ### Print via HTTP API
 
@@ -781,6 +784,7 @@ Tthen run `sudo docker compose up --build -d` to run it then reach it at http://
 [![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
 
 <br>
+ 
  
  
  

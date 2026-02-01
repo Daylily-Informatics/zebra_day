@@ -1,0 +1,59 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Config Backups - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Configuration Backups</h1>
+    <div class="header-actions">
+        <a href="/config" class="btn btn-outline"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-history"></i> Saved Configuration Files</h3>
+        <span class="badge">{{ backup_files | length }} backups</span>
+    </div>
+    
+    <p class="text-muted mb-md" style="padding: 0 1rem;">
+        To restore a backup, download the file, open in a text editor, copy the contents, 
+        then paste into the <a href="/config/edit">config editor</a> and save.
+    </p>
+    
+    {% if backup_files %}
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for file in backup_files %}
+                <tr>
+                    <td>
+                        <i class="fas fa-file-code text-muted"></i>
+                        {{ file }}
+                    </td>
+                    <td>
+                        <a href="/etc/old_printer_config/{{ file }}" class="btn btn-sm btn-outline" download>
+                            <i class="fas fa-download"></i> Download
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-history"></i>
+        <p>No backup files found</p>
+        <small class="text-muted">Backups are created automatically when you save configuration changes</small>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

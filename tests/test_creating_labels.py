@@ -27,16 +27,26 @@ def test_creating_a_png_of_label_zpl():
 
 
 def test_printing_label():
-    # Also prints a png, but uses the label printing path to do so.
+    # Test generating a PNG using generate_label_png directly
+    # (virtual printer was removed - use render endpoint or generate_label_png)
 
     from zebra_day import print_mgr as zd
+    from zebra_day import paths as xdg
     zd_pm = zd.zpl()
-    zd_pm.clear_printers_json()
 
-    zd_pm.create_new_printers_json_with_single_test_printer()
-    tmp_png_2 =  zd_pm.print_zpl(lab="scan-results", printer_name="Download-Label-png", uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style="tube_2inX1in", client_ip='pkg', print_n=1, zpl_content=None)
+    # Generate ZPL from template
+    zpl_string = zd_pm.formulate_zpl(
+        uid_barcode='TESTBC',
+        alt_a='A', alt_b='B', alt_c='C',
+        alt_d='D', alt_e='E', alt_f='F',
+        label_zpl_style="tube_2inX1in"
+    )
 
-    assert os.path.exists(tmp_png_2)
+    # Generate PNG
+    png_path = str(xdg.get_generated_files_dir() / "test_print_label.png")
+    result = zd_pm.generate_label_png(zpl_string, png_path, relative=False)
+
+    assert os.path.exists(result)
 
 
 def test_probing_network_for_printers():

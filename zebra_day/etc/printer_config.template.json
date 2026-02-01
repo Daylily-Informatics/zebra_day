@@ -1,24 +1,10 @@
 {
     "schema_version": "2.0.0",
     "labs": {
-        "scan-results": {
-            "lab_name": "Scan Results",
+        "default": {
+            "lab_name": "Default",
             "available_locations": [],
-            "printers": {
-                "Download-Label-png": {
-                    "ip_address": "dl_png",
-                    "printer_name": "Download Label as PNG",
-                    "lab_location": null,
-                    "manufacturer": "virtual",
-                    "model": "na",
-                    "serial": "na",
-                    "label_zpl_styles": ["tube_2inX1in"],
-                    "default_label_style": "tube_2inX1in",
-                    "print_method": "generate png",
-                    "arp_data": "na",
-                    "notes": ""
-                }
-            }
+            "printers": {}
         }
     }
 }

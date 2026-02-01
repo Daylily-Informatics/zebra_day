@@ -1,1 +1,0 @@
-sudo arp-scan --localnet

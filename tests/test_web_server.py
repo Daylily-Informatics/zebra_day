@@ -16,7 +16,28 @@ def client():
     app = create_app(debug=True, auth="none")
     # Manually initialize the zp state since on_event("startup") isn't called
     # by TestClient unless we use a context manager
-    app.state.zp = zdpm.zpl()
+    zp = zdpm.zpl()
+    # Ensure test printer exists for testing
+    zp.create_new_printers_json_with_single_test_printer()
+
+    # Add a test printer to the 'default' lab for testing
+    if "default" in zp.printers.get("labs", {}):
+        zp.printers["labs"]["default"]["printers"]["test-printer"] = {
+            "ip_address": "192.168.1.100",
+            "printer_name": "Test Printer",
+            "lab_location": "Test Location",
+            "manufacturer": "zebra",
+            "model": "ZD420",
+            "serial": "TEST123",
+            "label_zpl_styles": ["tube_2inX1in", "corners_1inX2in"],
+            "default_label_style": "tube_2inX1in",
+            "print_method": "network",
+            "arp_data": "na",
+            "notes": "Test printer for unit tests",
+        }
+        zp.save_printer_json()
+
+    app.state.zp = zp
     with TestClient(app) as client:
         yield client
 
@@ -42,12 +63,11 @@ class TestAPIListLabs:
         data = response.json()
         assert isinstance(data, list)
 
-    def test_list_labs_contains_scan_results(self, client):
-        """Test that scan-results lab exists (from default config)."""
+    def test_list_labs_contains_default_labs(self, client):
+        """Test that default lab exists (from default config)."""
         response = client.get("/api/v1/labs")
         data = response.json()
-        # scan-results is created by default in the template
-        assert "scan-results" in data
+        assert "default" in data
 
 
 class TestAPIGetLab:
@@ -55,10 +75,10 @@ class TestAPIGetLab:
 
     def test_get_lab_success(self, client):
         """Test getting a valid lab."""
-        response = client.get("/api/v1/labs/scan-results")
+        response = client.get("/api/v1/labs/default")
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == "scan-results"
+        assert data["id"] == "default"
         assert "lab_name" in data
         assert "available_locations" in data
         assert "printers" in data
@@ -76,11 +96,11 @@ class TestAPIListPrinters:
 
     def test_list_printers_success(self, client):
         """Test listing printers in a valid lab."""
-        response = client.get("/api/v1/labs/scan-results/printers")
+        response = client.get("/api/v1/labs/default/printers")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        # scan-results has at least the virtual printer
+        # default lab has a test printer added in fixture
         assert len(data) >= 1
 
     def test_list_printers_not_found(self, client):
@@ -90,7 +110,7 @@ class TestAPIListPrinters:
 
     def test_printer_has_required_fields(self, client):
         """Test that printer info contains required fields."""
-        response = client.get("/api/v1/labs/scan-results/printers")
+        response = client.get("/api/v1/labs/default/printers")
         data = response.json()
         if len(data) > 0:
             printer = data[0]
@@ -158,22 +178,63 @@ class TestAPIPrint:
     def test_print_missing_printer(self, client):
         """Test print request with missing printer returns error."""
         response = client.post("/api/v1/print", json={
-            "lab": "scan-results",
+            "lab": "default",
         })
         assert response.status_code == 422
 
-    def test_print_virtual_printer_success(self, client):
-        """Test print to virtual PNG printer succeeds."""
-        response = client.post("/api/v1/print", json={
-            "lab": "scan-results",
-            "printer": "Download-Label-png",
-            "label_zpl_style": "tube_2inX1in",
+
+class TestAPIRender:
+    """Tests for POST /api/v1/render endpoints."""
+
+    def test_render_missing_template_and_zpl(self, client):
+        """Test render with no template or zpl_content returns 400."""
+        response = client.post("/api/v1/render", json={
             "uid_barcode": "TEST123",
+        })
+        assert response.status_code == 400
+        assert "template" in response.json()["detail"].lower() or "zpl" in response.json()["detail"].lower()
+
+    def test_render_with_template_success(self, client):
+        """Test render with template returns PNG URL."""
+        response = client.post("/api/v1/render", json={
+            "template": "tube_2inX1in",
+            "uid_barcode": "TEST123",
+            "alt_a": "Line A",
         })
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
         assert "png_url" in data
+        assert data["png_url"].startswith("/generated/")
+        assert data["png_url"].endswith(".png")
+
+    def test_render_with_raw_zpl_success(self, client):
+        """Test render with raw ZPL content returns PNG URL."""
+        response = client.post("/api/v1/render", json={
+            "zpl_content": "^XA^FO50,50^A0N,50,50^FDTest Label^FS^XZ",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["png_url"].startswith("/generated/")
+
+    def test_render_png_direct_returns_image(self, client):
+        """Test /render/png returns PNG file directly."""
+        response = client.post("/api/v1/render/png", json={
+            "template": "tube_2inX1in",
+            "uid_barcode": "DIRECT123",
+        })
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "image/png"
+
+    def test_render_invalid_template_returns_error(self, client):
+        """Test render with invalid template returns error."""
+        response = client.post("/api/v1/render", json={
+            "template": "nonexistent_template_xyz",
+        })
+        # Invalid template raises Exception which is caught as 500
+        assert response.status_code == 500
+        assert "does not exist" in response.json()["detail"]
 
 
 class TestAPIPatchLab:
@@ -188,12 +249,11 @@ class TestAPIPatchLab:
 
     def test_patch_lab_update_name(self, client):
         """Test updating lab name."""
-        # First get the current name
-        original = client.get("/api/v1/labs/scan-results").json()
+        original = client.get("/api/v1/labs/default").json()
         original_name = original["lab_name"]
 
         # Update the name
-        response = client.patch("/api/v1/labs/scan-results", json={
+        response = client.patch("/api/v1/labs/default", json={
             "lab_name": "Updated Test Name",
         })
         assert response.status_code == 200
@@ -201,7 +261,7 @@ class TestAPIPatchLab:
         assert data["lab_name"] == "Updated Test Name"
 
         # Restore original name
-        client.patch("/api/v1/labs/scan-results", json={
+        client.patch("/api/v1/labs/default", json={
             "lab_name": original_name,
         })
 
@@ -220,32 +280,31 @@ class TestAPIPatchPrinter:
     def test_patch_printer_not_found_printer(self, client):
         """Test patching non-existent printer returns 404."""
         response = client.patch(
-            "/api/v1/labs/scan-results/printers/nonexistent-printer-xyz",
+            "/api/v1/labs/default/printers/nonexistent-printer-xyz",
             json={"printer_name": "Test"},
         )
         assert response.status_code == 404
 
     def test_patch_printer_update_name(self, client):
         """Test updating printer name."""
-        # Update the name
         response = client.patch(
-            "/api/v1/labs/scan-results/printers/Download-Label-png",
-            json={"printer_name": "Updated PNG Printer"},
+            "/api/v1/labs/default/printers/test-printer",
+            json={"printer_name": "Updated Test Printer"},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["printer_name"] == "Updated PNG Printer"
+        assert data["printer_name"] == "Updated Test Printer"
 
         # Restore original
         client.patch(
-            "/api/v1/labs/scan-results/printers/Download-Label-png",
-            json={"printer_name": "Download Label as PNG"},
+            "/api/v1/labs/default/printers/test-printer",
+            json={"printer_name": "Test Printer"},
         )
 
     def test_patch_printer_invalid_default_style(self, client):
         """Test setting invalid default_label_style returns 400."""
         response = client.patch(
-            "/api/v1/labs/scan-results/printers/Download-Label-png",
+            "/api/v1/labs/default/printers/test-printer",
             json={"default_label_style": "nonexistent_style_xyz"},
         )
         assert response.status_code == 400
@@ -286,82 +345,18 @@ class TestModernUIEndpoints:
         assert "text/html" in response.headers["content-type"]
 
 
-class TestLegacyUIEndpoints:
-    """Tests for legacy UI HTML endpoints."""
-
-    def test_legacy_home_loads(self, client):
-        """Test legacy home page loads."""
-        response = client.get("/legacy")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_printer_status_loads(self, client):
-        """Test legacy printer status page loads."""
-        response = client.get("/legacy/printer_status?lab=scan-results")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_bpr_loads(self, client):
-        """Test legacy build print request page loads."""
-        response = client.get("/legacy/bpr")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_simple_print_request_loads(self, client):
-        """Test legacy simple print request page loads."""
-        response = client.get("/legacy/simple_print_request")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_edit_zpl_loads(self, client):
-        """Test legacy edit ZPL list page loads."""
-        response = client.get("/legacy/edit_zpl")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_chg_ui_style_loads(self, client):
-        """Test legacy change UI style page loads."""
-        response = client.get("/legacy/chg_ui_style")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_view_pstation_json_loads(self, client):
-        """Test legacy view printer config JSON page loads."""
-        response = client.get("/legacy/view_pstation_json")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_list_prior_configs_loads(self, client):
-        """Test legacy list prior config files page loads."""
-        response = client.get("/legacy/list_prior_printer_config_files")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_build_new_config_loads(self, client):
-        """Test legacy build new config page loads."""
-        response = client.get("/legacy/build_new_printers_config_json")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-    def test_legacy_printer_details_loads(self, client):
-        """Test legacy printer details page loads."""
-        response = client.get("/legacy/printer_details?printer_name=Download-Label-png&lab=scan-results")
-        assert response.status_code == 200
-        assert "text/html" in response.headers["content-type"]
-
-
 class TestModernUIAdditionalEndpoints:
     """Tests for additional modern UI endpoints."""
 
     def test_printers_by_lab_loads(self, client):
         """Test printers by lab page loads."""
-        response = client.get("/printers/scan-results")
+        response = client.get("/printers/default")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
     def test_printer_detail_loads(self, client):
         """Test printer detail page loads."""
-        response = client.get("/printers/scan-results/Download-Label-png")
+        response = client.get("/printers/default/test-printer")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
 
@@ -388,21 +383,39 @@ class TestModernUIAdditionalEndpoints:
         response = client.get("/templates/preview?filename=nonexistent_xyz")
         assert response.status_code == 404
 
-    def test_config_view_redirects(self, client):
-        """Test config view redirects to legacy."""
-        response = client.get("/config/view", follow_redirects=False)
-        assert response.status_code == 303
+    def test_config_view_loads(self, client):
+        """Test config view page loads."""
+        response = client.get("/config/view")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
 
-    def test_config_edit_redirects(self, client):
-        """Test config edit redirects to legacy."""
-        response = client.get("/config/edit", follow_redirects=False)
-        assert response.status_code == 303
+    def test_config_edit_loads(self, client):
+        """Test config edit page loads."""
+        response = client.get("/config/edit")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
 
     def test_config_backups_loads(self, client):
         """Test config backups page loads."""
         response = client.get("/config/backups")
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
+
+    def test_config_new_loads(self, client):
+        """Test config new page loads."""
+        response = client.get("/config/new")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+    def test_config_reset_redirects(self, client):
+        """Test config reset redirects to config page."""
+        response = client.get("/config/reset", follow_redirects=False)
+        assert response.status_code == 303
+
+    def test_config_clear_redirects(self, client):
+        """Test config clear redirects to config page."""
+        response = client.get("/config/clear", follow_redirects=False)
+        assert response.status_code == 303
 
 
 # Keep the simple assertion test for backward compatibility

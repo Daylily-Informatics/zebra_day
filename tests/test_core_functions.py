@@ -173,12 +173,8 @@ class TestConfigJsonRoundtrip:
         zd_pm.clear_printers_json()
         zd_pm.create_new_printers_json_with_single_test_printer()
 
-        assert "scan-results" in zd_pm.printers["labs"]
-        # v2 schema: printers are nested under 'printers' key
-        assert "printers" in zd_pm.printers["labs"]["scan-results"]
-        assert "Download-Label-png" in zd_pm.printers["labs"]["scan-results"]["printers"]
-        assert (
-            zd_pm.printers["labs"]["scan-results"]["printers"]["Download-Label-png"]["ip_address"]
-            == "dl_png"
-        )
+        # v2 schema: only default lab exists (no virtual printers)
+        assert "default" in zd_pm.printers["labs"]
+        assert "printers" in zd_pm.printers["labs"]["default"]
+        assert "schema_version" in zd_pm.printers
 

@@ -211,6 +211,12 @@ def render_zpl_to_png(
         if not cmd:
             continue
 
+        # Strip inline comments (ZPL uses ; for comments)
+        if ';' in cmd:
+            cmd = cmd.split(';')[0].strip()
+            if not cmd:
+                continue
+
         # Label start/end - ignore
         if cmd.startswith('XA') or cmd.startswith('XZ'):
             continue

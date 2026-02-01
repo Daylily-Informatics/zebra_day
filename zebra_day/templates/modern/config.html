@@ -81,6 +81,13 @@
             <i class="fas fa-external-link-alt"></i> View Full
         </a>
     </div>
+
+    <!-- Config File Path -->
+    <div class="mb-md" style="padding: 0.75rem 1rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">
+        <span class="text-muted"><i class="fas fa-file-alt"></i> Loaded from:</span>
+        <code style="color: var(--color-highlight); margin-left: 0.5rem;">{{ config_file_path | default('Unknown') }}</code>
+    </div>
+
     {% if config_summary %}
     <div class="grid grid-4 mb-lg">
         <div class="stat-card">

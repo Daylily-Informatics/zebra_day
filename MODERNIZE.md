@@ -1,8 +1,8 @@
 # MODERNIZE.md - zebra_day Modernization Status
 
-> **Status**: ALL PHASES COMPLETE as of 1.0.0
+> **Status**: ALL PHASES COMPLETE as of 2.0.0
 
-This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
+This document tracked the modernization of zebra_day from 0.5.0 to 2.0.0.
 
 ---
 
@@ -13,7 +13,7 @@ This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
 - [x] Moved dev-only deps to optional extras
 - [x] Implemented structured logging
 - [x] Created custom exceptions
-- [x] Added comprehensive unit tests (16 tests passing)
+- [x] Added comprehensive unit tests (102 tests passing, 62% coverage)
 
 ### Phase 1 - Packaging Modernization
 - [x] Migrated to pyproject.toml (PEP 517/518)
@@ -30,12 +30,12 @@ This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
 
 ### Phase 3 - Web Stack Modernization
 - [x] Migrated from CherryPy to FastAPI + Uvicorn
-- [x] Implemented Jinja2 templates (26 templates total)
+- [x] Implemented Jinja2 templates (13 modern templates)
 - [x] Created versioned API (/api/v1/...)
 - [x] Added OpenAPI documentation (/docs, /redoc)
 - [x] Implemented optional Cognito authentication
 - [x] Created modern UI with Ursa-inspired design system
-- [x] Preserved legacy UI at /legacy prefix
+- [x] Removed legacy UI (2.0.0) - modern UI only
 
 ### Phase 4 - Observability
 - [x] Added health endpoints (/healthz, /readyz)
@@ -45,8 +45,17 @@ This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
 ### Phase 5 - CI/CD
 - [x] GitHub Actions workflow with lint, test, build, publish jobs
 - [x] Python version matrix (3.10, 3.11, 3.12, 3.13)
+- [x] OS matrix (ubuntu-latest, macos-latest)
 - [x] Ruff linting, Black formatting, mypy type checking
 - [x] Automated PyPI publishing on release
+
+### Phase 6 - v2.0.0 Breaking Changes
+- [x] New printer configuration schema with nested printers object
+- [x] Added printer_name, lab_location, manufacturer, notes, default_label_style fields
+- [x] Added lab_name, available_locations, schema_version fields
+- [x] HTTPS by default with mkcert support
+- [x] Removed all legacy UI and bin scripts
+- [x] Pure Python network scanner (replaced shell scripts)
 
 ### Bonus: Local ZPL Rendering
 - [x] Replaced external Labelary API with local renderer
@@ -59,6 +68,7 @@ This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
 ```bash
 # Development
 pytest -v                           # Run tests
+pytest --cov=zebra_day              # Run tests with coverage
 ruff check zebra_day tests          # Lint
 black --check zebra_day tests       # Format check
 mypy zebra_day                      # Type check
@@ -67,7 +77,8 @@ mypy zebra_day                      # Type check
 zday --help                         # Show all commands
 zday info                           # Show config paths and status
 zday bootstrap                      # First-time setup
-zday gui start                      # Start web server
+zday gui start                      # Start web server (HTTPS by default)
+zday gui start --no-https           # Start without HTTPS
 zday gui stop                       # Stop web server
 
 # Build

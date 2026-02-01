@@ -25,6 +25,7 @@ from importlib.resources import files
 
 from zebra_day.logging_config import get_logger
 from zebra_day import paths as xdg
+import zebra_day.cmd_mgr as zdcm
 
 _log = get_logger(__name__)
 
@@ -122,8 +123,7 @@ class zpl:
         else:
             self.create_new_printers_json_with_single_test_printer(str(jcfg))
 
-
-    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25", lab="scan-results", relative=False):
+    def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25", lab="default", relative=False):
         """
         Scan the network for zebra printers.
 
@@ -148,7 +148,7 @@ class zpl:
         # Initialize lab with v2 structure if not exists
         if lab not in self.printers['labs']:
             self.printers['labs'][lab] = {
-                "lab_name": lab,
+                "lab_name": lab.replace("-", " ").title(),
                 "available_locations": [],
                 "printers": {}
             }
@@ -156,59 +156,69 @@ class zpl:
         # Ensure lab has printers sub-object (migration from v1)
         if "printers" not in self.printers['labs'][lab]:
             self.printers['labs'][lab]["printers"] = {}
-            self.printers['labs'][lab].setdefault("lab_name", lab)
+            self.printers['labs'][lab].setdefault("lab_name", lab.replace("-", " ").title())
             self.printers['labs'][lab].setdefault("available_locations", [])
 
-        # Add the virtual PNG printer
-        self.printers['labs'][lab]["printers"]["Download-Label-png"] = {
-            "ip_address": "dl_png",
-            "printer_name": "Download Label as PNG",
-            "lab_location": None,
-            "manufacturer": "virtual",
-            "model": "na",
-            "serial": "na",
-            "label_zpl_styles": ["tube_2inX1in"],
-            "default_label_style": "tube_2inX1in",
-            "print_method": "generate png",
-            "arp_data": "",
-            "notes": ""
-        }
+        # Scan network for Zebra printers using pure Python
+        wait_time = float(scan_wait) if scan_wait else 0.25
 
-        # Run scanner script using subprocess instead of os.popen
-        script_path = Path(str(files('zebra_day'))) / "bin" / "scan_for_networed_zebra_printers_curl.sh"
-        result = subprocess.run(
-            [str(script_path), ip_stub, scan_wait],
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        for i in range(1, 255):
+            ip = f"{ip_stub}.{i}"
+            try:
+                # Try to connect to ZPL port (9100)
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(wait_time)
+                result = sock.connect_ex((ip, 9100))
+                sock.close()
 
-        for line in result.stdout.splitlines():
-            line = line.rstrip()
-            sl = line.split('|')
-            if len(sl) > 1:
-                zp = sl[0]
-                ip = sl[1]
-                model = sl[2]
-                serial = sl[3]
-                status = sl[4]
-                arp_response = sl[5]
+                if result == 0:
+                    # Port is open, try to get printer info
+                    model = "Unknown"
+                    serial = "Unknown"
 
-                if ip not in self.printers['labs'][lab]["printers"]:
-                    # The label formats set here are the installed defaults
-                    self.printers['labs'][lab]["printers"][ip] = {
-                        "ip_address": ip,
-                        "printer_name": None,  # User can set friendly name later
-                        "lab_location": None,  # User can set location later
-                        "manufacturer": "zebra",
-                        "model": model,
-                        "serial": serial,
-                        "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"],
-                        "default_label_style": "tube_2inX1in",  # Default to first style
-                        "print_method": "socket",
-                        "arp_data": arp_response,
-                        "notes": ""
-                    }
+                    try:
+                        # Query printer for model and serial
+                        printer = zdcm.ZebraPrinter(ip)
+                        config = printer.get_configuration()
+
+                        # Parse model from config
+                        if "MODEL" in config:
+                            for line in config.split('\n'):
+                                if "MODEL" in line.upper():
+                                    parts = line.split(':')
+                                    if len(parts) > 1:
+                                        model = parts[1].strip()
+                                        break
+
+                        # Parse serial from config
+                        if "SERIAL" in config.upper():
+                            for line in config.split('\n'):
+                                if "SERIAL" in line.upper():
+                                    parts = line.split(':')
+                                    if len(parts) > 1:
+                                        serial = parts[1].strip()
+                                        break
+                    except Exception:
+                        pass  # Use defaults if we can't query printer
+
+                    if ip not in self.printers['labs'][lab]["printers"]:
+                        # The label formats set here are the installed defaults
+                        self.printers['labs'][lab]["printers"][ip] = {
+                            "ip_address": ip,
+                            "printer_name": None,  # User can set friendly name later
+                            "lab_location": None,  # User can set location later
+                            "manufacturer": "zebra",
+                            "model": model,
+                            "serial": serial,
+                            "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in", "tube_2inX0.3in"],
+                            "default_label_style": "tube_2inX1in",  # Default to first style
+                            "print_method": "socket",
+                            "arp_data": "",
+                            "notes": ""
+                        }
+            except Exception:
+                pass  # Skip unreachable IPs
 
         self.save_printer_json(self.printers_filename, relative=False)
 
@@ -486,20 +496,11 @@ class zpl:
         with open(log_file, 'a') as f:
             f.write(log_entry)
 
-        ret_s = None
-        if printer_ip in ['dl_png']:
-            png_fn = str(xdg.get_generated_files_dir() / f"zpl_label_{label_zpl_style}_{rec_date}.png")
-            ret_s = self.generate_label_png(zpl_string, png_fn, False)
+        # Send to printer
+        for _ in range(print_n):
+            send_zpl_code(zpl_string, printer_ip)
 
-        else:
-            pn = 1
-            while pn <= print_n:
-                send_zpl_code(zpl_string, printer_ip)
-                pn += 1
-
-            ret_s = zpl_string
-
-        return ret_s
+        return zpl_string
 
 
 def _get_local_ip() -> str:

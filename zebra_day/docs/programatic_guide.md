@@ -84,30 +84,56 @@ Rather than print a physical label, produce a `png`... this is most helpful when
 
 ## Data Structures
 
-### Printer json
+### Printer json (v2.0.0 Schema)
 This is the file which describes the printer fleet. It may be manually edited or edited via the GUI.
 
 ```json
-  {
+{
+    "schema_version": "2.0.0",
     "labs": {
         "scan-results": {
-            "Download-Label-png": {
-                "ip_address": "dl_png",
-                "label_zpl_styles": [
-                    "test_2inX1in"
-                ],
-                "print_method": "generate png",
-                "model": "na",
-                "serial": "na"
-              }
-          }
-      }
-   }
+            "lab_name": "Scan Results",
+            "available_locations": ["Bench A", "Bench B"],
+            "printers": {
+                "Download-Label-png": {
+                    "ip_address": "dl_png",
+                    "printer_name": "Download Label as PNG",
+                    "lab_location": null,
+                    "manufacturer": "virtual",
+                    "model": "na",
+                    "serial": "na",
+                    "label_zpl_styles": ["tube_2inX1in"],
+                    "default_label_style": "tube_2inX1in",
+                    "print_method": "generate png",
+                    "arp_data": "",
+                    "notes": ""
+                },
+                "192.168.1.7": {
+                    "ip_address": "192.168.1.7",
+                    "printer_name": "Main Lab Printer",
+                    "lab_location": "Bench A",
+                    "manufacturer": "zebra",
+                    "model": "ZD620",
+                    "serial": "12345",
+                    "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in"],
+                    "default_label_style": "tube_2inX1in",
+                    "print_method": "socket",
+                    "arp_data": "",
+                    "notes": "Primary sample printer"
+                }
+            }
+        }
+    }
+}
 ```
 
-  `labs` keys to a dict where each key can be a lab or IP block more likely, each termed a `lab` presently. The `lab` key in this example is `scan-results`, 
-  this is the lab name assigned from scratch when the autodetect runs the first time. These names are editable via the GUI.
-  The dictionary each lab points to have all keys being `printer_names` which then key to the printer specifics we need to know. The example here is the entry for the virtual PNG producing printer. When autodetection runs, detected printers are automatically added to the active printer.json.
+**Schema v2.0.0 Changes:**
+- `labs` now contains nested `printers` object (not flat printer entries)
+- Added `lab_name` and `available_locations` at lab level
+- Added `printer_name`, `lab_location`, `manufacturer`, `default_label_style`, `notes` at printer level
+- Added `schema_version` at root level
+
+The `lab` key in this example is `scan-results`, which is the lab name assigned when autodetect runs. These names are editable via the GUI. Printers are nested under the `printers` key within each lab.
 
 ### ZPL Template Files
 These are template files for various different label styles. These may be manually edited (but its a nicer expereience using the UI)

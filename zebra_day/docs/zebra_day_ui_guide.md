@@ -1,23 +1,26 @@
 # ZDAY UI GUIDE
 
-## Modern vs Legacy UI (0.6.0+)
+## Modern Web UI (2.0.0+)
 
-zebra_day 0.6.0+ introduces a redesigned modern UI alongside the preserved legacy interface:
+zebra_day 2.0.0+ features a modern, responsive web interface with HTTPS support:
 
 | Interface | URL | Description |
 |-----------|-----|-------------|
-| **Modern UI** | `http://localhost:8118/` | New dashboard with stats, quick actions, improved navigation |
-| **Legacy UI** | `http://localhost:8118/legacy` | Original interface (documented below), fully functional |
-| **API Docs** | `http://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
-| **ReDoc** | `http://localhost:8118/redoc` | Alternative API documentation |
+| **Dashboard** | `https://localhost:8118/` | Printer fleet stats, quick actions, navigation |
+| **Printers** | `https://localhost:8118/printers` | Printer status and management by lab |
+| **Print** | `https://localhost:8118/print` | Send print requests with template selection |
+| **Templates** | `https://localhost:8118/templates` | ZPL template editor with live PNG preview |
+| **Config** | `https://localhost:8118/config` | Printer configuration management |
+| **API Docs** | `https://localhost:8118/docs` | Interactive OpenAPI/Swagger documentation |
+| **ReDoc** | `https://localhost:8118/redoc` | Alternative API documentation |
 
-Both interfaces provide full functionality. Choose based on your preference.
+> **Note:** Use `http://` instead of `https://` if running without certificates (`--no-https`).
 
 ---
 
-## Legacy UI Documentation
+## UI Documentation
 
-> The screenshots below show the Legacy UI. Everything which can be accomplished via this UI can also be achieved with the library code directly (more so in fact).
+> The screenshots below show the UI. Everything which can be accomplished via this UI can also be achieved with the library code directly (more so in fact).
 
 ### Home, 4 Primary Tool Clusters Available
 
