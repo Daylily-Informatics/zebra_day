@@ -38,7 +38,7 @@ zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='
 
 ### Load/Save/Clear Printer Config json
 
-> As of v0.6.0, printer configuration is stored in XDG-compliant locations:
+> As of 0.6.0, printer configuration is stored in XDG-compliant locations:
 > - **Linux**: `~/.config/zebra_day/printer_config.json`
 > - **macOS**: `~/Library/Preferences/zebra_day/printer_config.json`
 >

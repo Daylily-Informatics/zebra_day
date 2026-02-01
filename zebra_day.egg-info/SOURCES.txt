@@ -49,6 +49,7 @@ zebra_day/etc/tmp_printers504.json
 zebra_day/etc/tmp_printers608.json
 zebra_day/etc/tmp_printers657.json
 zebra_day/etc/tmp_printers838.json
+zebra_day/etc/tmp_printers839.json
 zebra_day/etc/tmp_printers933.json
 zebra_day/etc/tmp_printers957.json
 zebra_day/etc/label_styles/blank.zpl
@@ -111,6 +112,7 @@ zebra_day/files/hold
 zebra_day/files/test_png_17696.png
 zebra_day/files/test_png_23477.png
 zebra_day/files/test_png_28157.png
+zebra_day/files/test_png_35832.png
 zebra_day/files/test_png_36400.png
 zebra_day/files/test_png_40816.png
 zebra_day/files/test_png_49564.png

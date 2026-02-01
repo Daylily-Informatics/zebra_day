@@ -1,8 +1,8 @@
 # ZDAY UI GUIDE
 
-## Modern vs Legacy UI (v0.6.0+)
+## Modern vs Legacy UI (0.6.0+)
 
-zebra_day v0.6.0 introduces a redesigned modern UI alongside the preserved legacy interface:
+zebra_day 0.6.0+ introduces a redesigned modern UI alongside the preserved legacy interface:
 
 | Interface | URL | Description |
 |-----------|-----|-------------|

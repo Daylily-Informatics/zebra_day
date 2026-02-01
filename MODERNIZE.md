@@ -1,8 +1,8 @@
 # MODERNIZE.md - zebra_day Modernization Status
 
-> **Status**: ALL PHASES COMPLETE as of v0.6.0
+> **Status**: ALL PHASES COMPLETE as of 1.0.0
 
-This document tracked the modernization of zebra_day from v0.5.0 to v0.6.0.
+This document tracked the modernization of zebra_day from 0.5.0 to 1.0.0.
 
 ---
 

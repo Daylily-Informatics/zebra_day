@@ -1,6 +1,6 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [v0.6.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/v0.6.0)
+## zebra_day Overview [1.0.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/1.0.0)
 
 ### Build, Deploy, Run, Monitor, Teardown
 
@@ -19,7 +19,7 @@ ruff check zebra_day tests
 black --check zebra_day tests
 mypy zebra_day --ignore-missing-imports
 
-# CLI Commands (new in v0.6.0)
+# CLI Commands (new in 0.6.0)
 zday --help               # Show all commands
 zday bootstrap            # First-time setup: scan for printers
 zday gui start            # Start web UI in background
@@ -105,7 +105,7 @@ zday gui stop
 
 </ul>
 
-### CLI Reference (v0.6.0+)
+### CLI Reference (0.6.0+)
 
 The `zday` CLI provides a comprehensive interface for managing your Zebra printer fleet.
 
@@ -143,7 +143,7 @@ zday cognito status               # Show auth configuration
 zday cognito info                 # Setup instructions
 ```
 
-#### Migration from v0.5.x
+#### Migration from 0.5.x
 
 The old commands `zday_start` and `zday_quickstart` still work but are deprecated:
 
@@ -244,7 +244,7 @@ python -m build              # Creates dist/*.whl and dist/*.tar.gz
 
 ### File Locations (XDG-compliant)
 
-zebra_day v0.6.0+ uses XDG Base Directory specification for file storage:
+zebra_day 0.6.0+ uses XDG Base Directory specification for file storage:
 
 | Type | macOS | Linux |
 |------|-------|-------|
@@ -438,7 +438,7 @@ uvicorn zebra_day.web.app:create_app --host 0.0.0.0 --port 8118 --factory
 
 ### Modern vs Legacy UI
 
-zebra_day v0.6.0 includes a redesigned modern UI alongside the preserved legacy interface:
+zebra_day 0.6.0+ includes a redesigned modern UI alongside the preserved legacy interface:
 
 | Interface | URL | Description |
 |-----------|-----|-------------|
@@ -721,5 +721,6 @@ Tthen run `sudo docker compose up --build -d` to run it then reach it at http://
 [![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
 
 <br>
+ 
  
  
