@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zebra_day"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python library to manage a Zebra printer fleet and an API for ZPL print requests."
 readme = "README.md"
 license = {text = "MIT"}
@@ -59,7 +59,7 @@ docs = [
     "mkdocs-material>=9.0.0",
 ]
 auth = [
-    "daylily-cognito @ git+https://github.com/Daylily-Informatics/daylily-cognito.git@0.1.9",
+    "daylily-cognito>=0.1.10",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.26.0",
 ]

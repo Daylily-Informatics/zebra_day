@@ -1,6 +1,6 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [1.0.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/1.0.0)
+## zebra_day Overview [1.0.1](https://github.com/Daylily-Informatics/zebra_day/releases/tag/1.0.1)
 
 ### Build, Deploy, Run, Monitor, Teardown
 
