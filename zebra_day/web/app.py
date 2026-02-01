@@ -38,7 +38,7 @@ def get_local_ip() -> str:
 def create_app(
     *,
     debug: bool = False,
-    css_theme: str = "oakland.css",
+    css_theme: str = "lsmc.css",
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
