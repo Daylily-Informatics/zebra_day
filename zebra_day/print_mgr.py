@@ -21,7 +21,6 @@ import sys
 import time
 from pathlib import Path
 
-import requests
 from importlib.resources import files
 
 from zebra_day.logging_config import get_logger
@@ -366,32 +365,37 @@ class zpl:
 
 
     
-    def generate_label_png(self,zpl_string=None, png_fn=None, relative=False):
+    def generate_label_png(self, zpl_string=None, png_fn=None, relative=False):
         """
-         If not sending to a printer, produce the png of what would be printed
+        Generate a PNG image from ZPL string using local renderer.
+
+        This uses a local ZPL renderer (Pillow + zint-bindings) instead of
+        the external Labelary API, enabling offline operation and avoiding
+        rate limits.
+
+        Args:
+            zpl_string: The ZPL code to render
+            png_fn: Output filename for the PNG
+            relative: If True, treat png_fn as relative to package directory
+
+        Returns:
+            Path to the generated PNG file
         """
+        from zebra_day.zpl_renderer import render_zpl_to_png
 
-        if relative in [True]:
-            png_fn = str(files('zebra_day'))+'/'+png_fn
-            
-        if zpl_string in [None] or png_fn in [None]:
-            raise Exception('ERROR: zpl_string and png_fn may not be None.')
+        if relative:
+            png_fn = str(files('zebra_day')) + '/' + png_fn
 
-        # Labelary API URL
-        labelary_url = "http://api.labelary.com/v1/printers/8dpmm/labels/4x6/0/"
-        # Create a POST request to the Labelary API
-        response = requests.post(labelary_url, data=zpl_string)
+        if zpl_string is None or png_fn is None:
+            raise ValueError('ERROR: zpl_string and png_fn may not be None.')
 
-        # Check if the request was successful
-        if response.status_code == 200:
-            # Save the image to a file
-            with open(png_fn, "wb") as f:
-                f.write(response.content)
-                _log.info("Image saved as %s", png_fn)
-        else:
-            _log.error("Failed to convert ZPL to image. Status code: %d", response.status_code)
-
-        return png_fn
+        try:
+            result = render_zpl_to_png(zpl_string, png_fn)
+            _log.info("Label image saved as %s", result)
+            return result
+        except Exception as e:
+            _log.error("Failed to convert ZPL to image: %s", e)
+            raise
                      
 
     def print_raw_zpl(self,zpl_content,printer_ip, port=9100):

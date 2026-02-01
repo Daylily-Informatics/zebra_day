@@ -20,7 +20,7 @@
 ## Trade-offs
 - **Stability vs. modernization speed**: largest risk is changing persistence paths and the web stack; phase those changes.
 - **Fewer deps vs. better ergonomics**: e.g., IP detection/config dirs can be stdlib-only but less robust.
-- **Local/offline vs. cloud conveniences**: Labelary PNG rendering is an external HTTP dependency; replacing it is work.
+- **Local/offline vs. cloud conveniences**: ~~Labelary PNG rendering is an external HTTP dependency; replacing it is work.~~ ✅ Replaced with local ZPL renderer using Pillow + zint-bindings.
 
 ---
 
@@ -109,4 +109,4 @@ CherryPy works, but modern Python web tooling is centered around ASGI.
 - Typecheck (if added): `mypy zebra_day`
 
 ## Finally, Plan For
-- Replacing labelary PNG rendering is an external HTTP dependency; replacing it is work.
+- ~~Replacing labelary PNG rendering is an external HTTP dependency; replacing it is work.~~ ✅ **DONE**: Replaced with `zebra_day/zpl_renderer.py` using Pillow + zint-bindings for offline ZPL-to-PNG rendering.

@@ -136,8 +136,30 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 0 ]; then
         log_success "Using repo-local .venv on PATH"
         _ZDAY_ACTIVATE_OK=1
     else
-        log_error "No usable environment found (conda unavailable/failed and ${VENV_BIN}/python missing)"
-        _ZDAY_ACTIVATE_OK=0
+        # Try to create .venv with Python >= 3.10
+        log_info "No .venv found. Attempting to create one with Python >= 3.10..."
+        _ZDAY_PY=""
+        for _py in python3.13 python3.12 python3.11 python3.10; do
+            if command -v "$_py" >/dev/null 2>&1; then
+                _ZDAY_PY="$_py"
+                break
+            fi
+        done
+        if [ -n "$_ZDAY_PY" ]; then
+            log_info "Found $_ZDAY_PY, creating .venv..."
+            if "$_ZDAY_PY" -m venv "${SCRIPT_DIR}/.venv" 2>/dev/null; then
+                log_success "Created .venv with $_ZDAY_PY"
+                export PATH="${VENV_BIN}:${PATH}"
+                _ZDAY_ACTIVATE_OK=1
+            else
+                log_error "Failed to create .venv with $_ZDAY_PY"
+                _ZDAY_ACTIVATE_OK=0
+            fi
+        else
+            log_error "No Python >= 3.10 found. Please install Python 3.10+ and try again."
+            _ZDAY_ACTIVATE_OK=0
+        fi
+        unset _ZDAY_PY _py
     fi
 fi
 
