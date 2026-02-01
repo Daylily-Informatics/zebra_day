@@ -1,0 +1,141 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Print Label - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Print Label</h1>
+    <p class="page-subtitle">Send a label print request to a Zebra printer</p>
+</div>
+
+<form id="print-form" action="/_print_label" method="get">
+    <div class="grid grid-2">
+        <!-- Printer Selection -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">1. Select Printer</h3>
+            </div>
+            <div class="form-group">
+                <label class="form-label required">Lab</label>
+                <select id="lab-select" name="lab" class="form-control" onchange="updatePrinters()" required>
+                    <option value="">Select a lab...</option>
+                    {% for lab in labs %}
+                    <option value="{{ lab }}" {% if selected_lab == lab %}selected{% endif %}>{{ lab }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label required">Printer</label>
+                <select id="printer-select" name="printer" class="form-control" required>
+                    <option value="">Select a printer...</option>
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label required">Label Template</label>
+                <select name="label_zpl_style" class="form-control" required>
+                    <option value="">Select a template...</option>
+                    {% if stable_templates %}
+                    <optgroup label="Stable Templates">
+                        {% for template in stable_templates %}
+                        <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                    {% if draft_templates %}
+                    <optgroup label="Draft Templates">
+                        {% for template in draft_templates %}
+                        <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endif %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Label Data -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">2. Label Data</h3>
+            </div>
+            <div class="form-group">
+                <label class="form-label">UID Barcode</label>
+                <input type="text" name="uid_barcode" class="form-control" placeholder="Enter barcode value">
+            </div>
+            <div class="grid grid-2" style="gap: var(--spacing-md);">
+                <div class="form-group">
+                    <label class="form-label">Alt A</label>
+                    <input type="text" name="alt_a" class="form-control" placeholder="Field A">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Alt B</label>
+                    <input type="text" name="alt_b" class="form-control" placeholder="Field B">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Alt C</label>
+                    <input type="text" name="alt_c" class="form-control" placeholder="Field C">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Alt D</label>
+                    <input type="text" name="alt_d" class="form-control" placeholder="Field D">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Alt E</label>
+                    <input type="text" name="alt_e" class="form-control" placeholder="Field E">
+                </div>
+                <div class="form-group mb-0">
+                    <label class="form-label">Alt F</label>
+                    <input type="text" name="alt_f" class="form-control" placeholder="Field F">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="card mt-lg">
+        <div class="d-flex" style="justify-content: space-between; align-items: center;">
+            <a href="/" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-primary btn-lg" onclick="showLoading('Sending print request...')">
+                <i class="fas fa-print"></i> Print Label
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var labsDict = {{ labs_dict | safe }};
+    var selectedPrinter = '{{ selected_printer | default("") }}';
+
+    function updatePrinters() {
+        var labSelect = document.getElementById('lab-select');
+        var printerSelect = document.getElementById('printer-select');
+        var lab = labSelect.value;
+
+        printerSelect.innerHTML = '<option value="">Select a printer...</option>';
+
+        if (lab && labsDict[lab]) {
+            for (var printer in labsDict[lab]) {
+                var option = document.createElement('option');
+                option.value = printer;
+                option.text = printer;
+                if (printer === selectedPrinter) {
+                    option.selected = true;
+                }
+                printerSelect.appendChild(option);
+            }
+        }
+    }
+
+    // Initialize printers if lab is pre-selected
+    document.addEventListener('DOMContentLoaded', function() {
+        var labSelect = document.getElementById('lab-select');
+        if (labSelect.value) {
+            updatePrinters();
+        }
+    });
+</script>
+{% endblock %}
+

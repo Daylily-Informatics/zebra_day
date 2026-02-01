@@ -1,0 +1,32 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Send Label Print Request</h1>
+<small><a href="/legacy">home</a></small>
+<hr>
+
+<h3>{{ lab }} .. {{ printer }} .. {{ printer_ip }} .. {{ label_zpl_style }}</h3>
+<hr>
+
+<form id="myForm" action="/legacy/_print_label">
+    <ul>
+        <li><label>UID for Barcode:</label> <input type="text" name="uid_barcode"></li>
+        <li><label>ALT-A:</label> <input type="text" name="alt_a"></li>
+        <li><label>ALT-B:</label> <input type="text" name="alt_b"></li>
+        <li><label>ALT-C:</label> <input type="text" name="alt_c"></li>
+        <li><label>ALT-D:</label> <input type="text" name="alt_d"></li>
+        <li><label>ALT-E:</label> <input type="text" name="alt_e"></li>
+        <li><label>ALT-F:</label> <input type="text" name="alt_f"></li>
+    </ul>
+    <br>
+    <label>Override Lab:</label> <input type="text" name="lab" value="{{ lab }}"><br>
+    <label>Override Printer:</label> <input type="text" name="printer" value="{{ printer }}"><br>
+    <label>Override IP:</label> <input type="text" name="printer_ip" value="{{ printer_ip }}"><br>
+    <label>Override label_style_zpl:</label> <input type="text" name="label_zpl_style" value="{{ label_zpl_style }}"><br>
+    <br>
+    <input type="submit" value="Print Label">
+</form>
+{% endblock %}
+

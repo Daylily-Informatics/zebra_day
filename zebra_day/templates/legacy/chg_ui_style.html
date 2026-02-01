@@ -1,0 +1,19 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Change The Zebra Day UI Style</h1>
+<ul>
+    <small><a href="/legacy">home</a></small>
+    <hr>
+
+    <h2>Available Style CSS Files:</h2>
+    <ul>
+        {% for css_file in css_files %}
+        <li><a href="/legacy/chg_ui_style?css_file={{ css_file }}">{{ css_file }}</a></li>
+        {% endfor %}
+    </ul>
+</ul>
+{% endblock %}
+

@@ -1,0 +1,88 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Print Result - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Print Result</h1>
+    <p class="page-subtitle">Label print request completed</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Result Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                {% if success %}
+                <i class="fas fa-check-circle text-success"></i> Success
+                {% else %}
+                <i class="fas fa-times-circle text-error"></i> Failed
+                {% endif %}
+            </h3>
+        </div>
+        
+        {% if success %}
+        <p class="mb-lg">Your label has been sent to the printer successfully.</p>
+        {% else %}
+        <p class="mb-lg text-error">{{ error_message | default('An error occurred while printing.') }}</p>
+        {% endif %}
+
+        {% if full_url %}
+        <div class="form-group">
+            <label class="form-label">Request URL</label>
+            <div class="d-flex gap-sm">
+                <input type="text" class="form-control" value="{{ full_url }}" readonly id="request-url">
+                <button type="button" class="btn btn-outline btn-sm" onclick="copyToClipboard(document.getElementById('request-url').value)">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <small class="text-muted">Save this URL to quickly repeat this print request</small>
+        </div>
+        {% endif %}
+
+        <div class="quick-actions mt-lg">
+            <a href="/print" class="action-card">
+                <i class="fas fa-print"></i>
+                <div>
+                    <strong>Print Another</strong>
+                    <small class="text-muted d-block">New print request</small>
+                </div>
+            </a>
+            <a href="/" class="action-card">
+                <i class="fas fa-home"></i>
+                <div>
+                    <strong>Dashboard</strong>
+                    <small class="text-muted d-block">Go back home</small>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Preview Card -->
+    {% if png_url %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Label Preview</h3>
+            <a href="{{ png_url }}" target="_blank" class="btn btn-outline btn-sm">
+                <i class="fas fa-external-link-alt"></i> Open Full Size
+            </a>
+        </div>
+        <div style="text-align: center; background: var(--color-white); padding: var(--spacing-lg); border-radius: var(--radius-md);">
+            <img src="{{ png_url }}" alt="Label preview" style="max-width: 100%; height: auto;">
+        </div>
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Label Preview</h3>
+        </div>
+        <div class="empty-state">
+            <i class="fas fa-image"></i>
+            <p>Preview sent directly to printer</p>
+            <small class="text-muted">PNG preview is only available when using the dl_png virtual printer</small>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

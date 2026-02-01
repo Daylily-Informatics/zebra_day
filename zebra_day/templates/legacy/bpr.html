@@ -1,0 +1,72 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Formulate Print Request, Step 1</h1>
+<small><a href="/legacy">home</a></small>
+
+<h2>Select Lab + Printer + ZPL Template</h2>
+<hr>
+<p align="center">You will be prompted for the data to print on the next page</p>
+
+<form name="bpr_form" action="/legacy/build_print_request" align="center">
+    <ul>
+        <li>
+            <label>Select a lab:</label>
+            <select id="labsDropdown" name="lab" onchange="populatePrinters()">
+                <option value="">Select Lab</option>
+                {% for lab in labs %}
+                <option value="{{ lab }}">{{ lab }}</option>
+                {% endfor %}
+            </select>
+        </li>
+        <li>
+            <label>Select a printer:</label>
+            <select id="printersDropdown" name="printer">
+                <option value="">Select Printer</option>
+            </select>
+        </li>
+        <li>
+            <label>Select a template:</label>
+            <select name="label_zpl_style">
+                <option value="">Select one</option>
+                <optgroup label="Stable Templates">
+                    {% for template in stable_templates %}
+                    <option value="{{ template }}">{{ template }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="Draft Templates">
+                    {% for template in draft_templates %}
+                    <option value="{{ template }}">{{ template }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+        </li>
+    </ul>
+    <br>
+    <input type="submit" value="Continue">
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var labs = {{ labs_dict | safe }};
+
+    function populatePrinters() {
+        var lab = document.getElementById("labsDropdown").value;
+        var printersDropdown = document.getElementById("printersDropdown");
+        printersDropdown.innerHTML = '<option value="">Select Printer</option>';
+        
+        if (lab && labs[lab]) {
+            for (var printer in labs[lab]) {
+                var option = document.createElement("option");
+                option.text = printer;
+                option.value = printer;
+                printersDropdown.add(option);
+            }
+        }
+    }
+</script>
+{% endblock %}
+

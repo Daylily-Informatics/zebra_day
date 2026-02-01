@@ -1,0 +1,29 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>View and Edit Printer Config JSON</h1>
+<small><a href="/legacy">home</a></small>
+<hr>
+
+{% if error_msg %}
+<p style="color: red; font-weight: bold;">{{ error_msg }}</p>
+{% endif %}
+
+<form action="/legacy/save_pstation_json" method="post">
+    <textarea name="json_data" rows="45" cols="80">{{ config_data }}</textarea>
+    <br>
+    <input type="submit" value="Save New Printers Config JSON & Make Active">
+</form>
+
+<hr>
+<ul>
+    <li><a href="/legacy/list_prior_printer_config_files">View backed up printers JSON config files</a></li>
+    <hr>
+    <li><a href="/legacy/reset_pstation_json">Restore Printer Settings From Default JSON (THIS WILL DELETE YOUR CURRENT FILE!)</a></li>
+    <hr>
+    <li><a href="/legacy/clear_printers_json">CLEAR contents of current printers.json file (This Cannot Be Undone)</a></li>
+</ul>
+{% endblock %}
+

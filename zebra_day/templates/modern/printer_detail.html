@@ -1,0 +1,117 @@
+{% extends "modern/base.html" %}
+
+{% block title %}{{ printer_name }} - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{{ printer_name }}</h1>
+    <p class="page-subtitle">Printer details for {{ lab }}</p>
+</div>
+
+<!-- Breadcrumb -->
+<div class="mb-lg">
+    <a href="/" class="text-muted">Dashboard</a>
+    <span class="text-muted"> / </span>
+    <a href="/printers">Printers</a>
+    <span class="text-muted"> / </span>
+    <a href="/printers/{{ lab }}">{{ lab }}</a>
+    <span class="text-muted"> / </span>
+    <span>{{ printer_name }}</span>
+</div>
+
+<div class="grid grid-2">
+    <!-- Printer Info -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Printer Information</h3>
+            {% if printer_info.ip_address != 'dl_png' %}
+            <a href="http://{{ printer_info.ip_address }}" target="_blank" class="btn btn-outline btn-sm">
+                <i class="fas fa-external-link-alt"></i> Web Interface
+            </a>
+            {% endif %}
+        </div>
+        <table class="table" style="background: transparent; box-shadow: none;">
+            <tbody>
+                {% for key, value in printer_info.items() %}
+                <tr>
+                    <td style="width: 40%;"><strong>{{ key }}</strong></td>
+                    <td>
+                        {% if key == 'ip_address' and value != 'dl_png' %}
+                        <a href="http://{{ value }}" target="_blank">{{ value }}</a>
+                        {% elif key == 'status' %}
+                        {% if value == 'online' %}
+                        <span class="badge badge-success">Online</span>
+                        {% else %}
+                        <span class="badge badge-error">Offline</span>
+                        {% endif %}
+                        {% elif key == 'label_zpl_styles' %}
+                        {% for style in value %}
+                        <span class="badge badge-primary">{{ style }}</span>
+                        {% endfor %}
+                        {% else %}
+                        {{ value }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+        </div>
+        <div class="quick-actions">
+            <a href="/print?lab={{ lab }}&printer={{ printer_name }}" class="action-card">
+                <i class="fas fa-print"></i>
+                <div>
+                    <strong>Print Label</strong>
+                    <small class="text-muted d-block">Send a print request</small>
+                </div>
+            </a>
+            <a href="/templates" class="action-card">
+                <i class="fas fa-file-code"></i>
+                <div>
+                    <strong>View Templates</strong>
+                    <small class="text-muted d-block">Available label styles</small>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Printer Configuration -->
+{% if printer_config %}
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Printer Configuration</h3>
+        <button class="btn btn-outline btn-sm" onclick="copyToClipboard(document.getElementById('printer-config').textContent)">
+            <i class="fas fa-copy"></i> Copy
+        </button>
+    </div>
+    <pre id="printer-config">{{ printer_config }}</pre>
+</div>
+{% endif %}
+
+<!-- Test Print Section -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Test Print</h3>
+    </div>
+    <p class="text-muted mb-lg">Send a test label to verify the printer is working correctly.</p>
+    <div class="grid grid-3">
+        {% for style in printer_info.label_zpl_styles[:6] %}
+        <a href="/print?lab={{ lab }}&printer={{ printer_name }}&template={{ style }}&test=1" class="action-card">
+            <i class="fas fa-tag"></i>
+            <div>
+                <strong>{{ style }}</strong>
+                <small class="text-muted d-block">Test print</small>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+

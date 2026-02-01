@@ -1,0 +1,46 @@
+{% extends "modern/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Template Saved</h1>
+    <p class="page-subtitle">Your changes have been saved to a draft file</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon text-success"><i class="fas fa-check-circle"></i></span>
+        <h3 class="card-title">Success</h3>
+    </div>
+    
+    <p>Your changes have been saved to a new draft file:</p>
+    
+    <div class="alert alert-info mt-md">
+        <i class="fas fa-file-code"></i>
+        <code>{{ new_filename }}</code>
+    </div>
+    
+    <p class="text-muted mt-md">
+        Draft files are saved in the <code>tmps/</code> directory. To promote a draft to stable, 
+        rename the file and move it to the main label_styles directory.
+    </p>
+</div>
+
+<div class="card mt-lg">
+    <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md);">
+        <a href="/templates" class="btn btn-outline">
+            <i class="fas fa-arrow-left"></i> Back to Templates
+        </a>
+        <div class="d-flex gap-md">
+            <a href="/templates/edit?filename={{ new_filename }}&dtype=tmps" class="btn btn-primary">
+                <i class="fas fa-edit"></i> Continue Editing
+            </a>
+            <a href="/" class="btn btn-outline">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

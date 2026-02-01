@@ -2,6 +2,9 @@
 UI router for zebra_day web interface.
 
 Provides HTML endpoints for the web-based management interface.
+Supports dual interfaces:
+- Modern UI: Root routes (/, /printers, /print, /templates, /config)
+- Legacy UI: Routes under /legacy prefix
 """
 from __future__ import annotations
 
@@ -26,7 +29,7 @@ router = APIRouter()
 
 
 def get_template_context(request: Request, **kwargs) -> dict:
-    """Build common template context."""
+    """Build common template context for legacy templates."""
     return {
         "request": request,
         "css_theme": f"static/{request.app.state.css_theme}",
@@ -35,9 +38,447 @@ def get_template_context(request: Request, **kwargs) -> dict:
     }
 
 
+def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dict:
+    """Build common template context for modern templates."""
+    return {
+        "request": request,
+        "active_page": active_page,
+        "local_ip": request.app.state.local_ip,
+        "version": getattr(request.app.state, "version", "0.7.0"),
+        "cache_bust": str(int(time.time())),
+        **kwargs,
+    }
+
+
+def get_templates_list(pkg_path: Path) -> tuple[list, list]:
+    """Get lists of stable and draft templates."""
+    styles_dir = pkg_path / "etc" / "label_styles"
+    stable_templates = []
+    draft_templates = []
+
+    if styles_dir.exists():
+        for f in sorted(styles_dir.iterdir()):
+            if f.is_file() and f.suffix == ".zpl":
+                stable_templates.append(f.stem)
+
+    tmps_dir = styles_dir / "tmps"
+    if tmps_dir.exists():
+        for f in sorted(tmps_dir.iterdir()):
+            if f.is_file() and f.suffix == ".zpl":
+                draft_templates.append(f.stem)
+
+    return stable_templates, draft_templates
+
+
+def get_stats(zp, pkg_path: Path) -> dict:
+    """Calculate dashboard statistics."""
+    labs = zp.printers.get("labs", {})
+    total_printers = sum(len(printers) for printers in labs.values())
+    stable, draft = get_templates_list(pkg_path)
+
+    # Count backup files
+    bkup_dir = pkg_path / "etc" / "old_printer_config"
+    backups = len(list(bkup_dir.iterdir())) if bkup_dir.exists() else 0
+
+    return {
+        "total_labs": len(labs),
+        "total_printers": total_printers,
+        "online_printers": 0,  # Would need to check each printer
+        "total_templates": len(stable) + len(draft),
+        "backups": backups,
+    }
+
+
+# =============================================================================
+# MODERN UI ROUTES (root level)
+# =============================================================================
+
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    """Home page."""
+async def modern_dashboard(request: Request):
+    """Modern dashboard - home page."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    labs = zp.printers.get("labs", {})
+    stats = get_stats(zp, pkg_path)
+
+    context = get_modern_context(
+        request,
+        active_page="dashboard",
+        labs=labs,
+        stats=stats,
+    )
+    return templates.TemplateResponse("modern/dashboard.html", context)
+
+
+@router.get("/printers", response_class=HTMLResponse)
+async def modern_printers(request: Request):
+    """Modern printers list - all labs."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+
+    labs = list(zp.printers.get("labs", {}).keys())
+    ip_root = ".".join(request.app.state.local_ip.split(".")[:-1])
+
+    context = get_modern_context(
+        request,
+        active_page="printers",
+        labs=labs,
+        printers=None,
+        lab=None,
+        ip_root=ip_root,
+    )
+    return templates.TemplateResponse("modern/printers.html", context)
+
+
+@router.get("/printers/{lab}", response_class=HTMLResponse)
+async def modern_printers_by_lab(request: Request, lab: str):
+    """Modern printers list for a specific lab."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+
+    if lab not in zp.printers.get("labs", {}):
+        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+
+    printers = []
+    for name, info in zp.printers["labs"][lab].items():
+        printers.append({
+            "name": name,
+            "ip_address": info.get("ip_address", ""),
+            "model": info.get("model", ""),
+            "serial": info.get("serial", ""),
+            "label_zpl_styles": info.get("label_zpl_styles", []),
+            "status": "online" if info.get("ip_address") else "unknown",
+        })
+
+    ip_root = ".".join(request.app.state.local_ip.split(".")[:-1])
+
+    context = get_modern_context(
+        request,
+        active_page="printers",
+        labs=list(zp.printers.get("labs", {}).keys()),
+        printers=printers,
+        lab=lab,
+        ip_root=ip_root,
+    )
+    return templates.TemplateResponse("modern/printers.html", context)
+
+
+@router.get("/printers/{lab}/{printer_name}", response_class=HTMLResponse)
+async def modern_printer_detail(request: Request, lab: str, printer_name: str):
+    """Modern printer detail page."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+
+    if lab not in zp.printers.get("labs", {}):
+        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+    if printer_name not in zp.printers["labs"][lab]:
+        raise HTTPException(status_code=404, detail=f"Printer '{printer_name}' not found")
+
+    printer_info = zp.printers["labs"][lab][printer_name]
+
+    # Try to get printer configuration
+    printer_config = ""
+    ip_addr = printer_info.get("ip_address", "")
+    if ip_addr and ip_addr != "dl_png":
+        try:
+            printer_config = zdcm.ZebraPrinter(ip_addr).get_configuration()
+        except Exception as e:
+            printer_config = f"Unable to retrieve config: {e}"
+
+    context = get_modern_context(
+        request,
+        active_page="printers",
+        printer_name=printer_name,
+        lab=lab,
+        printer_info=printer_info,
+        printer_config=printer_config,
+    )
+    return templates.TemplateResponse("modern/printer_detail.html", context)
+
+
+@router.get("/print", response_class=HTMLResponse)
+async def modern_print_request(
+    request: Request,
+    lab: str = "",
+    printer: str = "",
+    template: str = "",
+):
+    """Modern print request form."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    stable_templates, draft_templates = get_templates_list(pkg_path)
+    labs_dict = zp.printers.get("labs", {})
+
+    context = get_modern_context(
+        request,
+        active_page="print",
+        labs=list(labs_dict.keys()),
+        labs_dict=json.dumps(labs_dict),
+        stable_templates=stable_templates,
+        draft_templates=draft_templates,
+        selected_lab=lab,
+        selected_printer=printer,
+        selected_template=template,
+    )
+    return templates.TemplateResponse("modern/print_request.html", context)
+
+
+@router.get("/templates", response_class=HTMLResponse)
+async def modern_templates(request: Request):
+    """Modern template management page."""
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    stable_templates, draft_templates = get_templates_list(pkg_path)
+
+    context = get_modern_context(
+        request,
+        active_page="templates",
+        stable_templates=stable_templates,
+        draft_templates=draft_templates,
+    )
+    return templates.TemplateResponse("modern/templates.html", context)
+
+
+@router.get("/templates/edit", response_class=HTMLResponse)
+async def modern_template_edit(
+    request: Request,
+    filename: str,
+    dtype: str = "",
+):
+    """Modern template editor."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    if dtype:
+        filepath = pkg_path / "etc" / "label_styles" / dtype / filename
+    else:
+        filepath = pkg_path / "etc" / "label_styles" / filename
+
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail=f"Template '{filename}' not found")
+
+    content = filepath.read_text()
+    labs_dict = zp.printers.get("labs", {})
+
+    context = get_modern_context(
+        request,
+        active_page="templates",
+        filename=filename,
+        content=content,
+        dtype=dtype,
+        labs=list(labs_dict.keys()),
+        labs_dict=json.dumps(labs_dict),
+    )
+    return templates.TemplateResponse("modern/template_editor.html", context)
+
+
+@router.get("/config", response_class=HTMLResponse)
+async def modern_config(request: Request):
+    """Modern configuration page."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    labs = list(zp.printers.get("labs", {}).keys())
+    ip_root = ".".join(request.app.state.local_ip.split(".")[:-1])
+
+    # Build config summary
+    stats = get_stats(zp, pkg_path)
+    config_summary = {
+        "labs": stats["total_labs"],
+        "printers": stats["total_printers"],
+        "templates": stats["total_templates"],
+        "backups": stats["backups"],
+    }
+
+    context = get_modern_context(
+        request,
+        active_page="config",
+        labs=labs,
+        ip_root=ip_root,
+        config_summary=config_summary,
+    )
+    return templates.TemplateResponse("modern/config.html", context)
+
+
+@router.get("/config/view", response_class=HTMLResponse)
+async def modern_config_view(request: Request):
+    """View printer configuration JSON (redirects to legacy for now)."""
+    return RedirectResponse(url="/legacy/view_pstation_json", status_code=303)
+
+
+@router.get("/config/edit", response_class=HTMLResponse)
+async def modern_config_edit(request: Request):
+    """Edit printer configuration JSON (redirects to legacy for now)."""
+    return RedirectResponse(url="/legacy/view_pstation_json", status_code=303)
+
+
+@router.get("/config/backups", response_class=HTMLResponse)
+async def modern_config_backups(request: Request):
+    """List prior config files (redirects to legacy for now)."""
+    return RedirectResponse(url="/legacy/list_prior_printer_config_files", status_code=303)
+
+
+@router.get("/config/new", response_class=HTMLResponse)
+async def modern_config_new(request: Request):
+    """Build new config (redirects to legacy for now)."""
+    return RedirectResponse(url="/legacy/build_new_printers_config_json", status_code=303)
+
+
+@router.get("/config/scan", response_class=HTMLResponse)
+async def modern_config_scan(
+    request: Request,
+    ip_stub: str = "192.168.1",
+    scan_wait: str = "0.25",
+    lab: str = "scan-results",
+):
+    """Scan network for printers."""
+    zp = request.app.state.zp
+    zp.probe_zebra_printers_add_to_printers_json(
+        ip_stub=ip_stub, scan_wait=scan_wait, lab=lab
+    )
+    time.sleep(2.2)
+    return RedirectResponse(url=f"/printers/{lab}", status_code=303)
+
+
+@router.get("/_print_label", response_class=HTMLResponse)
+async def modern_print_label(
+    request: Request,
+    lab: Optional[str] = None,
+    printer: str = "",
+    printer_ip: str = "",
+    label_zpl_style: str = "",
+    uid_barcode: str = "",
+    alt_a: str = "",
+    alt_b: str = "",
+    alt_c: str = "",
+    alt_d: str = "",
+    alt_e: str = "",
+    alt_f: str = "",
+    labSelect: str = "",
+):
+    """Execute print request - modern UI."""
+    zp = request.app.state.zp
+    templates = request.app.state.templates
+    rate_limiter = request.app.state.print_rate_limiter
+
+    if lab is None:
+        lab = labSelect
+
+    client_ip = request.client.host if request.client else "unknown"
+
+    # Check rate limit
+    allowed, reason = await rate_limiter.acquire(client_ip)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=reason)
+
+    try:
+        result = zp.print_zpl(
+            lab=lab,
+            printer_name=printer,
+            label_zpl_style=label_zpl_style,
+            uid_barcode=uid_barcode,
+            alt_a=alt_a,
+            alt_b=alt_b,
+            alt_c=alt_c,
+            alt_d=alt_d,
+            alt_e=alt_e,
+            alt_f=alt_f,
+            client_ip=client_ip,
+        )
+    finally:
+        rate_limiter.release()
+
+    # Build the full URL for reference
+    full_url = str(request.url)
+
+    png_url = None
+    if result and ".png" in str(result):
+        png_name = str(result).split("/")[-1]
+        png_url = f"/files/{png_name}"
+
+    context = get_modern_context(
+        request,
+        title="Print Result",
+        success=True,
+        full_url=full_url,
+        png_url=png_url,
+    )
+    return templates.TemplateResponse("modern/print_result.html", context)
+
+
+@router.post("/save", response_class=HTMLResponse)
+async def modern_save_template(
+    request: Request,
+    filename: str = Form(...),
+    content: str = Form(...),
+    ftag: str = Form("na"),
+    lab: str = Form(""),
+    printer: str = Form(""),
+):
+    """Save ZPL template as a new draft file - modern UI."""
+    templates = request.app.state.templates
+    pkg_path = request.app.state.pkg_path
+
+    rec_date = str(datetime.now()).replace(" ", "_")
+    new_filename = filename.replace(".zpl", f".{ftag}.{rec_date}.zpl")
+
+    tmps_dir = pkg_path / "etc" / "label_styles" / "tmps"
+    tmps_dir.mkdir(parents=True, exist_ok=True)
+
+    temp_filepath = tmps_dir / new_filename
+    temp_filepath.write_text(content)
+
+    context = get_modern_context(
+        request,
+        title="Template Saved",
+        new_filename=new_filename,
+    )
+    return templates.TemplateResponse("modern/save_result.html", context)
+
+
+@router.post("/png_renderer")
+async def modern_png_renderer(
+    request: Request,
+    filename: str = Form(...),
+    content: str = Form(...),
+    lab: str = Form(""),
+    printer: str = Form(""),
+    ftag: str = Form(""),
+):
+    """Render ZPL content to PNG - modern UI."""
+    zp = request.app.state.zp
+    pkg_path = request.app.state.pkg_path
+
+    files_dir = pkg_path / "files"
+    files_dir.mkdir(parents=True, exist_ok=True)
+
+    png_tmp_f = tempfile.NamedTemporaryFile(
+        suffix=".png", dir=str(files_dir), delete=False
+    ).name
+
+    zp.generate_label_png(content, png_fn=png_tmp_f)
+
+    # Return just the relative path for the img src
+    return Response(
+        content=f"files/{Path(png_tmp_f).name}",
+        media_type="text/plain",
+    )
+
+
+# =============================================================================
+# LEGACY UI ROUTES (under /legacy prefix)
+# =============================================================================
+
+@router.get("/legacy", response_class=HTMLResponse)
+async def legacy_index(request: Request):
+    """Legacy home page."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -48,12 +489,12 @@ async def index(request: Request):
         title="Zebra Day - Home",
         labs=labs,
     )
-    return templates.TemplateResponse("index.html", context)
+    return templates.TemplateResponse("legacy/index.html", context)
 
 
-@router.get("/printer_status", response_class=HTMLResponse)
-async def printer_status(request: Request, lab: str = "scan-results"):
-    """Printer status page for a lab."""
+@router.get("/legacy/printer_status", response_class=HTMLResponse)
+async def legacy_printer_status(request: Request, lab: str = "scan-results"):
+    """Legacy printer status page for a lab."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -100,16 +541,15 @@ async def printer_status(request: Request, lab: str = "scan-results"):
         ip_root=ip_root,
         labs=list(zp.printers.get("labs", {}).keys()),
     )
-    return templates.TemplateResponse("printer_status.html", context)
+    return templates.TemplateResponse("legacy/printer_status.html", context)
 
 
-@router.get("/simple_print_request", response_class=HTMLResponse)
-async def simple_print_request(request: Request):
-    """Simple print request form."""
+@router.get("/legacy/simple_print_request", response_class=HTMLResponse)
+async def legacy_simple_print_request(request: Request):
+    """Legacy simple print request form."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
-    # Get available templates
     pkg_path = request.app.state.pkg_path
     styles_dir = pkg_path / "etc" / "label_styles"
 
@@ -131,12 +571,12 @@ async def simple_print_request(request: Request):
         labs=list(zp.printers.get("labs", {}).keys()),
         labs_and_printers=json.dumps(labs_and_printers),
     )
-    return templates.TemplateResponse("simple_print.html", context)
+    return templates.TemplateResponse("legacy/simple_print.html", context)
 
 
-@router.get("/edit_zpl", response_class=HTMLResponse)
-async def edit_zpl(request: Request):
-    """List ZPL templates for editing."""
+@router.get("/legacy/edit_zpl", response_class=HTMLResponse)
+async def legacy_edit_zpl(request: Request):
+    """Legacy list ZPL templates for editing."""
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
     styles_dir = pkg_path / "etc" / "label_styles"
@@ -161,15 +601,15 @@ async def edit_zpl(request: Request):
         stable_templates=stable_templates,
         draft_templates=draft_templates,
     )
-    return templates.TemplateResponse("edit_zpl.html", context)
+    return templates.TemplateResponse("legacy/edit_zpl.html", context)
 
 
-@router.get("/chg_ui_style", response_class=HTMLResponse)
-async def chg_ui_style(request: Request, css_file: Optional[str] = None):
-    """Change UI style or show available styles."""
+@router.get("/legacy/chg_ui_style", response_class=HTMLResponse)
+async def legacy_chg_ui_style(request: Request, css_file: Optional[str] = None):
+    """Legacy change UI style or show available styles."""
     if css_file:
         request.app.state.css_theme = css_file
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/legacy", status_code=303)
 
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
@@ -182,14 +622,12 @@ async def chg_ui_style(request: Request, css_file: Optional[str] = None):
                 css_files.append(f.name)
 
     context = get_template_context(request, title="Change UI Style", css_files=css_files)
-    return templates.TemplateResponse("chg_ui_style.html", context)
+    return templates.TemplateResponse("legacy/chg_ui_style.html", context)
 
 
-
-
-@router.get("/printer_details", response_class=HTMLResponse)
-async def printer_details(request: Request, printer_name: str, lab: str):
-    """Show detailed printer information."""
+@router.get("/legacy/printer_details", response_class=HTMLResponse)
+async def legacy_printer_details(request: Request, printer_name: str, lab: str):
+    """Legacy show detailed printer information."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -217,12 +655,12 @@ async def printer_details(request: Request, printer_name: str, lab: str):
         printer_info=printer_info,
         printer_config=printer_config,
     )
-    return templates.TemplateResponse("printer_details.html", context)
+    return templates.TemplateResponse("legacy/printer_details.html", context)
 
 
-@router.get("/view_pstation_json", response_class=HTMLResponse)
-async def view_pstation_json(request: Request, error_msg: Optional[str] = None):
-    """View and edit printer configuration JSON."""
+@router.get("/legacy/view_pstation_json", response_class=HTMLResponse)
+async def legacy_view_pstation_json(request: Request, error_msg: Optional[str] = None):
+    """Legacy view and edit printer configuration JSON."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -234,19 +672,19 @@ async def view_pstation_json(request: Request, error_msg: Optional[str] = None):
         config_data=config_data,
         error_msg=error_msg,
     )
-    return templates.TemplateResponse("view_pstation_json.html", context)
+    return templates.TemplateResponse("legacy/view_pstation_json.html", context)
 
 
-@router.post("/save_pstation_json")
-async def save_pstation_json(request: Request, json_data: str = Form(...)):
-    """Save edited printer configuration JSON."""
+@router.post("/legacy/save_pstation_json")
+async def legacy_save_pstation_json(request: Request, json_data: str = Form(...)):
+    """Legacy save edited printer configuration JSON."""
     zp = request.app.state.zp
 
     try:
         data = json.loads(json_data)
     except json.JSONDecodeError as e:
         return RedirectResponse(
-            url=f"/view_pstation_json?error_msg=Invalid+JSON:+{str(e)}",
+            url=f"/legacy/view_pstation_json?error_msg=Invalid+JSON:+{str(e)}",
             status_code=303,
         )
 
@@ -261,36 +699,36 @@ async def save_pstation_json(request: Request, json_data: str = Form(...)):
         # Reload config
         zp.load_printer_json(json_file=zp.printers_filename, relative=False)
 
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url="/legacy", status_code=303)
 
     except Exception as e:
         return RedirectResponse(
-            url=f"/view_pstation_json?error_msg=Error+saving:+{str(e)}",
+            url=f"/legacy/view_pstation_json?error_msg=Error+saving:+{str(e)}",
             status_code=303,
         )
 
 
-@router.get("/clear_printers_json")
-async def clear_printers_json(request: Request):
-    """Clear the printer configuration JSON."""
+@router.get("/legacy/clear_printers_json")
+async def legacy_clear_printers_json(request: Request):
+    """Legacy clear the printer configuration JSON."""
     zp = request.app.state.zp
     zp.clear_printers_json()
     time.sleep(1.2)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/legacy", status_code=303)
 
 
-@router.get("/reset_pstation_json")
-async def reset_pstation_json(request: Request):
-    """Reset printer config from template."""
+@router.get("/legacy/reset_pstation_json")
+async def legacy_reset_pstation_json(request: Request):
+    """Legacy reset printer config from template."""
     zp = request.app.state.zp
     zp.replace_printer_json_from_template()
     time.sleep(1.2)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/legacy", status_code=303)
 
 
-@router.get("/list_prior_printer_config_files", response_class=HTMLResponse)
-async def list_prior_printer_config_files(request: Request):
-    """List backed up printer config files."""
+@router.get("/legacy/list_prior_printer_config_files", response_class=HTMLResponse)
+async def legacy_list_prior_printer_config_files(request: Request):
+    """Legacy list backed up printer config files."""
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
     bkup_dir = pkg_path / "etc" / "old_printer_config"
@@ -306,12 +744,12 @@ async def list_prior_printer_config_files(request: Request):
         title="Prior Printer Config Files",
         backup_files=backup_files,
     )
-    return templates.TemplateResponse("list_prior_configs.html", context)
+    return templates.TemplateResponse("legacy/list_prior_configs.html", context)
 
 
-@router.get("/build_new_printers_config_json", response_class=HTMLResponse)
-async def build_new_printers_config_json(request: Request):
-    """Show network scan form."""
+@router.get("/legacy/build_new_printers_config_json", response_class=HTMLResponse)
+async def legacy_build_new_printers_config_json(request: Request):
+    """Legacy show network scan form."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -323,29 +761,28 @@ async def build_new_printers_config_json(request: Request):
         ip_root=ip_root,
         labs=list(zp.printers.get("labs", {}).keys()),
     )
-    return templates.TemplateResponse("build_new_config.html", context)
+    return templates.TemplateResponse("legacy/build_new_config.html", context)
 
 
-@router.get("/probe_zebra_printers_add_to_printers_json")
-async def probe_zebra_printers(
+@router.get("/legacy/probe_zebra_printers_add_to_printers_json")
+async def legacy_probe_zebra_printers(
     request: Request,
     ip_stub: str = "192.168.1",
     scan_wait: str = "0.25",
     lab: str = "scan-results",
 ):
-    """Probe network for Zebra printers and add to config."""
+    """Legacy probe network for Zebra printers and add to config."""
     zp = request.app.state.zp
     zp.probe_zebra_printers_add_to_printers_json(
         ip_stub=ip_stub, scan_wait=scan_wait, lab=lab
     )
     time.sleep(2.2)
-    return RedirectResponse(url=f"/printer_status?lab={lab}", status_code=303)
+    return RedirectResponse(url=f"/legacy/printer_status?lab={lab}", status_code=303)
 
 
-
-@router.get("/bpr", response_class=HTMLResponse)
-async def bpr(request: Request):
-    """Build print request - select lab, printer, template."""
+@router.get("/legacy/bpr", response_class=HTMLResponse)
+async def legacy_bpr(request: Request):
+    """Legacy build print request - select lab, printer, template."""
     zp = request.app.state.zp
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
@@ -376,12 +813,12 @@ async def bpr(request: Request):
         stable_templates=stable_templates,
         draft_templates=draft_templates,
     )
-    return templates.TemplateResponse("bpr.html", context)
+    return templates.TemplateResponse("legacy/bpr.html", context)
 
 
-@router.get("/send_print_request", response_class=HTMLResponse)
-async def send_print_request(request: Request):
-    """Send print request - stable templates only."""
+@router.get("/legacy/send_print_request", response_class=HTMLResponse)
+async def legacy_send_print_request(request: Request):
+    """Legacy send print request - stable templates only."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
@@ -390,11 +827,11 @@ async def send_print_request(request: Request):
         title="Send Print Request",
         labs=zp.printers.get("labs", {}),
     )
-    return templates.TemplateResponse("send_print_request.html", context)
+    return templates.TemplateResponse("legacy/send_print_request.html", context)
 
 
-@router.get("/build_print_request", response_class=HTMLResponse)
-async def build_print_request(
+@router.get("/legacy/build_print_request", response_class=HTMLResponse)
+async def legacy_build_print_request(
     request: Request,
     lab: str = "",
     printer: str = "",
@@ -402,7 +839,7 @@ async def build_print_request(
     label_zpl_style: str = "",
     filename: str = "",
 ):
-    """Show print request form with pre-filled values."""
+    """Legacy show print request form with pre-filled values."""
     templates = request.app.state.templates
 
     if label_zpl_style in ["", "None"] and filename not in ["", "None"]:
@@ -416,11 +853,11 @@ async def build_print_request(
         printer_ip=printer_ip,
         label_zpl_style=label_zpl_style,
     )
-    return templates.TemplateResponse("build_print_request.html", context)
+    return templates.TemplateResponse("legacy/build_print_request.html", context)
 
 
-@router.get("/_print_label", response_class=HTMLResponse)
-async def print_label(
+@router.get("/legacy/_print_label", response_class=HTMLResponse)
+async def legacy_print_label(
     request: Request,
     lab: Optional[str] = None,
     printer: str = "",
@@ -435,7 +872,7 @@ async def print_label(
     alt_f: str = "",
     labSelect: str = "",
 ):
-    """Execute print request."""
+    """Legacy execute print request."""
     zp = request.app.state.zp
     templates = request.app.state.templates
     rate_limiter = request.app.state.print_rate_limiter
@@ -482,16 +919,16 @@ async def print_label(
         full_url=full_url,
         png_url=png_url,
     )
-    return templates.TemplateResponse("print_result.html", context)
+    return templates.TemplateResponse("legacy/print_result.html", context)
 
 
-@router.get("/edit", response_class=HTMLResponse)
-async def edit_template(
+@router.get("/legacy/edit", response_class=HTMLResponse)
+async def legacy_edit_template(
     request: Request,
     filename: str,
     dtype: str = "",
 ):
-    """Edit a ZPL template file."""
+    """Legacy edit a ZPL template file."""
     zp = request.app.state.zp
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
@@ -517,12 +954,11 @@ async def edit_template(
         labs=list(labs_dict.keys()),
         labs_dict=json.dumps(labs_dict),
     )
-    return templates.TemplateResponse("edit_template.html", context)
+    return templates.TemplateResponse("legacy/edit_template.html", context)
 
 
-
-@router.post("/save", response_class=HTMLResponse)
-async def save_template(
+@router.post("/legacy/save", response_class=HTMLResponse)
+async def legacy_save_template(
     request: Request,
     filename: str = Form(...),
     content: str = Form(...),
@@ -530,7 +966,7 @@ async def save_template(
     lab: str = Form(""),
     printer: str = Form(""),
 ):
-    """Save ZPL template as a new draft file."""
+    """Legacy save ZPL template as a new draft file."""
     templates = request.app.state.templates
     pkg_path = request.app.state.pkg_path
 
@@ -548,11 +984,11 @@ async def save_template(
         title="Template Saved",
         new_filename=new_filename,
     )
-    return templates.TemplateResponse("save_result.html", context)
+    return templates.TemplateResponse("legacy/save_result.html", context)
 
 
-@router.post("/png_renderer")
-async def png_renderer(
+@router.post("/legacy/png_renderer")
+async def legacy_png_renderer(
     request: Request,
     filename: str = Form(...),
     content: str = Form(...),
@@ -560,7 +996,7 @@ async def png_renderer(
     printer: str = Form(""),
     ftag: str = Form(""),
 ):
-    """Render ZPL content to PNG."""
+    """Legacy render ZPL content to PNG."""
     zp = request.app.state.zp
     pkg_path = request.app.state.pkg_path
 
@@ -580,8 +1016,8 @@ async def png_renderer(
     )
 
 
-@router.post("/build_and_send_raw_print_request")
-async def build_and_send_raw_print_request(
+@router.post("/legacy/build_and_send_raw_print_request")
+async def legacy_build_and_send_raw_print_request(
     request: Request,
     lab: str = Form(...),
     printer: str = Form(...),
@@ -591,7 +1027,7 @@ async def build_and_send_raw_print_request(
     filename: str = Form(""),
     ftag: str = Form(""),
 ):
-    """Send raw ZPL content to printer."""
+    """Legacy send raw ZPL content to printer."""
     zp = request.app.state.zp
     rate_limiter = request.app.state.print_rate_limiter
     client_ip = request.client.host if request.client else "unknown"

@@ -1,0 +1,24 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Saved Printer Config JSON Files</h1>
+<small><a href="/legacy">home</a></small>
+<hr>
+
+<p>If you wish to restore from one of these files, download the one you'd like, open in a text editor,
+then copy the contents of the file into <a href="/legacy/view_pstation_json">the printers json editing form</a>
+and save a new json file.</p>
+<small><i>Note: the existing file will have a backup created and accessible here</i></small>
+
+<hr>
+<ul>
+    {% for file in backup_files %}
+    <li><a href="/etc/old_printer_config/{{ file }}">{{ file }}</a></li>
+    {% else %}
+    <li>No backup files found</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+

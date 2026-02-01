@@ -1,0 +1,141 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Configuration - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Configuration</h1>
+    <p class="page-subtitle">Manage printer configuration and settings</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Printer Configuration -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-cog"></i> Printer Configuration</h3>
+        </div>
+        <div class="quick-actions">
+            <a href="/config/view" class="action-card">
+                <i class="fas fa-eye"></i>
+                <div>
+                    <strong>View Config</strong>
+                    <small class="text-muted d-block">View printers.json</small>
+                </div>
+            </a>
+            <a href="/config/edit" class="action-card">
+                <i class="fas fa-edit"></i>
+                <div>
+                    <strong>Edit Config</strong>
+                    <small class="text-muted d-block">Modify printers.json</small>
+                </div>
+            </a>
+            <a href="/config/backups" class="action-card">
+                <i class="fas fa-history"></i>
+                <div>
+                    <strong>Backups</strong>
+                    <small class="text-muted d-block">Prior config files</small>
+                </div>
+            </a>
+            <a href="/config/new" class="action-card">
+                <i class="fas fa-plus"></i>
+                <div>
+                    <strong>New Config</strong>
+                    <small class="text-muted d-block">Build from scratch</small>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Network Scan -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-wifi"></i> Network Scanner</h3>
+        </div>
+        <form action="/config/scan" method="get">
+            <div class="form-group">
+                <label class="form-label">IP Range</label>
+                <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
+                <small class="text-muted">Enter the first three octets of your network</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Lab Name</label>
+                <input type="text" name="lab" class="form-control" list="lab-names" placeholder="Enter lab name">
+                <datalist id="lab-names">
+                    {% for lab in labs %}
+                    <option value="{{ lab }}">
+                    {% endfor %}
+                </datalist>
+            </div>
+            <button type="submit" class="btn btn-primary" onclick="showLoading('Scanning network...')">
+                <i class="fas fa-search"></i> Scan for Printers
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Current Config Summary -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Current Configuration</h3>
+        <a href="/config/view" class="btn btn-outline btn-sm">
+            <i class="fas fa-external-link-alt"></i> View Full
+        </a>
+    </div>
+    {% if config_summary %}
+    <div class="grid grid-4 mb-lg">
+        <div class="stat-card">
+            <div class="card-icon primary"><i class="fas fa-building"></i></div>
+            <div>
+                <div class="stat-value">{{ config_summary.labs }}</div>
+                <div class="stat-label">Labs</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="card-icon success"><i class="fas fa-print"></i></div>
+            <div>
+                <div class="stat-value">{{ config_summary.printers }}</div>
+                <div class="stat-label">Printers</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="card-icon info"><i class="fas fa-file-code"></i></div>
+            <div>
+                <div class="stat-value">{{ config_summary.templates }}</div>
+                <div class="stat-label">Templates</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="card-icon warning"><i class="fas fa-clock"></i></div>
+            <div>
+                <div class="stat-value">{{ config_summary.backups }}</div>
+                <div class="stat-label">Backups</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Labs List -->
+    {% if labs %}
+    <h4 class="mb-md">Configured Labs</h4>
+    <div class="grid grid-5">
+        {% for lab in labs %}
+        <a href="/printers/{{ lab }}" class="action-card">
+            <i class="fas fa-building"></i>
+            <div>
+                <strong>{{ lab }}</strong>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-cog"></i>
+        <p>No labs configured</p>
+        <a href="/config/scan" class="btn btn-primary">
+            <i class="fas fa-wifi"></i> Scan Network
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

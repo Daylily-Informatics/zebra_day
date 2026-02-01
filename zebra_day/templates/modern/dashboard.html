@@ -1,0 +1,160 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Dashboard - Zebra Day{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <h1 class="page-title">Zebra Day Dashboard</h1>
+    <p class="page-subtitle">Zebra printer and label template management</p>
+</div>
+
+<!-- Stats Grid -->
+<div class="grid grid-4 mb-xl">
+    <a href="/printers" class="stat-card stat-card-clickable">
+        <div class="card-icon primary">
+            <i class="fas fa-print"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ stats.total_printers | default(0) }}</div>
+            <div class="stat-label">Total Printers</div>
+        </div>
+    </a>
+    
+    <a href="/printers" class="stat-card stat-card-clickable">
+        <div class="card-icon success">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ stats.online_printers | default(0) }}</div>
+            <div class="stat-label">Online</div>
+        </div>
+    </a>
+    
+    <a href="/printers" class="stat-card stat-card-clickable">
+        <div class="card-icon info">
+            <i class="fas fa-building"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ stats.total_labs | default(0) }}</div>
+            <div class="stat-label">Labs</div>
+        </div>
+    </a>
+    
+    <a href="/templates" class="stat-card stat-card-clickable">
+        <div class="card-icon warning">
+            <i class="fas fa-file-code"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ stats.total_templates | default(0) }}</div>
+            <div class="stat-label">Templates</div>
+        </div>
+    </a>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-2">
+    <!-- Quick Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Quick Actions</h3>
+        </div>
+        <div class="quick-actions">
+            <a href="/print" class="action-card">
+                <i class="fas fa-tag"></i>
+                <div>
+                    <strong>Print Label</strong>
+                    <small class="text-muted d-block">Send a print request</small>
+                </div>
+            </a>
+            <a href="/config?action=scan" class="action-card">
+                <i class="fas fa-wifi"></i>
+                <div>
+                    <strong>Scan Network</strong>
+                    <small class="text-muted d-block">Discover printers</small>
+                </div>
+            </a>
+            <a href="/templates" class="action-card">
+                <i class="fas fa-edit"></i>
+                <div>
+                    <strong>Edit Templates</strong>
+                    <small class="text-muted d-block">Manage ZPL files</small>
+                </div>
+            </a>
+            <a href="/config" class="action-card">
+                <i class="fas fa-cog"></i>
+                <div>
+                    <strong>Configuration</strong>
+                    <small class="text-muted d-block">View/edit settings</small>
+                </div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Labs Overview -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Labs</h3>
+            <a href="/printers" class="btn btn-outline btn-sm">View All</a>
+        </div>
+        {% if labs %}
+        <div class="table-container" style="box-shadow: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Lab Name</th>
+                        <th>Printers</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for lab_name, printers in labs.items() %}
+                    <tr>
+                        <td><strong>{{ lab_name }}</strong></td>
+                        <td>{{ printers | length }} printer(s)</td>
+                        <td>
+                            <a href="/printers/{{ lab_name }}" class="btn btn-sm btn-outline">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-building"></i>
+            <p>No labs configured yet</p>
+            <a href="/config?action=scan" class="btn btn-primary">
+                <i class="fas fa-wifi"></i> Scan Network
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- API Documentation -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">API Documentation</h3>
+    </div>
+    <div class="grid grid-2">
+        <a href="/docs" target="_blank" class="action-card">
+            <i class="fas fa-book-open"></i>
+            <div>
+                <strong>Swagger UI</strong>
+                <small class="text-muted d-block">Interactive API documentation</small>
+            </div>
+        </a>
+        <a href="/redoc" target="_blank" class="action-card">
+            <i class="fas fa-file-alt"></i>
+            <div>
+                <strong>ReDoc</strong>
+                <small class="text-muted d-block">Read-only API reference</small>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}
+

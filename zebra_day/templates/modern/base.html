@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Zebra Day{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/zebra_modern.css?v={{ cache_bust | default('1') }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Zebra stripe accent bar -->
+    <div class="zebra-stripe-bar"></div>
+    
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <svg class="logo-icon" viewBox="0 0 32 32" width="32" height="32">
+                        <rect width="32" height="32" rx="6" fill="#1a1a2e"/>
+                        <path d="M6 8h20v3H6zM6 14h20v3H6zM6 20h20v3H6z" fill="#fff"/>
+                        <text x="16" y="22" font-family="Inter,sans-serif" font-size="14" font-weight="700" fill="#6366f1" text-anchor="middle">Z</text>
+                    </svg>
+                    <span>Zebra Day</span>
+                </a>
+                <button class="menu-toggle" id="menu-toggle" aria-label="Toggle menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <nav class="nav">
+                    <ul class="nav-links" id="nav-links">
+                        <li><a href="/" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}"><i class="fas fa-home"></i> Dashboard</a></li>
+                        <li><a href="/printers" class="nav-link {% if active_page == 'printers' %}active{% endif %}"><i class="fas fa-print"></i> Printers</a></li>
+                        <li><a href="/templates" class="nav-link {% if active_page == 'templates' %}active{% endif %}"><i class="fas fa-file-code"></i> Templates</a></li>
+                        <li><a href="/print" class="nav-link {% if active_page == 'print' %}active{% endif %}"><i class="fas fa-tag"></i> Print Label</a></li>
+                        <li><a href="/config" class="nav-link {% if active_page == 'config' %}active{% endif %}"><i class="fas fa-cog"></i> Config</a></li>
+                    </ul>
+                </nav>
+                <div class="nav-actions">
+                    <a href="/legacy" class="btn btn-outline btn-sm" title="Switch to legacy interface">
+                        <i class="fas fa-history"></i> Legacy UI
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Toast notifications container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay d-none" id="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <main class="main">
+        <div class="container">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <span>Zebra Day v{{ version | default('0.7.0') }}</span>
+                    <span class="footer-sep">•</span>
+                    <span>IP: {{ local_ip | default('unknown') }}</span>
+                </div>
+                <div class="footer-links">
+                    <a href="/docs" target="_blank"><i class="fas fa-book"></i> API Docs</a>
+                    <a href="https://github.com/Daylily-Informatics/zebra_day" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Global config -->
+    <script>
+        window.ZebraConfig = {
+            apiBase: '{{ api_base | default("") }}',
+            localIp: '{{ local_ip | default("") }}'
+        };
+    </script>
+    <script src="/static/js/zebra_modern.js?v={{ cache_bust | default('1') }}"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
+

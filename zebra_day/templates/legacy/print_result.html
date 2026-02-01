@@ -1,0 +1,30 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Label Print Request Sent</h1>
+<small><a href="/legacy">home</a></small>
+<hr>
+
+{% if success %}
+    {% if png_url %}
+    <h2>Successfully Created PNG</h2>
+    <img src="{{ png_url }}" alt="Label Preview">
+    <br><br>
+    <a href="{{ png_url }}" download>Download PNG</a>
+    {% else %}
+    <h2>Success - Label Printed</h2>
+    {% endif %}
+{% else %}
+<h2 style="color: red;">Error Printing Label</h2>
+{% endif %}
+
+<hr>
+<p><small>The URL for this print request (which you can edit and use in curl) is:</small></p>
+<code>{{ full_url }}</code>
+
+<br><br>
+<a href="/legacy">Home</a>
+{% endblock %}
+

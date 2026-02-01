@@ -1,0 +1,172 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Edit: {{ filename }} - Zebra Day{% endblock %}
+
+{% block extra_head %}
+<style>
+    .editor-container { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg); }
+    .editor-textarea { min-height: 500px; font-family: var(--font-mono); font-size: 14px; }
+    .preview-frame { background: var(--color-white); border-radius: var(--radius-md); padding: var(--spacing-lg); min-height: 300px; }
+    @media (max-width: 1024px) { .editor-container { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Edit: {{ filename }}</h1>
+    <p class="page-subtitle">{% if dtype %}Draft template{% else %}Stable template{% endif %}</p>
+</div>
+
+<!-- Breadcrumb -->
+<div class="mb-lg">
+    <a href="/" class="text-muted">Dashboard</a>
+    <span class="text-muted"> / </span>
+    <a href="/templates">Templates</a>
+    <span class="text-muted"> / </span>
+    <span>{{ filename }}</span>
+</div>
+
+<form id="editor-form" action="/save" method="post">
+    <input type="hidden" name="filename" value="{{ filename }}">
+    
+    <div class="editor-container">
+        <!-- Editor Panel -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-code"></i> ZPL Code</h3>
+                <button type="button" class="btn btn-outline btn-sm" onclick="previewTemplate()">
+                    <i class="fas fa-eye"></i> Preview
+                </button>
+            </div>
+            <textarea name="content" id="zpl-editor" class="form-control editor-textarea">{{ content }}</textarea>
+        </div>
+
+        <!-- Preview Panel -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-image"></i> Preview</h3>
+                <span class="badge badge-info" id="preview-status">Ready</span>
+            </div>
+            <div class="preview-frame" id="preview-container">
+                <div class="empty-state">
+                    <i class="fas fa-image"></i>
+                    <p>Click Preview to generate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Options -->
+    <div class="card mt-lg">
+        <div class="card-header">
+            <h3 class="card-title">Save Options</h3>
+        </div>
+        <div class="grid grid-3">
+            <div class="form-group mb-0">
+                <label class="form-label">Draft Tag</label>
+                <input type="text" name="ftag" class="form-control" value="draft" placeholder="Tag for draft version">
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Test Lab</label>
+                <select name="lab" class="form-control" id="test-lab" onchange="updateTestPrinters()">
+                    <option value="">Select lab...</option>
+                    {% for lab in labs %}
+                    <option value="{{ lab }}">{{ lab }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Test Printer</label>
+                <select name="printer" class="form-control" id="test-printer">
+                    <option value="">Select printer...</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="card mt-lg">
+        <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md);">
+            <a href="/templates" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Cancel
+            </a>
+            <div class="d-flex gap-md">
+                <button type="button" class="btn btn-outline" onclick="testPrint()">
+                    <i class="fas fa-print"></i> Test Print
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save as Draft
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var labsDict = {{ labs_dict | safe }};
+
+    function updateTestPrinters() {
+        var labSelect = document.getElementById('test-lab');
+        var printerSelect = document.getElementById('test-printer');
+        var lab = labSelect.value;
+
+        printerSelect.innerHTML = '<option value="">Select printer...</option>';
+        if (lab && labsDict[lab]) {
+            for (var printer in labsDict[lab]) {
+                var option = document.createElement('option');
+                option.value = printer;
+                option.text = printer;
+                printerSelect.appendChild(option);
+            }
+        }
+    }
+
+    async function previewTemplate() {
+        var statusBadge = document.getElementById('preview-status');
+        var container = document.getElementById('preview-container');
+        var content = document.getElementById('zpl-editor').value;
+
+        statusBadge.textContent = 'Loading...';
+        statusBadge.className = 'badge badge-warning';
+
+        try {
+            var response = await fetch('/api/v1/preview_zpl', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ zpl_content: content })
+            });
+            var data = await response.json();
+            if (data.png_url) {
+                container.innerHTML = '<img src="' + data.png_url + '" alt="Preview" style="max-width: 100%;">';
+                statusBadge.textContent = 'Ready';
+                statusBadge.className = 'badge badge-success';
+            } else {
+                throw new Error(data.error || 'Preview failed');
+            }
+        } catch (err) {
+            container.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>' + err.message + '</p></div>';
+            statusBadge.textContent = 'Error';
+            statusBadge.className = 'badge badge-error';
+        }
+    }
+
+    function testPrint() {
+        var lab = document.getElementById('test-lab').value;
+        var printer = document.getElementById('test-printer').value;
+        if (!lab || !printer) {
+            showToast('warning', 'Select Printer', 'Please select a lab and printer for test print.');
+            return;
+        }
+        var content = document.getElementById('zpl-editor').value;
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/api/v1/print_raw_zpl';
+        form.innerHTML = '<input name="lab" value="' + lab + '"><input name="printer" value="' + printer + '"><textarea name="zpl_content">' + content + '</textarea>';
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+{% endblock %}
+

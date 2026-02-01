@@ -1,0 +1,36 @@
+{% extends "legacy/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>Scan Network For Zebra Printers</h1>
+<small><a href="/legacy">home</a></small>
+<hr>
+
+<p>This will probe for printers, and with all discovered printers will create a new printers JSON
+and over-write the current fleet data for this lab.</p>
+
+<form id="myForm" action="/legacy/probe_zebra_printers_add_to_printers_json">
+    <ul>
+        <li>
+            <label>Choose Existing, Or Enter New Lab Code:</label><br>
+            <input type="text" name="lab" list="lab_names" value="scan-results">
+            <datalist id="lab_names">
+                {% for lab in labs %}
+                <option value="{{ lab }}">{{ lab }}</option>
+                {% endfor %}
+            </datalist>
+        </li>
+        <li>
+            <label>Enter IP Root To Scan:</label><br>
+            <input type="text" value="{{ ip_root }}" name="ip_stub">
+        </li>
+    </ul>
+    <br>
+    <input type="submit" value="Scan Network">
+</form>
+
+<br>
+<small><a href="/legacy/list_prior_printer_config_files">The current printers JSON will be backed up and can be found here.</a></small>
+{% endblock %}
+

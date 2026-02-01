@@ -1,0 +1,122 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Templates - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">ZPL Templates</h1>
+    <p class="page-subtitle">Manage label templates and styles</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Stable Templates -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-check-circle text-success"></i> Stable Templates
+            </h3>
+            <span class="badge badge-success">{{ stable_templates | length }}</span>
+        </div>
+        {% if stable_templates %}
+        <div class="table-container" style="box-shadow: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Template Name</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for template in stable_templates %}
+                    <tr>
+                        <td>
+                            <i class="fas fa-file-code text-muted"></i>
+                            <strong>{{ template }}</strong>
+                        </td>
+                        <td>
+                            <a href="/templates/edit?filename={{ template }}" class="btn btn-sm btn-outline">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="/templates/preview?filename={{ template }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-eye"></i> Preview
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-file-code"></i>
+            <p>No stable templates found</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Draft Templates -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-pencil-alt text-warning"></i> Draft Templates
+            </h3>
+            <span class="badge badge-warning">{{ draft_templates | length }}</span>
+        </div>
+        {% if draft_templates %}
+        <div class="table-container" style="box-shadow: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Template Name</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for template in draft_templates %}
+                    <tr>
+                        <td>
+                            <i class="fas fa-file-alt text-muted"></i>
+                            <strong>{{ template }}</strong>
+                        </td>
+                        <td>
+                            <a href="/templates/edit?filename={{ template }}&dtype=tmps" class="btn btn-sm btn-outline">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="/templates/preview?filename={{ template }}&dtype=tmps" class="btn btn-sm btn-primary">
+                                <i class="fas fa-eye"></i> Preview
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-pencil-alt"></i>
+            <p>No draft templates yet</p>
+            <small class="text-muted">Edit a stable template to create a draft</small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Format Keys Reference -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Template Format Keys</h3>
+    </div>
+    <p class="text-muted mb-lg">Use these placeholders in your ZPL templates to insert dynamic data:</p>
+    <div class="grid grid-4">
+        <div><code>{uid_barcode}</code> - Barcode value</div>
+        <div><code>{alt_a}</code> - Custom field A</div>
+        <div><code>{alt_b}</code> - Custom field B</div>
+        <div><code>{alt_c}</code> - Custom field C</div>
+        <div><code>{alt_d}</code> - Custom field D</div>
+        <div><code>{alt_e}</code> - Custom field E</div>
+        <div><code>{alt_f}</code> - Custom field F</div>
+        <div><code>{rec_date}</code> - Record date</div>
+    </div>
+</div>
+{% endblock %}
+

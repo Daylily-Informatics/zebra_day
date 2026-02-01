@@ -1,0 +1,133 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Printers - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{% if lab %}{{ lab }} Printers{% else %}All Printers{% endif %}</h1>
+    <p class="page-subtitle">View and manage Zebra printers</p>
+</div>
+
+<!-- Labs Navigation -->
+{% if not lab and labs %}
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="card-title">Select a Lab</h3>
+    </div>
+    <div class="grid grid-4">
+        {% for lab_name in labs %}
+        <a href="/printers/{{ lab_name }}" class="action-card">
+            <i class="fas fa-building"></i>
+            <div>
+                <strong>{{ lab_name }}</strong>
+                <small class="text-muted d-block">View printers</small>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Printers Table -->
+{% if printers %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Printers{% if lab %} in {{ lab }}{% endif %}</h3>
+        <a href="/config?action=scan&lab={{ lab | default('') }}" class="btn btn-outline btn-sm">
+            <i class="fas fa-sync"></i> Rescan
+        </a>
+    </div>
+    <div class="table-container" style="box-shadow: none;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Printer</th>
+                    <th>IP Address</th>
+                    <th>Status</th>
+                    <th>Label Styles</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for printer in printers %}
+                <tr>
+                    <td>
+                        <strong>{{ printer.name }}</strong><br>
+                        <small class="text-muted">{{ printer.model | default('Unknown model') }}</small>
+                    </td>
+                    <td>
+                        {% if printer.ip_address != 'dl_png' %}
+                        <a href="http://{{ printer.ip_address }}" target="_blank">{{ printer.ip_address }}</a>
+                        {% else %}
+                        <span class="text-muted">{{ printer.ip_address }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if printer.status == 'online' %}
+                        <span class="badge badge-success">Online</span>
+                        {% else %}
+                        <span class="badge badge-error">Offline</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for style in printer.label_zpl_styles[:3] %}
+                        <span class="badge badge-primary">{{ style }}</span>
+                        {% endfor %}
+                        {% if printer.label_zpl_styles | length > 3 %}
+                        <span class="text-muted">+{{ printer.label_zpl_styles | length - 3 }} more</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/printers/{{ lab }}/{{ printer.name }}" class="btn btn-sm btn-outline">
+                            <i class="fas fa-info-circle"></i> Details
+                        </a>
+                        <a href="/print?lab={{ lab }}&printer={{ printer.name }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-print"></i> Print
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% elif lab %}
+<div class="card">
+    <div class="empty-state">
+        <i class="fas fa-print"></i>
+        <p>No printers found in {{ lab }}</p>
+        <a href="/config?action=scan&lab={{ lab }}" class="btn btn-primary">
+            <i class="fas fa-wifi"></i> Scan Network
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Scan Network Card -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Scan Network for Printers</h3>
+    </div>
+    <form action="/config/scan" method="get" class="grid grid-3">
+        <div class="form-group mb-0">
+            <label class="form-label">IP Range</label>
+            <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Lab Name</label>
+            <input type="text" name="lab" class="form-control" list="lab_names" value="{{ lab | default('') }}" placeholder="Enter lab name">
+            <datalist id="lab_names">
+                {% for lab_name in labs %}
+                <option value="{{ lab_name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-group mb-0" style="display: flex; align-items: flex-end;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Scan Network
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
