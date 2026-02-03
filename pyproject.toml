@@ -142,4 +142,5 @@ ignore_missing_imports = true
 version_scheme = "guess-next-dev"
 local_scheme = "no-local-version"
 write_to = "zebra_day/_version.py"
-write_to_template = '__version__ = "{version}"'
+write_to_template = """__version__ = "{version}"
+"""
