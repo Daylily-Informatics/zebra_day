@@ -1,13 +1,11 @@
 """
 Tests for the zebra_day FastAPI web server and API endpoints.
 """
-import json
-import os
 import pytest
 from fastapi.testclient import TestClient
 
-from zebra_day.web.app import create_app
 import zebra_day.print_mgr as zdpm
+from zebra_day.web.app import create_app
 
 
 @pytest.fixture

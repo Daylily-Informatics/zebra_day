@@ -4,7 +4,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -37,7 +36,7 @@ def _get_template_dirs() -> list[Path]:
     return dirs
 
 
-def _find_template(name: str) -> Optional[Path]:
+def _find_template(name: str) -> Path | None:
     """Find a template file by name."""
     for template_dir in _get_template_dirs():
         # Try exact match
@@ -107,7 +106,7 @@ def list_templates(
 @template_app.command("preview")
 def preview(
     template_name: str = typer.Argument(..., help="Template name to preview"),
-    output: Optional[str] = typer.Option(None, "--output", "-o", help="Output PNG file path"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output PNG file path"),
 ):
     """Generate a PNG preview of a ZPL template."""
     template_path = _find_template(template_name)
@@ -130,18 +129,18 @@ def preview(
         else:
             output_path = Path(output)
 
-        result = zp.generate_label_png(zpl_content, str(output_path), False)
+        zp.generate_label_png(zpl_content, str(output_path), False)
         console.print(f"[green]✓[/green] Preview generated: {output_path}")
 
     except Exception as e:
         console.print(f"[red]✗[/red] Preview error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @template_app.command("edit")
 def edit(
     template_name: str = typer.Argument(..., help="Template name to edit"),
-    editor: Optional[str] = typer.Option(None, "--editor", "-e", help="Editor command"),
+    editor: str | None = typer.Option(None, "--editor", "-e", help="Editor command"),
 ):
     """Open a ZPL template in an editor."""
     template_path = _find_template(template_name)
@@ -158,7 +157,7 @@ def edit(
         subprocess.run([editor, str(template_path)])
     except Exception as e:
         console.print(f"[red]✗[/red] Error opening editor: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @template_app.command("show")

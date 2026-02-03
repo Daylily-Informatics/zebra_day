@@ -5,10 +5,10 @@ Provides optional Cognito authentication support via the daylily-cognito library
 
 from __future__ import annotations
 
-import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 _log = get_logger(__name__)
 
 # Endpoints that should never require authentication
-PUBLIC_PATHS: List[str] = [
+PUBLIC_PATHS: list[str] = [
     "/healthz",
     "/readyz",
     "/docs",
@@ -30,7 +30,7 @@ PUBLIC_PATHS: List[str] = [
 
 # Try to import daylily-cognito components
 _COGNITO_AVAILABLE = False
-_COGNITO_IMPORT_ERROR: Optional[str] = None
+_COGNITO_IMPORT_ERROR: str | None = None
 
 try:
     from daylily_cognito import CognitoAuth, CognitoConfig, create_auth_dependency
@@ -48,7 +48,7 @@ def is_cognito_available() -> bool:
     return _COGNITO_AVAILABLE
 
 
-def get_cognito_import_error() -> Optional[str]:
+def get_cognito_import_error() -> str | None:
     """Get the import error message if daylily-cognito is not available."""
     return _COGNITO_IMPORT_ERROR
 
@@ -59,7 +59,7 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
     Exempts health check endpoints and other public paths.
     """
 
-    def __init__(self, app: "FastAPI", cognito_auth: Any) -> None:
+    def __init__(self, app: FastAPI, cognito_auth: Any) -> None:
         super().__init__(app)
         self.cognito_auth = cognito_auth
         self.get_current_user = create_auth_dependency(cognito_auth, optional=False)
@@ -119,7 +119,7 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def setup_cognito_auth(app: "FastAPI") -> Any:
+def setup_cognito_auth(app: FastAPI) -> Any:
     """Configure Cognito authentication for the FastAPI app.
 
     Reads configuration from environment variables:

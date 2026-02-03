@@ -15,7 +15,6 @@ Supports the ZPL commands used in zebra_day templates:
 """
 from __future__ import annotations
 
-import io
 import logging
 import re
 from dataclasses import dataclass, field
@@ -91,8 +90,8 @@ def _render_barcode(barcode_type: str, data: str, height: int = 40, module_width
         _log.warning("zint-bindings not available, cannot render barcode")
         return None
 
-    import tempfile
     import os
+    import tempfile
 
     try:
         symbol = zint.Symbol()

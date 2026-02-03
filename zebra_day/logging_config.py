@@ -8,7 +8,6 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -27,8 +26,8 @@ def get_logger(name: str) -> logging.Logger:
 
 def configure_logging(
     level: int = logging.INFO,
-    log_file: Optional[Path] = None,
-    format_string: Optional[str] = None,
+    log_file: Path | None = None,
+    format_string: str | None = None,
 ) -> None:
     """Configure zebra_day logging.
 

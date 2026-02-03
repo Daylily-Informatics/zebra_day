@@ -2,13 +2,10 @@
 
 import json
 import socket
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
-
-from zebra_day import paths as xdg
 
 printer_app = typer.Typer(help="Printer fleet management commands")
 console = Console()
@@ -28,7 +25,7 @@ def _get_local_ip() -> str:
 
 @printer_app.command("scan")
 def scan(
-    ip_stub: Optional[str] = typer.Option(None, "--ip-stub", "-i", help="IP stub to scan (e.g., 192.168.1)"),
+    ip_stub: str | None = typer.Option(None, "--ip-stub", "-i", help="IP stub to scan (e.g., 192.168.1)"),
     wait: float = typer.Option(0.25, "--wait", "-w", help="Seconds to wait per IP probe"),
     lab: str = typer.Option("scan-results", "--lab", "-l", help="Lab name to assign found printers"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
@@ -82,12 +79,12 @@ def scan(
             console.print(json.dumps({"error": str(e)}))
         else:
             console.print(f"[red]✗[/red] Scan error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @printer_app.command("list")
 def list_printers(
-    lab: Optional[str] = typer.Option(None, "--lab", "-l", help="Filter by lab name"),
+    lab: str | None = typer.Option(None, "--lab", "-l", help="Filter by lab name"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
     """List configured printers."""
@@ -137,7 +134,7 @@ def list_printers(
             console.print(json.dumps({"error": str(e)}))
         else:
             console.print(f"[red]✗[/red] Error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @printer_app.command("test")
@@ -152,7 +149,7 @@ def test_print(
         zp = zdpm.zpl()
 
         console.print(f"[cyan]→[/cyan] Sending test print to {printer_name}...")
-        result = zp.print_zpl(
+        zp.print_zpl(
             lab=lab,
             printer_name=printer_name,
             uid_barcode="TEST-PRINT",
@@ -160,9 +157,9 @@ def test_print(
             alt_b="zebra_day CLI",
             label_zpl_style=label_style,
         )
-        console.print(f"[green]✓[/green] Test print sent successfully")
+        console.print("[green]✓[/green] Test print sent successfully")
 
     except Exception as e:
         console.print(f"[red]✗[/red] Print error: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 

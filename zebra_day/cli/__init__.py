@@ -2,18 +2,16 @@
 
 import os
 import sys
-from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from zebra_day import paths as xdg
+from zebra_day.cli.cognito import cognito_app
 from zebra_day.cli.gui import gui_app
 from zebra_day.cli.printer import printer_app
 from zebra_day.cli.template import template_app
-from zebra_day.cli.cognito import cognito_app
 
 console = Console()
 
@@ -122,7 +120,7 @@ def status(
                 labs = list(zp.printers["labs"].keys())
                 status_data["printers"]["labs"] = labs
                 total_printers = sum(
-                    len([k for k in zp.printers["labs"][lab].keys()])
+                    len(list(zp.printers["labs"][lab].keys()))
                     for lab in labs
                 )
                 status_data["printers"]["configured"] = total_printers
@@ -143,18 +141,18 @@ def status(
 
     console.print("\n[bold]Printer Fleet[/bold]")
     if status_data["config"]["exists"]:
-        console.print(f"  [green]●[/green] Config: [green]Loaded[/green]")
+        console.print("  [green]●[/green] Config: [green]Loaded[/green]")
         console.print(f"    Printers: {status_data['printers']['configured']}")
         console.print(f"    Labs: {', '.join(status_data['printers']['labs']) or 'none'}")
     else:
         console.print("  [yellow]○[/yellow] Config: [yellow]Not found[/yellow]")
-        console.print(f"    Run [cyan]zday bootstrap[/cyan] to initialize")
+        console.print("    Run [cyan]zday bootstrap[/cyan] to initialize")
     console.print()
 
 
 @app.command("bootstrap")
 def bootstrap(
-    ip_stub: Optional[str] = typer.Option(None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"),
+    ip_stub: str | None = typer.Option(None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"),
     skip_scan: bool = typer.Option(False, "--skip-scan", "-s", help="Skip printer network scan"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
@@ -166,7 +164,6 @@ def bootstrap(
     3. Scan the network for Zebra printers (unless --skip-scan)
     """
     import json as json_mod
-    import time
     import socket
 
     result = {
@@ -207,7 +204,7 @@ def bootstrap(
 
             if hasattr(zp, "printers") and "labs" in zp.printers:
                 for lab in zp.printers["labs"]:
-                    printers_in_lab = len([k for k in zp.printers["labs"][lab].keys()])
+                    printers_in_lab = len(list(zp.printers["labs"][lab].keys()))
                     result["printers_found"] += printers_in_lab
                     result["labs"].append(lab)
 

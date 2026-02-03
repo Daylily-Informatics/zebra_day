@@ -5,7 +5,6 @@ basic status and info commands.
 """
 
 import os
-from typing import Optional
 
 import typer
 from rich.console import Console

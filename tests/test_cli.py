@@ -1,11 +1,9 @@
 """
 Tests for the zebra_day CLI commands.
 """
-import pytest
 from typer.testing import CliRunner
 
-from zebra_day.cli import app, _get_version
-
+from zebra_day.cli import _get_version, app
 
 runner = CliRunner()
 

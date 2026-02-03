@@ -2,7 +2,6 @@
 Tests for the zebra_day logging_config module.
 """
 import logging
-import pytest
 import tempfile
 from pathlib import Path
 
@@ -48,11 +47,11 @@ class TestConfigureLogging:
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = Path(tmpdir) / "logs" / "test.log"
             logging_config.configure_logging(level=logging.INFO, log_file=log_path)
-            
+
             # Log something
             logger = logging.getLogger("zebra_day")
             logger.info("Test log message")
-            
+
             # Check file was created
             assert log_path.exists()
 
@@ -60,7 +59,7 @@ class TestConfigureLogging:
         """Test configure_logging accepts custom format."""
         custom_format = "%(levelname)s - %(message)s"
         logging_config.configure_logging(level=logging.INFO, format_string=custom_format)
-        
+
         logger = logging.getLogger("zebra_day")
         assert len(logger.handlers) > 0
 

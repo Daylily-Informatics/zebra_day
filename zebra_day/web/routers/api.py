@@ -7,7 +7,7 @@ All endpoints return JSON and are prefixed with /api/v1/.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -24,7 +24,7 @@ class PrintRequest(BaseModel):
     """Request model for printing a label."""
     lab: str = Field(..., description="Lab identifier")
     printer: str = Field(..., description="Printer name")
-    label_zpl_style: Optional[str] = Field(None, description="ZPL template name")
+    label_zpl_style: str | None = Field(None, description="ZPL template name")
     uid_barcode: str = Field("", description="UID for barcode")
     alt_a: str = Field("", description="Alternative field A")
     alt_b: str = Field("", description="Alternative field B")
@@ -39,42 +39,42 @@ class PrintResponse(BaseModel):
     """Response model for print request."""
     success: bool
     message: str
-    png_url: Optional[str] = None
+    png_url: str | None = None
 
 
 class PrinterInfo(BaseModel):
     """Printer information model (v2.0.0 schema)."""
     id: str = Field(..., description="Printer identifier/key in JSON")
     ip_address: str
-    printer_name: Optional[str] = Field(None, description="User-friendly display name")
-    lab_location: Optional[str] = Field(None, description="Location within the lab")
+    printer_name: str | None = Field(None, description="User-friendly display name")
+    lab_location: str | None = Field(None, description="Location within the lab")
     manufacturer: str = Field("zebra", description="Printer manufacturer")
     model: str
     serial: str
-    label_zpl_styles: List[str]
-    default_label_style: Optional[str] = Field(None, description="Default label style to use when none specified")
+    label_zpl_styles: list[str]
+    default_label_style: str | None = Field(None, description="Default label style to use when none specified")
     print_method: str
-    notes: Optional[str] = Field("", description="Optional notes")
+    notes: str | None = Field("", description="Optional notes")
 
 
 class LabInfo(BaseModel):
     """Lab information model (v2.0.0 schema)."""
     id: str = Field(..., description="Lab identifier/key in JSON")
     lab_name: str = Field(..., description="Human-readable lab name")
-    available_locations: List[str] = Field(default_factory=list, description="Valid location options for printers")
-    printers: List[PrinterInfo]
+    available_locations: list[str] = Field(default_factory=list, description="Valid location options for printers")
+    printers: list[PrinterInfo]
 
 
 class LabPrinters(BaseModel):
     """Lab and its printers (deprecated, use LabInfo)."""
     lab: str
-    printers: List[PrinterInfo]
+    printers: list[PrinterInfo]
 
 
 class RenderRequest(BaseModel):
     """Request model for rendering ZPL to PNG."""
-    template: Optional[str] = Field(None, description="ZPL template name (e.g., 'tube_2inX1in')")
-    zpl_content: Optional[str] = Field(None, description="Raw ZPL content (takes precedence over template)")
+    template: str | None = Field(None, description="ZPL template name (e.g., 'tube_2inX1in')")
+    zpl_content: str | None = Field(None, description="Raw ZPL content (takes precedence over template)")
     uid_barcode: str = Field("", description="UID for barcode")
     alt_a: str = Field("", description="Alternative field A")
     alt_b: str = Field("", description="Alternative field B")
@@ -93,8 +93,8 @@ class RenderResponse(BaseModel):
 
 # ----- Endpoints -----
 
-@router.get("/labs", response_model=List[str])
-async def list_labs(request: Request) -> List[str]:
+@router.get("/labs", response_model=list[str])
+async def list_labs(request: Request) -> list[str]:
     """List all available labs."""
     zp = request.app.state.zp
     return list(zp.printers.get("labs", {}).keys())
@@ -138,8 +138,8 @@ async def get_lab(request: Request, lab: str) -> LabInfo:
     )
 
 
-@router.get("/labs/{lab}/printers", response_model=List[PrinterInfo])
-async def list_printers(request: Request, lab: str) -> List[PrinterInfo]:
+@router.get("/labs/{lab}/printers", response_model=list[PrinterInfo])
+async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
     """List all printers in a lab."""
     zp = request.app.state.zp
     labs = zp.printers.get("labs", {})
@@ -170,10 +170,9 @@ async def list_printers(request: Request, lab: str) -> List[PrinterInfo]:
     return printers
 
 
-@router.get("/templates", response_model=List[str])
-async def list_templates(request: Request) -> List[str]:
+@router.get("/templates", response_model=list[str])
+async def list_templates(request: Request) -> list[str]:
     """List all available ZPL templates."""
-    from pathlib import Path
 
     pkg_path = request.app.state.pkg_path
     styles_dir = pkg_path / "etc" / "label_styles"
@@ -223,7 +222,7 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
         )
         return PrintResponse(success=True, message="Print request sent successfully")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from None
     finally:
         rate_limiter.release()
 
@@ -272,7 +271,7 @@ async def render_label(request: Request, render_req: RenderRequest) -> RenderRes
         png_path = xdg.get_generated_files_dir() / png_filename
 
         # Render to PNG
-        result = zp.generate_label_png(zpl_string, str(png_path), relative=False)
+        zp.generate_label_png(zpl_string, str(png_path), relative=False)
 
         return RenderResponse(
             success=True,
@@ -280,9 +279,9 @@ async def render_label(request: Request, render_req: RenderRequest) -> RenderRes
             png_url=f"/generated/{png_filename}",
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"Template not found: {e}")
+        raise HTTPException(status_code=404, detail=f"Template not found: {e}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Render failed: {e}") from None
 
 
 @router.post("/render/png")
@@ -334,13 +333,13 @@ async def render_label_png(request: Request, render_req: RenderRequest):
             filename=png_filename,
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"Template not found: {e}")
+        raise HTTPException(status_code=404, detail=f"Template not found: {e}") from None
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Render failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Render failed: {e}") from None
 
 
 @router.get("/config")
-async def get_config(request: Request) -> Dict[str, Any]:
+async def get_config(request: Request) -> dict[str, Any]:
     """Get the current printer configuration."""
     zp = request.app.state.zp
     return zp.printers
@@ -350,17 +349,17 @@ async def get_config(request: Request) -> Dict[str, Any]:
 
 class LabUpdateRequest(BaseModel):
     """Request model for updating lab settings."""
-    lab_name: Optional[str] = Field(None, description="Human-readable lab name")
-    available_locations: Optional[List[str]] = Field(None, description="List of valid locations")
+    lab_name: str | None = Field(None, description="Human-readable lab name")
+    available_locations: list[str] | None = Field(None, description="List of valid locations")
 
 
 class PrinterUpdateRequest(BaseModel):
     """Request model for updating printer settings."""
-    printer_name: Optional[str] = Field(None, description="User-friendly display name")
-    lab_location: Optional[str] = Field(None, description="Location within the lab")
-    notes: Optional[str] = Field(None, description="Optional notes")
-    label_zpl_styles: Optional[List[str]] = Field(None, description="Allowed ZPL styles")
-    default_label_style: Optional[str] = Field(None, description="Default label style to use when none specified")
+    printer_name: str | None = Field(None, description="User-friendly display name")
+    lab_location: str | None = Field(None, description="Location within the lab")
+    notes: str | None = Field(None, description="Optional notes")
+    label_zpl_styles: list[str] | None = Field(None, description="Allowed ZPL styles")
+    default_label_style: str | None = Field(None, description="Default label style to use when none specified")
 
 
 @router.patch("/labs/{lab}", response_model=LabInfo)

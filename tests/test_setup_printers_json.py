@@ -1,6 +1,7 @@
 import os
 import random
 
+
 def test_printers_config_loading():
     """Test that printer config loads with v2 schema."""
     from zebra_day import print_mgr as zd

@@ -4,6 +4,7 @@
 
 import socket
 
+
 class ZebraPrinter:
 
     def __init__(self, ip_address, port=9100, buffer_size=1024):
@@ -11,7 +12,7 @@ class ZebraPrinter:
         self.port = port
         self.buffer_size = buffer_size
 
-        
+
     def send_command(self, command):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.ip_address, self.port))
@@ -19,15 +20,15 @@ class ZebraPrinter:
             response = s.recv(self.buffer_size)
         return response.decode()
 
-    
+
     def get_configuration(self):
         """Retrieve printer configuration using ^HH command"""
         return self.send_command("^XA^HH^XZ")
 
-    
+
     def set_configuration(self, config):
         """
-        Set printer configuration. 
+        Set printer configuration.
         The `config` parameter should contain the necessary ZPL commands to adjust the configuration.
         After sending the configuration commands, the ^JUS command saves the configuration.
         """

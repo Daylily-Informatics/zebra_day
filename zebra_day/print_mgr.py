@@ -17,15 +17,13 @@ import os
 import shutil
 import socket
 import subprocess
-import sys
 import time
+from importlib.resources import files
 from pathlib import Path
 
-from importlib.resources import files
-
-from zebra_day.logging_config import get_logger
-from zebra_day import paths as xdg
 import zebra_day.cmd_mgr as zdcm
+from zebra_day import paths as xdg
+from zebra_day.logging_config import get_logger
 
 _log = get_logger(__name__)
 
@@ -46,11 +44,11 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
     The bit which passes the zpl to the specified printer.
     Port is more or less hard coded upstream from here fwiw
     """
-    
+
     # In the case we are testing only, return None
     if is_test:
         return None
-    
+
     # Create a socket object
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     timeout = 5
@@ -68,9 +66,9 @@ def send_zpl_code(zpl_code, printer_ip, printer_port=9100, is_test=False):
             _log.info("ZPL code sent successfully to printer %s:%d", printer_ip, printer_port)
         else:
             raise Exception(f"\n\nPrint request to {printer_ip}:{printer_port} did not return None, but instead: {return_code} ... zpl: {zpl_code}\n")
-            
+
     except ConnectionError as e:
-        raise Exception(f"Error connecting to the printer: {printer_ip} on port {printer_port} \n\n\t"+str(e))
+        raise Exception(f"Error connecting to the printer: {printer_ip} on port {printer_port} \n\n\t"+str(e)) from e
 
     finally:
         # Close the socket connection
@@ -93,7 +91,7 @@ class zpl:
     from zebra_day import print_mgr as zd
     zd_pm = zd.zpl()
     """
-    
+
     def __init__(self, json_config: str | None = None):
         """
         Initialize the class.
@@ -258,19 +256,19 @@ class zpl:
         self.load_printer_json(str(json_path), relative=False)
 
 
-    def load_printer_json(self, json_file=f"etc/printer_config.json", relative=True):
+    def load_printer_json(self, json_file="etc/printer_config.json", relative=True):
         """
         Loads printer json from a specified file, saves it to the active json.
         If specified file does not exist, it is created with the base
           printers json
-        
+
         json_file = path to file
         """
         if relative:
             json_file = f"{str(files('zebra_day'))}/{json_file}"
         else:
             pass
-            
+
         _log.debug("Loading printer config from: %s", json_file)
 
         if not os.path.exists(json_file):
@@ -279,7 +277,7 @@ class zpl:
         self.printers_filename = json_file
         self.printers = json.load(fh)
         # self.save_printer_json() <---  use the save_printer_json call after calling this. Else, recursion.
-        
+
 
     def create_new_printers_json_with_single_test_printer(self, fn=None):
         """
@@ -289,17 +287,17 @@ class zpl:
 
         if fn in [None]:
             fn = str(files('zebra_day'))+"/etc/printer_config.json"
-        
+
         if not hasattr(self, 'printers'):
             self.printers = {}
             self.printers_filename = fn
 
         jdat = None
-        with open(f"{str(files('zebra_day'))}/etc/printer_config.template.json", 'r') as file:
+        with open(f"{str(files('zebra_day'))}/etc/printer_config.template.json") as file:
             jdat = json.load(file)
-            
+
         self.printers = jdat
-        
+
         self.save_printer_json(fn, relative=False)
 
 
@@ -363,7 +361,7 @@ class zpl:
 
         # Access printers via nested 'printers' key (v2 schema)
         lab_printers = self.printers['labs'][lab].get('printers', {})
-        for printer_id, printer_data in lab_printers.items():
+        for _printer_id, printer_data in lab_printers.items():
             for style in printer_data.get('label_zpl_styles', []):
                 unique_labels.add(style)
 
@@ -386,21 +384,21 @@ class zpl:
           the zpl templates.  They may be used in any way. uid_barcode
           just differntiates one.
         """
-        
+
         zpl_file = str(files('zebra_day'))+f"/etc/label_styles/{label_zpl_style}.zpl"
         if not os.path.exists(zpl_file):
             zpl_file = str(files('zebra_day'))+f"/etc/label_styles/tmps/{label_zpl_style}.zpl"
             if not os.path.exists(zpl_file):
                 raise Exception(f"ZPL File : {zpl_file} does not exist in the TOPLEVEL or TMPS zebra_day/etc/label_styles dir.")
 
-        with open(zpl_file, 'r') as file:
+        with open(zpl_file) as file:
             content = file.read()
         zpl_string = content.format(uid_barcode=uid_barcode, alt_a=alt_a, alt_b=alt_b, alt_c=alt_c, alt_d=alt_d, alt_e=alt_e, alt_f=alt_f, label_zpl_style=label_zpl_style)
 
         return zpl_string
 
 
-    
+
     def generate_label_png(self, zpl_string=None, png_fn=None, relative=False):
         """
         Generate a PNG image from ZPL string using local renderer.
@@ -432,7 +430,7 @@ class zpl:
         except Exception as e:
             _log.error("Failed to convert ZPL to image: %s", e)
             raise
-                     
+
 
     def print_raw_zpl(self,zpl_content,printer_ip, port=9100):
         """
@@ -440,8 +438,8 @@ class zpl:
         """
         send_zpl_code(zpl_content, printer_ip, printer_port=port)
 
-        
-        
+
+
 
     def print_zpl(self, lab=None, printer_name=None, uid_barcode='', alt_a='', alt_b='', alt_c='', alt_d='', alt_e='', alt_f='', label_zpl_style=None, client_ip='pkg', print_n=1, zpl_content=None):
         """
@@ -463,7 +461,6 @@ class zpl:
         if print_n < 1:
             raise Exception(f"\n\nprint_n < 1 , specified {print_n}")
 
-        rec_date = str(datetime.datetime.now()).replace(' ', '_')
         print_n = int(print_n)
 
         if printer_name in ['', 'None', None] and lab in [None, '', 'None']:
@@ -635,5 +632,5 @@ if __name__ == "__zday_start__":
     """
     entry point for zday_start
     """
-    
+
     zday_start()

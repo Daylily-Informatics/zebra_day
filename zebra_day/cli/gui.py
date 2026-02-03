@@ -7,7 +7,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Literal
 
 import typer
 from rich.console import Console
@@ -39,13 +38,13 @@ def _get_log_file() -> Path:
     return LOG_DIR / f"gui_{ts}.log"
 
 
-def _get_latest_log() -> Optional[Path]:
+def _get_latest_log() -> Path | None:
     """Get the most recent log file."""
     logs = sorted(LOG_DIR.glob("gui_*.log"), reverse=True)
     return logs[0] if logs else None
 
 
-def _get_pid() -> Optional[int]:
+def _get_pid() -> int | None:
     """Get the running server PID if exists."""
     if PID_FILE.exists():
         try:
@@ -67,8 +66,8 @@ def _check_auth_dependencies() -> bool:
 
 
 def _resolve_ssl_paths(
-    cert: Optional[str], key: Optional[str]
-) -> tuple[Optional[str], Optional[str], bool]:
+    cert: str | None, key: str | None
+) -> tuple[str | None, str | None, bool]:
     """
     Resolve SSL certificate and key paths.
 
@@ -110,8 +109,8 @@ def start(
     auth: str = typer.Option("none", "--auth", "-a", help="Authentication mode: none or cognito"),
     reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload (foreground)"),
     background: bool = typer.Option(True, "--background/--foreground", "-b/-f", help="Run in background"),
-    cert: Optional[str] = typer.Option(None, "--cert", help="Path to SSL certificate file"),
-    key: Optional[str] = typer.Option(None, "--key", help="Path to SSL private key file"),
+    cert: str | None = typer.Option(None, "--cert", help="Path to SSL certificate file"),
+    key: str | None = typer.Option(None, "--key", help="Path to SSL private key file"),
     no_https: bool = typer.Option(False, "--no-https", help="Disable HTTPS even if certificates are available"),
 ):
     """Start the zebra_day web UI server.
@@ -168,7 +167,7 @@ def start(
     protocol = "https" if use_https else "http"
 
     if use_https:
-        console.print(f"[green]✓[/green]  HTTPS enabled")
+        console.print("[green]✓[/green]  HTTPS enabled")
         console.print(f"   Certificate: [dim]{cert_path}[/dim]")
         console.print(f"   Private key: [dim]{key_path}[/dim]")
     else:
@@ -268,7 +267,7 @@ def stop():
         console.print("[yellow]⚠[/yellow]  Server was not running")
     except PermissionError:
         console.print(f"[red]✗[/red]  Permission denied stopping PID {pid}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @gui_app.command("status")

@@ -7,19 +7,16 @@ All routes use the modern UI design with responsive layouts.
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
-from fastapi import APIRouter, Request, Form, HTTPException
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from zebra_day.logging_config import get_logger
 import zebra_day.cmd_mgr as zdcm
+from zebra_day.logging_config import get_logger
 
 _log = get_logger(__name__)
 
@@ -332,13 +329,13 @@ async def modern_template_preview(
         template_name = filepath.stem
         output_path = output_dir / f"{template_name}_preview.png"
 
-        result = zp.generate_label_png(zpl_content, str(output_path), False)
+        zp.generate_label_png(zpl_content, str(output_path), False)
 
         # Return redirect to the generated file
         return RedirectResponse(url=f"/files/{template_name}_preview.png", status_code=303)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}") from None
 
 
 @router.get("/config", response_class=HTMLResponse)
@@ -392,7 +389,7 @@ async def modern_config_view(request: Request):
 
 
 @router.get("/config/edit", response_class=HTMLResponse)
-async def modern_config_edit(request: Request, error_msg: Optional[str] = None):
+async def modern_config_edit(request: Request, error_msg: str | None = None):
     """Edit printer configuration JSON."""
     zp = request.app.state.zp
     templates = request.app.state.templates
@@ -518,7 +515,7 @@ async def modern_config_scan(
 @router.get("/_print_label", response_class=HTMLResponse)
 async def modern_print_label(
     request: Request,
-    lab: Optional[str] = None,
+    lab: str | None = None,
     printer: str = "",
     printer_ip: str = "",
     label_zpl_style: str = "",

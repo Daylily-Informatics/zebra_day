@@ -1,7 +1,6 @@
 """
 Tests for the zebra_day paths module (XDG Base Directory).
 """
-import pytest
 from pathlib import Path
 
 from zebra_day import paths as xdg

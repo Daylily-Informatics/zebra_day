@@ -1,5 +1,6 @@
 import os
 
+
 def test_creating_zpl_from_template():
 
 
@@ -16,10 +17,11 @@ def test_creating_zpl_from_template():
 def test_creating_a_png_of_label_zpl():
 
     import random
+
     from zebra_day import print_mgr as zd
     zd_pm = zd.zpl()
     zd_pm.clear_printers_json()
-    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='tube_2inX1in')    
+    zpl = zd_pm.formulate_zpl(uid_barcode='TESTBC', alt_a='A', alt_b='B', alt_c='C', alt_d='D', alt_e='E', alt_f='F', label_zpl_style='tube_2inX1in')
     tmp_png = f"{os.path.dirname(zd.__file__)}/files/test_png_{random.randint(0,101010)}.png"
     tmp_full_png = zd_pm.generate_label_png(zpl_string=zpl, png_fn=tmp_png, relative=False)
 
@@ -30,8 +32,8 @@ def test_printing_label():
     # Test generating a PNG using generate_label_png directly
     # (virtual printer was removed - use render endpoint or generate_label_png)
 
-    from zebra_day import print_mgr as zd
     from zebra_day import paths as xdg
+    from zebra_day import print_mgr as zd
     zd_pm = zd.zpl()
 
     # Generate ZPL from template

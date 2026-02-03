@@ -23,7 +23,7 @@ class TestCognitoAvailability:
         """Test that availability and import error are consistent."""
         is_available = auth.is_cognito_available()
         import_error = auth.get_cognito_import_error()
-        
+
         if is_available:
             assert import_error is None
         else:

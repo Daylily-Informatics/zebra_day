@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -33,7 +33,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         method = request.method
         path = request.url.path
-        query = str(request.query_params) if request.query_params else ""
+        str(request.query_params) if request.query_params else ""
 
         # Extract relevant parameters for print operations
         lab = request.query_params.get("lab", "")

@@ -5,9 +5,7 @@ Tests for formulate_zpl, socket send (mocked), config JSON roundtrip.
 """
 import json
 import os
-import socket
 import tempfile
-from pathlib import Path
 from unittest import mock
 
 import pytest

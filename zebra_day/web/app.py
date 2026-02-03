@@ -7,16 +7,16 @@ from __future__ import annotations
 
 import os
 import subprocess
+from importlib.resources import files
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from importlib.resources import files
 
-from zebra_day.logging_config import get_logger
 from zebra_day import paths as xdg
+from zebra_day.logging_config import get_logger
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
 _log = get_logger(__name__)
@@ -39,7 +39,7 @@ def create_app(
     *,
     debug: bool = False,
     css_theme: str = "lsmc.css",
-    auth: Optional[Literal["none", "cognito"]] = None,
+    auth: Literal["none", "cognito"] | None = None,
 ) -> FastAPI:
     """
     Create and configure the FastAPI application.
@@ -114,7 +114,7 @@ def create_app(
     app.state.templates = templates
 
     # Register routers
-    from zebra_day.web.routers import ui, api
+    from zebra_day.web.routers import api, ui
 
     app.include_router(ui.router)
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
@@ -146,7 +146,7 @@ def create_app(
     return app
 
 
-def get_default_cert_paths() -> tuple[Optional[Path], Optional[Path]]:
+def get_default_cert_paths() -> tuple[Path | None, Path | None]:
     """
     Get default certificate paths from XDG config directory.
 
@@ -168,8 +168,8 @@ def run_server(
     port: int = 8118,
     reload: bool = False,
     auth: Literal["none", "cognito"] = "none",
-    ssl_certfile: Optional[str] = None,
-    ssl_keyfile: Optional[str] = None,
+    ssl_certfile: str | None = None,
+    ssl_keyfile: str | None = None,
 ):
     """
     Run the FastAPI server using uvicorn.
