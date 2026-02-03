@@ -204,8 +204,6 @@ def render_zpl_to_png(
     # Parse ZPL commands - split on ^ character
     commands = re.split(r'\^', zpl_string)
 
-    pending_text: str | None = None
-
     for cmd in commands:
         cmd = cmd.strip()
         if not cmd:
