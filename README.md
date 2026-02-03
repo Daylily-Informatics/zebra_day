@@ -93,15 +93,16 @@ zday gui stop
   
   > <a href=zebra_day/docs/zebra_day_ui_guide.md >ui capabilities full details</a>
 
-#### Some UI Niceties
-##### Zebra Printer Fleet Dashboard
-<img width="400" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a">
+#### Modern Web UI
 
-##### Zebra Printer, Single Printer Detail View
-<img width="690" alt="Screenshot 2023-11-01 at 1 35 36 AM" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/7438df35-9e92-474e-a2ef-57d3c3ee23d7">
+##### Dashboard
+<img width="800" alt="dashboard" src="zebra_day/imgs/ui_dashboard.png">
 
- ##### ZPL Label Editing IRT
-<img width="345" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
+##### Printer Fleet
+<img width="800" alt="printers" src="zebra_day/imgs/ui_printers.png">
+
+##### ZPL Template Editor
+<img width="800" alt="templates" src="zebra_day/imgs/ui_templates.png">
 
 </ul>
 
@@ -413,26 +414,23 @@ Use 'zday gui stop' to stop the server
 
 #### zebra_day Web GUI
 
-##### Home Page
- <img src=zebra_day/imgs/legacy/zday_quick_gui.png>
+##### Dashboard
+<img width="800" alt="dashboard" src="zebra_day/imgs/ui_dashboard.png">
 
-##### Zebra Fleet Auto Discovery & Status Report
+##### Printer Fleet
+<img width="800" alt="printers" src="zebra_day/imgs/ui_printers.png">
 
-<img width="1024" alt="fleetreport" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/8a66bc11-f8f5-4c40-9970-36d554a4593a">
+##### Print Request
+<img width="800" alt="print_request" src="zebra_day/imgs/ui_print_request.png">
 
+##### ZPL Template Editor
+<img width="800" alt="templates" src="zebra_day/imgs/ui_templates.png">
 
-##### Zebra Printer Fleet Config Json Editing
-<img width="472" alt="pconfjson" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/0813cb07-4c5a-4cc9-9b33-d00e8424385e">
-  One printer configured.
+##### Configuration
+<img width="800" alt="config" src="zebra_day/imgs/ui_config.png">
 
-
-##### ZPL Template Drafting / Preview PNG / Test Print / Save 
-<img width="953" alt="zpl_editing" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/15aac332-c5f8-4ce6-be6c-9c403fd8d35d">
-
-
-##### Manual Print Requests
-<img width="895" alt="printmanual" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/72442f68-984f-4264-93ec-9878372d26f2">
-
+##### API Documentation
+<img width="800" alt="api_docs" src="zebra_day/imgs/ui_api_docs.png">
 
 <br><br>
   
