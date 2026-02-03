@@ -10,14 +10,18 @@ Usage:
     # Start the zebra_day server
     zday gui start
 
-    # Run this script
+    # Run this script (auto-detects http/https)
     python scripts/capture_screenshots.py
+
+    # Or specify URL explicitly
+    python scripts/capture_screenshots.py --url http://localhost:8118
 
     # Screenshots will be saved to zebra_day/imgs/
 """
 
 import argparse
 import sys
+import urllib.request
 from pathlib import Path
 
 try:
@@ -27,6 +31,27 @@ except ImportError:
     print("  pip install playwright")
     print("  playwright install chromium")
     sys.exit(1)
+
+
+def detect_server_url(host: str = "localhost", port: int = 8118) -> str | None:
+    """Auto-detect whether server is running on HTTP or HTTPS."""
+    import ssl
+    import urllib.error
+
+    # Try HTTPS first
+    for protocol in ["https", "http"]:
+        url = f"{protocol}://{host}:{port}/healthz"
+        try:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=2, context=ctx) as resp:
+                if resp.status == 200:
+                    return f"{protocol}://{host}:{port}"
+        except (urllib.error.URLError, TimeoutError, OSError):
+            continue
+    return None
 
 
 # Pages to capture
@@ -107,8 +132,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Capture screenshots of zebra_day web UI")
     parser.add_argument(
         "--url",
-        default="https://localhost:8118",
-        help="Base URL of zebra_day server (default: https://localhost:8118)",
+        default=None,
+        help="Base URL of zebra_day server (auto-detects http/https if not specified)",
     )
     parser.add_argument(
         "--output-dir",
@@ -122,12 +147,22 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    print(f"Capturing screenshots from {args.url}")
+    # Auto-detect URL if not specified
+    base_url = args.url
+    if not base_url:
+        print("Detecting server...")
+        base_url = detect_server_url()
+        if not base_url:
+            print("ERROR: Could not connect to zebra_day server on localhost:8118")
+            print("Make sure the server is running: zday gui start")
+            return 1
+
+    print(f"Capturing screenshots from {base_url}")
     print(f"Output directory: {args.output_dir}")
     print()
 
     saved = capture_screenshots(
-        base_url=args.url,
+        base_url=base_url,
         output_dir=args.output_dir,
         viewport_width=args.width,
         viewport_height=args.height,
