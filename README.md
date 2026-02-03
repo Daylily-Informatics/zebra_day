@@ -157,6 +157,9 @@ The old commands `zday_start` and `zday_quickstart` still work but are deprecate
 
 The zebra_day web UI supports HTTPS for secure local development. By default, HTTPS is enabled if certificates are found.
 
+> **Note**: The `zday bootstrap` command automatically generates certificates if mkcert is installed and the CA is configured.
+> Manual certificate generation (below) is only needed if you skip bootstrap or want custom hostnames.
+
 #### One-Time Setup (mkcert)
 
 ```bash
@@ -171,7 +174,19 @@ sudo apt install mkcert
 mkcert -install
 ```
 
-#### Generate Certificates for zebra_day
+#### Automatic Certificate Generation (Recommended)
+
+After installing mkcert and running `mkcert -install`, the bootstrap command will automatically generate certificates:
+
+```bash
+zday bootstrap
+# Output includes:
+# ✓ Certificates generated: ~/.config/zebra_day/certs/server.crt
+```
+
+#### Manual Certificate Generation (Alternative)
+
+If you need to manually generate certificates (e.g., for custom hostnames):
 
 ```bash
 # Create certificate directory
@@ -244,7 +259,7 @@ curl https://localhost:8118/healthz
 <ul>
 <ul>
   
-> <img src=zebra_day/imgs/UBC_gantt_chart.png height=200 width=450>
+> <img src=zebra_day/imgs/legacy/UBC_gantt_chart.png height=200 width=450>
 
 </ul>
 </ul>
@@ -398,8 +413,8 @@ Use 'zday gui stop' to stop the server
 
 #### zebra_day Web GUI
 
-##### Home Page 
- <img src=zebra_day/imgs/zday_quick_gui.png>
+##### Home Page
+ <img src=zebra_day/imgs/legacy/zday_quick_gui.png>
 
 ##### Zebra Fleet Auto Discovery & Status Report
 
@@ -446,7 +461,7 @@ zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_
 ```
 
 * This will produce a label which looks like this (modulo printer config items needing attention).
-  ![test_lab](zebra_day/imgs/quick_start_test_label2.png)
+  ![test_lab](zebra_day/imgs/legacy/quick_start_test_label2.png)
 
 
 ### [Programatic Guide](zebra_day/docs/programatic_guide.md)
@@ -661,7 +676,7 @@ GET /favicon.ico               200 OK        ~
 </pre>
 
 And looks like:
-<img src=zebra_day/imgs/ngrok.png>
+<img src=zebra_day/imgs/legacy/ngrok.png>
 
 * If you leave the ngrok tunnel running, go to a different network, you can use the link named in the `Forwarding` row above to access the zebra_day UI, in the above example, this url would be `https://dfbf-23-93-175-197.ngrok-free.app`.
 

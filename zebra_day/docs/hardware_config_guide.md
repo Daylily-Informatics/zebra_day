@@ -66,8 +66,8 @@ Ideally, you will be able to use `zebra_day` to auto-detect printers on your net
   * Decrease print speed, `IPS` to 2 or 3.
 
 ##### Reference Printer Config Reports
-* [GX420d - printer](zebra_day/imgs/gx420d_printer_config.png) .... [GX420d - network](zebra_day/imgs/gx420d_network_config.png)
-* [ZD620 - printer](zebra_day/imgs/zd620_printer_config.png) .... [ZD620 - network](zebra_day/imgs/zd620_network_config.png)
+* [GX420d - printer](zebra_day/imgs/legacy/gx420d_printer_config.png) .... [GX420d - network](zebra_day/imgs/legacy/gx420d_network_config.png)
+* [ZD620 - printer](zebra_day/imgs/legacy/zd620_printer_config.png) .... [ZD620 - network](zebra_day/imgs/legacy/zd620_network_config.png)
 
 
   

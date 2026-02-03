@@ -221,12 +221,55 @@ def bootstrap(
             if not json_output:
                 console.print(f"[yellow]⚠[/yellow] Scan error: {e}")
 
+    # Generate HTTPS certificates if mkcert is available
+    certs_generated = False
+    cert_path_str = None
+
+    if not json_output:
+        console.print("\n[cyan]→[/cyan] Checking HTTPS certificates...")
+
+    try:
+        from zebra_day import mkcert
+
+        if not mkcert.is_mkcert_installed():
+            if not json_output:
+                console.print("[yellow]⚠[/yellow]  mkcert not installed")
+                console.print(
+                    "   Install with: [dim]brew install mkcert[/dim] (macOS) or "
+                    "[dim]sudo apt install mkcert[/dim] (Ubuntu)"
+                )
+        elif not mkcert.is_ca_installed():
+            if not json_output:
+                console.print("[yellow]⚠[/yellow]  mkcert CA not installed")
+                console.print("   Run: [dim]mkcert -install[/dim] (one-time, requires password)")
+        elif mkcert.certificates_exist():
+            if not json_output:
+                console.print(f"[green]✓[/green] Certificates exist: {mkcert.CERT_FILE}")
+            certs_generated = True
+            cert_path_str = str(mkcert.CERT_FILE)
+        else:
+            if not json_output:
+                console.print("   Generating certificates...")
+            if mkcert.generate_certificates():
+                if not json_output:
+                    console.print(f"[green]✓[/green] Certificates generated: {mkcert.CERT_FILE}")
+                certs_generated = True
+                cert_path_str = str(mkcert.CERT_FILE)
+            else:
+                if not json_output:
+                    console.print("[yellow]⚠[/yellow]  Failed to generate certificates")
+    except Exception as e:
+        if not json_output:
+            console.print(f"[yellow]⚠[/yellow] Certificate check error: {e}")
+
     if json_output:
         result = {
             "config_dir": config_dir,
             "data_dir": data_dir,
             "printers_found": printers_found,
             "labs": labs,
+            "https_certs_generated": certs_generated,
+            "cert_path": cert_path_str,
         }
         console.print(json_mod.dumps(result, indent=2))
     else:

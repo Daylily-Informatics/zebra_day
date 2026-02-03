@@ -37,12 +37,12 @@ Requires-Dist: typer>=0.9.0
 Requires-Dist: rich>=13.0.0
 Requires-Dist: pillow>=10.0.0
 Requires-Dist: zint-bindings>=1.2.0
+Requires-Dist: httpx
 Provides-Extra: dev
 Requires-Dist: pytest>=7.4.0; extra == "dev"
 Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
 Requires-Dist: ipython>=8.16.0; extra == "dev"
 Provides-Extra: lint
-Requires-Dist: black>=23.0.0; extra == "lint"
 Requires-Dist: ruff>=0.1.0; extra == "lint"
 Requires-Dist: mypy>=1.0.0; extra == "lint"
 Provides-Extra: docs
@@ -76,7 +76,7 @@ pytest -v
 
 # Run Linting (requires pip install -e ".[lint]")
 ruff check zebra_day tests
-black --check zebra_day tests
+ruff format --check zebra_day tests
 mypy zebra_day --ignore-missing-imports
 
 # CLI Commands
@@ -493,15 +493,14 @@ zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
-print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'scan-results', this may be edited latter.
+print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
 
-# The json will loook something like this
-## {'labs': {'scan-results': {'192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'unk'}}}
-##               'lab' name     'printer' name(can be edited latter)                              label_zpl_style
+# The json will look something like this (v2.0.0 schema with nested printers)
+## {'schema_version': '2.0.0', 'labs': {'default': {'lab_name': 'Default', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
 
-# Assuming a printer was detected, send a test print request.  Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now.  There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
+# Assuming a printer was detected, send a test print request. Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now. There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
 
-zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID")
+zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID")
 # ZPL code sent successfully to the printer!
 # Out[13]: '^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FD123aUID^FS\n^FO235,70\n^ADN,30,20\n^FD123aUID^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ'
 ```
@@ -579,7 +578,7 @@ The modern UI offers:
 ### Print via HTTP API
 
 ```http
-http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=scan-results&printer=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
+http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=default&printer=192.168.1.7&label_zpl_style=test_2inX1in&uid_barcode=123aUID
 ```
 
 * See the [Web UI Guide](zebra_day/docs/zebra_day_ui_guide.md) for full details.
@@ -729,16 +728,16 @@ And looks like:
 #### Sending Label Print Requests
 ##### from a web browser on a different network
 
-`https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in`
+`https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=default&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in`
 
 ##### Using wget from a shell on a machine outside your local network
 ```bash
-wget "https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=scan-results&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in"
+wget "https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&alt_a=altTEXTAA&alt_b=altTEXTBB&alt_c=altTEXTCC&alt_d=&alt_e=&alt_f=&lab=default&printer=192.168.1.20&printer_ip=192.168.1.20&label_zpl_style=tube_2inX1in"
 ```
 
 ### From SalesForce
 
- * There are several ways to do this, but they all boil down to somehow formulating a URL for each print request, ie: `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&lab=scan-results&printer=192.168.1.20&label_zpl_style=tube_2inX1in`, and hitting the URL via Apex, Flow, etc.
+ * There are several ways to do this, but they all boil down to somehow formulating a URL for each print request, ie: `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode=UID33344455&lab=default&printer=192.168.1.20&label_zpl_style=tube_2inX1in`, and hitting the URL via Apex, Flow, etc.
    * To send a print request, you will need to know the API url, and the `lab`, `printer_name`, and `label_zpl_style` you wish to print the salesforce `Name` aka `UID` as a label.  This example explains how to pass just one variable to print from salesforce, adding additional metadata to print involves adding additional params to the url being constructed.
 
 
@@ -793,7 +792,7 @@ Next, create a flow which uses this Apex Class.
 * Choose `Actions and Related Records`, and check the box at the bottom of the page to `Include a Run Asynchronously path...`
   * upon clicking this box, the graphic representation of the flow to the left of the page will now have 2 branches at the bottom of the flow rule, one `Run Immediately` and one `Run Asynchronously`.  The `Run Immediately` branch was throwing errors, so I removed it to debug at a latter date.
   * Click the node just below the `Run Asynch` oval. Add an `Action`. Select the `Make HTTP Request` we created via the Apex Class above.  Give it a `Label`, let the API Name auto generate.
-  * In the `Endpoint URL` field, enter the url `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode={!$Record.Name}&lab=scan-results&printer=!!YOURPRINTERIP!!&label_zpl_style=tube_2inX1in`, where Record.Name will be replaced with the Object.Name from the object triggering the flow.  Replace !!YOURPRINTERIP!! with one of the printer IPs zebra_day detected above.  If you are using the auto-generated zebra printers config json file, you may leave `scan-results` as the value for `lab=` as this will be the default name given when zebra_day autodetects printers.
+  * In the `Endpoint URL` field, enter the url `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode={!$Record.Name}&lab=default&printer=!!YOURPRINTERIP!!&label_zpl_style=tube_2inX1in`, where Record.Name will be replaced with the Object.Name from the object triggering the flow.  Replace !!YOURPRINTERIP!! with one of the printer IPs zebra_day detected above.  If you are using the auto-generated zebra printers config json file, you may leave `default` as the value for `lab=` as this will be the default name given when zebra_day autodetects printers.
   * add the same HTTPrequest action to the node just below `Run Immediately`.
   * click `Save` in the upper right corner of the page. Give it a name
   * Click `Debug Again`, run the `Run Immediately` branch first. This will fail.
