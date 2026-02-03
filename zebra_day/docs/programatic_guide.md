@@ -9,14 +9,13 @@ zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
-print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'scan-results', this may be edited latter.
-# The json will loook something like this
-## {'labs': {'scan-results': {'192.168.1.7': {'ip_address': '192.168.1.7', 'label_zpl_styles': ['test_2inX1in'], 'print_method': 'unk'}}}
-##               'lab' name     'printer' name(can be edited latter)                              label_zpl_style
+print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
+# The json will look something like this (v2.0.0 schema with nested printers)
+## {'schema_version': '2.0.0', 'labs': {'default': {'lab_name': 'Default', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
 
-# Assuming a printer was detected, send a test print request.  Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now.  There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
+# Assuming a printer was detected, send a test print request. Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now. There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
 
-zlab.print_zpl(lab='scan-results', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID")
+zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_2inX1in', uid_barcode="123aUID")
 # ZPL code sent successfully to the printer!
 # Out[13]: '^XA\n^FO235,20\n^BY1\n^B3N,N,40,N,N\n^FD123aUID^FS\n^FO235,70\n^ADN,30,20\n^FD123aUID^FS\n^FO235,115\n^ADN,25,12\n^FDalt_a^FS\n^FO235,145\n^ADN,25,12\n^FDalt_b^FS\n^FO70,180\n^FO235,170\n^ADN,30,20\n^FDalt_c^FS\n^FO490,180\n^ADN,25,12\n^FDalt_d^FS\n^XZ'
 ```
@@ -91,23 +90,10 @@ This is the file which describes the printer fleet. It may be manually edited or
 {
     "schema_version": "2.0.0",
     "labs": {
-        "scan-results": {
-            "lab_name": "Scan Results",
+        "default": {
+            "lab_name": "Default",
             "available_locations": ["Bench A", "Bench B"],
             "printers": {
-                "Download-Label-png": {
-                    "ip_address": "dl_png",
-                    "printer_name": "Download Label as PNG",
-                    "lab_location": null,
-                    "manufacturer": "virtual",
-                    "model": "na",
-                    "serial": "na",
-                    "label_zpl_styles": ["tube_2inX1in"],
-                    "default_label_style": "tube_2inX1in",
-                    "print_method": "generate png",
-                    "arp_data": "",
-                    "notes": ""
-                },
                 "192.168.1.7": {
                     "ip_address": "192.168.1.7",
                     "printer_name": "Main Lab Printer",
@@ -133,7 +119,37 @@ This is the file which describes the printer fleet. It may be manually edited or
 - Added `printer_name`, `lab_location`, `manufacturer`, `default_label_style`, `notes` at printer level
 - Added `schema_version` at root level
 
-The `lab` key in this example is `scan-results`, which is the lab name assigned when autodetect runs. These names are editable via the GUI. Printers are nested under the `printers` key within each lab.
+The `lab` key in this example is `default`, which is the lab name assigned when autodetect runs. These names are editable via the GUI. Printers are nested under the `printers` key within each lab.
+
+### Rendering ZPL to PNG (without printing)
+
+To generate a PNG preview of a label without sending to a printer, use the `/api/v1/render` endpoint:
+
+```bash
+# Render using a template
+curl -X POST "https://localhost:8118/api/v1/render" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_name": "tube_2inX1in",
+    "uid_barcode": "SAMPLE123",
+    "alt_a": "Field A",
+    "alt_b": "Field B"
+  }' \
+  --output label.png
+
+# Render raw ZPL content
+curl -X POST "https://localhost:8118/api/v1/render" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "zpl_content": "^XA^FO50,50^ADN,36,20^FDHello World^FS^XZ"
+  }' \
+  --output label.png
+```
+
+The render endpoint returns a PNG image directly. This is useful for:
+- Previewing labels before printing
+- Generating label images for documentation
+- Testing ZPL templates without physical printers
 
 ### ZPL Template Files
 These are template files for various different label styles. These may be manually edited (but its a nicer expereience using the UI)
