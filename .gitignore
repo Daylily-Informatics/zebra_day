@@ -10,6 +10,7 @@ zebra_day/etc/tmp_printers*
 
 # Distribution / packaging
 .Python
+./zebra_day.egg*
 build/
 develop-eggs/
 dist/
