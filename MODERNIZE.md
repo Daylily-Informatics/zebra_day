@@ -70,7 +70,7 @@ This document tracked the modernization of zebra_day from 0.5.0 to 2.0.0.
 pytest -v                           # Run tests
 pytest --cov=zebra_day              # Run tests with coverage
 ruff check zebra_day tests          # Lint
-black --check zebra_day tests       # Format check
+ruff format --check zebra_day tests # Format check
 mypy zebra_day                      # Type check
 
 # CLI

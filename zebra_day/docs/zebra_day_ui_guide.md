@@ -71,8 +71,98 @@ zebra_day 2.0.0+ features a modern, responsive web interface with HTTPS support:
 <img width="909" alt="print_success" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/5da259f3-0ed4-4c18-953d-c091690e703c">
 
 <img width="411" alt="zplab" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/024a49b8-b86f-4950-abe4-93eedc62101c">
-<hr>
-<hr>
+
+---
+
+## API Reference (curl examples)
+
+All API endpoints are documented at `/docs` (Swagger UI) and `/redoc`. Here are common operations:
+
+### Health Checks
+
+```bash
+# Basic health check
+curl https://localhost:8118/healthz
+
+# Readiness check (printer manager initialized)
+curl https://localhost:8118/readyz
+```
+
+### Printer Operations
+
+```bash
+# List all printers
+curl https://localhost:8118/api/v1/printers
+
+# Get printer status
+curl "https://localhost:8118/api/v1/printers/default/192.168.1.7/status"
+
+# Scan for new printers
+curl -X POST "https://localhost:8118/api/v1/printers/scan?ip_stub=192.168.1"
+```
+
+### Print Labels
+
+```bash
+# Print a label using a template
+curl -X POST "https://localhost:8118/api/v1/print" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lab": "default",
+    "printer_name": "192.168.1.7",
+    "label_zpl_style": "tube_2inX1in",
+    "uid_barcode": "SAMPLE123",
+    "alt_a": "Field A",
+    "alt_b": "Field B"
+  }'
+
+# Legacy query-string format (still supported)
+curl "https://localhost:8118/_print_label?lab=default&printer=192.168.1.7&label_zpl_style=tube_2inX1in&uid_barcode=SAMPLE123"
+```
+
+### Render Labels (PNG preview without printing)
+
+```bash
+# Render using a template
+curl -X POST "https://localhost:8118/api/v1/render" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template_name": "tube_2inX1in",
+    "uid_barcode": "SAMPLE123",
+    "alt_a": "Field A"
+  }' \
+  --output label.png
+
+# Render raw ZPL
+curl -X POST "https://localhost:8118/api/v1/render" \
+  -H "Content-Type: application/json" \
+  -d '{"zpl_content": "^XA^FO50,50^ADN,36,20^FDHello^FS^XZ"}' \
+  --output label.png
+```
+
+### Template Operations
+
+```bash
+# List all templates
+curl https://localhost:8118/api/v1/templates
+
+# Get template content
+curl https://localhost:8118/api/v1/templates/tube_2inX1in
+```
+
+### Configuration
+
+```bash
+# Get current configuration
+curl https://localhost:8118/api/v1/config
+
+# Update configuration (PATCH)
+curl -X PATCH "https://localhost:8118/api/v1/config" \
+  -H "Content-Type: application/json" \
+  -d '{"labs": {"default": {"lab_name": "Main Lab"}}}'
+```
+
+---
 
 ## Zebra Printer Web Admin UI
 Often, I find these pages valuable in triaging a poorly behaving printer.  I compare a well behaved printer to a problem one and see which settings are not in agreement.
@@ -99,33 +189,6 @@ Often, I find these pages valuable in triaging a poorly behaving printer.  I com
   * Get MAC address here.
   * Set static IP assignment here if needed, else DHCP
 
-### Network Settings: Wireless 
+### Network Settings: Wireless
 <img width="484" alt="z6" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a1a55e92-5a29-4d30-89a1-baa0f4b0837f">
   * Generally not a smooth thing to setup.  It is quite hard to fuss with these settings remotely.
-
-
-## Alternate ZDAY Styles
-why not?
-
-### Datchund, Night & Neon
-<img width="779" alt="dyldog" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/1d433b45-bbd0-4ea5-95f2-e4a89cf9fa7f">
-
-### Blue TRON
-<img width="774" alt="dyltron" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/de87a37b-1d51-4854-a7f6-a1381df8ce89">
-
-### Oakland
-<img width="774" alt="oak" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/b854f474-beb8-42bc-8f10-35ea1d1cd88d">
-
-### Petrichor
-<img width="776" alt="petrichor" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a4e52aa8-ba1b-4634-a195-96302d44a1ec">
-
-### Daylily Garish
-<img width="778" alt="dylyel" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/651e1e47-aa1f-4f45-ac22-49764a7fda2e">
-
-### Daylily FLWRZ
-<img width="778" alt="dylflr" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/a628e721-26a8-44fa-91f9-71765938a8bc">
-
-### Triangles
-<img width="778" alt="dyltri" src="https://github.com/Daylily-Informatics/zebra_day/assets/4713659/af52353d-b188-439c-afaa-ae47cca61399">
-
-
