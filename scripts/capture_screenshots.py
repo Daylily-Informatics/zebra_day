@@ -21,7 +21,6 @@ Usage:
 
 import argparse
 import sys
-import urllib.request
 from pathlib import Path
 
 try:

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "zebra_day"
-version = "2.0.0"
+dynamic = ["version"]
 description = "A Python library to manage a Zebra printer fleet and an API for ZPL print requests."
 readme = "README.md"
 license = {text = "MIT"}
@@ -138,3 +138,8 @@ warn_unused_ignores = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+write_to = "zebra_day/_version.py"
+write_to_template = '__version__ = "{version}"'
