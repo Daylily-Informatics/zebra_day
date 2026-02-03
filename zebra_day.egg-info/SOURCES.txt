@@ -59,6 +59,7 @@ zebra_day/etc/tmp_printers508.json
 zebra_day/etc/tmp_printers531.json
 zebra_day/etc/tmp_printers540.json
 zebra_day/etc/tmp_printers542.json
+zebra_day/etc/tmp_printers543.json
 zebra_day/etc/tmp_printers552.json
 zebra_day/etc/tmp_printers608.json
 zebra_day/etc/tmp_printers657.json
@@ -66,6 +67,8 @@ zebra_day/etc/tmp_printers715.json
 zebra_day/etc/tmp_printers835.json
 zebra_day/etc/tmp_printers838.json
 zebra_day/etc/tmp_printers839.json
+zebra_day/etc/tmp_printers842.json
+zebra_day/etc/tmp_printers931.json
 zebra_day/etc/tmp_printers933.json
 zebra_day/etc/tmp_printers957.json
 zebra_day/etc/tmp_printers969.json
@@ -152,13 +155,17 @@ zebra_day/files/test_png_47799.png
 zebra_day/files/test_png_49564.png
 zebra_day/files/test_png_53848.png
 zebra_day/files/test_png_55588.png
+zebra_day/files/test_png_56349.png
 zebra_day/files/test_png_58809.png
+zebra_day/files/test_png_5936.png
 zebra_day/files/test_png_62542.png
 zebra_day/files/test_png_64110.png
 zebra_day/files/test_png_64891.png
 zebra_day/files/test_png_67242.png
 zebra_day/files/test_png_69002.png
 zebra_day/files/test_png_70065.png
+zebra_day/files/test_png_72366.png
+zebra_day/files/test_png_77793.png
 zebra_day/files/test_png_89893.png
 zebra_day/files/test_png_91597.png
 zebra_day/files/test_png_93633.png

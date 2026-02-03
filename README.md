@@ -157,6 +157,9 @@ The old commands `zday_start` and `zday_quickstart` still work but are deprecate
 
 The zebra_day web UI supports HTTPS for secure local development. By default, HTTPS is enabled if certificates are found.
 
+> **Note**: The `zday bootstrap` command automatically generates certificates if mkcert is installed and the CA is configured.
+> Manual certificate generation (below) is only needed if you skip bootstrap or want custom hostnames.
+
 #### One-Time Setup (mkcert)
 
 ```bash
@@ -171,7 +174,19 @@ sudo apt install mkcert
 mkcert -install
 ```
 
-#### Generate Certificates for zebra_day
+#### Automatic Certificate Generation (Recommended)
+
+After installing mkcert and running `mkcert -install`, the bootstrap command will automatically generate certificates:
+
+```bash
+zday bootstrap
+# Output includes:
+# ✓ Certificates generated: ~/.config/zebra_day/certs/server.crt
+```
+
+#### Manual Certificate Generation (Alternative)
+
+If you need to manually generate certificates (e.g., for custom hostnames):
 
 ```bash
 # Create certificate directory
