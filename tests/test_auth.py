@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day authentication module.
 """
+
 import pytest
 
 from zebra_day.web import auth
@@ -55,4 +56,3 @@ class TestSetupCognitoAuth:
             with pytest.raises(ImportError) as exc_info:
                 auth.setup_cognito_auth(None)
             assert "daylily-cognito" in str(exc_info.value)
-

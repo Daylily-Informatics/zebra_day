@@ -33,6 +33,7 @@ def _get_version() -> str:
     """Get zebra_day version."""
     try:
         from importlib.metadata import version
+
         return version("zebra_day")
     except Exception:
         return "dev"
@@ -115,14 +116,12 @@ def status(
         status_data["config"]["exists"] = True
         try:
             import zebra_day.print_mgr as zdpm
+
             zp = zdpm.zpl()
             if hasattr(zp, "printers") and "labs" in zp.printers:
                 labs = list(zp.printers["labs"].keys())
                 status_data["printers"]["labs"] = labs
-                total_printers = sum(
-                    len(list(zp.printers["labs"][lab].keys()))
-                    for lab in labs
-                )
+                total_printers = sum(len(list(zp.printers["labs"][lab].keys())) for lab in labs)
                 status_data["printers"]["configured"] = total_printers
         except Exception:
             pass
@@ -134,7 +133,9 @@ def status(
     # Human-readable output
     console.print("\n[bold]Service Status[/bold]")
     if status_data["gui_server"]["running"]:
-        console.print(f"  [green]●[/green] GUI Server: [green]Running[/green] (PID {status_data['gui_server']['pid']})")
+        console.print(
+            f"  [green]●[/green] GUI Server: [green]Running[/green] (PID {status_data['gui_server']['pid']})"
+        )
         console.print(f"    URL: [cyan]{status_data['gui_server']['url']}[/cyan]")
     else:
         console.print("  [dim]○[/dim] GUI Server: [dim]Not running[/dim]")
@@ -152,7 +153,9 @@ def status(
 
 @app.command("bootstrap")
 def bootstrap(
-    ip_stub: str | None = typer.Option(None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"),
+    ip_stub: str | None = typer.Option(
+        None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"
+    ),
     skip_scan: bool = typer.Option(False, "--skip-scan", "-s", help="Skip printer network scan"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
@@ -199,6 +202,7 @@ def bootstrap(
 
         try:
             import zebra_day.print_mgr as zdpm
+
             zp = zdpm.zpl()
             zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub)
 
@@ -209,7 +213,9 @@ def bootstrap(
                     result["labs"].append(lab)
 
             if not json_output:
-                console.print(f"[green]✓[/green] Scan complete: {result['printers_found']} printer(s) found")
+                console.print(
+                    f"[green]✓[/green] Scan complete: {result['printers_found']} printer(s) found"
+                )
                 if result["labs"]:
                     console.print(f"    Labs: {', '.join(result['labs'])}")
         except Exception as e:
@@ -234,4 +240,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

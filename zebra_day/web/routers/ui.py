@@ -4,6 +4,7 @@ UI router for zebra_day web interface.
 Provides HTML endpoints for the web-based management interface.
 All routes use the modern UI design with responsive layouts.
 """
+
 from __future__ import annotations
 
 import json
@@ -89,6 +90,7 @@ def get_stats(zp, pkg_path: Path) -> dict:
 # MODERN UI ROUTES (root level)
 # =============================================================================
 
+
 @router.get("/", response_class=HTMLResponse)
 async def modern_dashboard(request: Request):
     """Modern dashboard - home page."""
@@ -142,19 +144,21 @@ async def modern_printers_by_lab(request: Request, lab: str):
 
     printers = []
     for name, info in lab_printers.items():
-        printers.append({
-            "id": name,
-            "name": info.get("printer_name") or name,  # Display name or fallback to ID
-            "printer_name": info.get("printer_name"),
-            "ip_address": info.get("ip_address", ""),
-            "lab_location": info.get("lab_location"),
-            "manufacturer": info.get("manufacturer", "zebra"),
-            "model": info.get("model", ""),
-            "serial": info.get("serial", ""),
-            "label_zpl_styles": info.get("label_zpl_styles", []),
-            "status": "online" if info.get("ip_address") else "unknown",
-            "notes": info.get("notes", ""),
-        })
+        printers.append(
+            {
+                "id": name,
+                "name": info.get("printer_name") or name,  # Display name or fallback to ID
+                "printer_name": info.get("printer_name"),
+                "ip_address": info.get("ip_address", ""),
+                "lab_location": info.get("lab_location"),
+                "manufacturer": info.get("manufacturer", "zebra"),
+                "model": info.get("model", ""),
+                "serial": info.get("serial", ""),
+                "label_zpl_styles": info.get("label_zpl_styles", []),
+                "status": "online" if info.get("ip_address") else "unknown",
+                "notes": info.get("notes", ""),
+            }
+        )
 
     ip_root = ".".join(request.app.state.local_ip.split(".")[:-1])
 
@@ -358,7 +362,7 @@ async def modern_config(request: Request):
     }
 
     # Get the config file path that was loaded
-    config_file_path = getattr(zp, 'printers_filename', 'Unknown')
+    config_file_path = getattr(zp, "printers_filename", "Unknown")
 
     context = get_modern_context(
         request,
@@ -434,10 +438,7 @@ async def modern_config_save(request: Request, json_data: str = Form(...)):
         return RedirectResponse(url="/config", status_code=303)
 
     except json.JSONDecodeError as e:
-        return RedirectResponse(
-            url=f"/config/edit?error_msg=Invalid JSON: {e}",
-            status_code=303
-        )
+        return RedirectResponse(url=f"/config/edit?error_msg=Invalid JSON: {e}", status_code=303)
 
 
 @router.get("/config/backups", response_class=HTMLResponse)
@@ -505,9 +506,7 @@ async def modern_config_scan(
 ):
     """Scan network for printers."""
     zp = request.app.state.zp
-    zp.probe_zebra_printers_add_to_printers_json(
-        ip_stub=ip_stub, scan_wait=scan_wait, lab=lab
-    )
+    zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait, lab=lab)
     time.sleep(2.2)
     return RedirectResponse(url=f"/printers/{lab}", status_code=303)
 
@@ -624,9 +623,7 @@ async def modern_png_renderer(
     files_dir = pkg_path / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
 
-    png_tmp_f = tempfile.NamedTemporaryFile(
-        suffix=".png", dir=str(files_dir), delete=False
-    ).name
+    png_tmp_f = tempfile.NamedTemporaryFile(suffix=".png", dir=str(files_dir), delete=False).name
 
     zp.generate_label_png(content, png_fn=png_tmp_f)
 

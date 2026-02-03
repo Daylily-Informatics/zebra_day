@@ -3,6 +3,7 @@ Logging configuration for zebra_day.
 
 Provides structured logging with configurable levels and formats.
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,11 +38,7 @@ def configure_logging(
         format_string: Optional custom format string
     """
     if format_string is None:
-        format_string = (
-            "\033[1m%(asctime)s\033[0m "
-            "[%(levelname)s] "
-            "%(name)s: %(message)s"
-        )
+        format_string = "\033[1m%(asctime)s\033[0m [%(levelname)s] %(name)s: %(message)s"
 
     formatter = logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
 
@@ -70,4 +67,3 @@ def configure_logging(
             )
         )
         logger.addHandler(file_handler)
-

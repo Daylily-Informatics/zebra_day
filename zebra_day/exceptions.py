@@ -3,6 +3,7 @@ Custom exceptions for zebra_day.
 
 Provides specific exception types for different error conditions.
 """
+
 from __future__ import annotations
 
 
@@ -85,4 +86,3 @@ class NetworkScanError(ZebraDayError):
     def __init__(self, ip_stub: str, message: str = ""):
         self.ip_stub = ip_stub
         super().__init__(f"Network scan failed for {ip_stub}.*: {message}")
-

@@ -1,6 +1,7 @@
 """
 zebra_day - A Python library to manage Zebra printer fleets and ZPL print requests.
 """
+
 from __future__ import annotations
 
 from zebra_day.exceptions import (

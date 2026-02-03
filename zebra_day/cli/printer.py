@@ -25,9 +25,13 @@ def _get_local_ip() -> str:
 
 @printer_app.command("scan")
 def scan(
-    ip_stub: str | None = typer.Option(None, "--ip-stub", "-i", help="IP stub to scan (e.g., 192.168.1)"),
+    ip_stub: str | None = typer.Option(
+        None, "--ip-stub", "-i", help="IP stub to scan (e.g., 192.168.1)"
+    ),
     wait: float = typer.Option(0.25, "--wait", "-w", help="Seconds to wait per IP probe"),
-    lab: str = typer.Option("scan-results", "--lab", "-l", help="Lab name to assign found printers"),
+    lab: str = typer.Option(
+        "scan-results", "--lab", "-l", help="Lab name to assign found printers"
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
     """Scan network for Zebra printers."""
@@ -42,6 +46,7 @@ def scan(
 
     try:
         import zebra_day.print_mgr as zdpm
+
         zp = zdpm.zpl()
         zp.probe_zebra_printers_add_to_printers_json(
             ip_stub=ip_stub,
@@ -53,12 +58,14 @@ def scan(
         if hasattr(zp, "printers") and "labs" in zp.printers and lab in zp.printers["labs"]:
             for name, info in zp.printers["labs"][lab].items():
                 if isinstance(info, dict) and info.get("ip_address") not in ["dl_png"]:
-                    found.append({
-                        "name": name,
-                        "ip": info.get("ip_address"),
-                        "model": info.get("model", "unknown"),
-                        "serial": info.get("serial", "unknown"),
-                    })
+                    found.append(
+                        {
+                            "name": name,
+                            "ip": info.get("ip_address"),
+                            "model": info.get("model", "unknown"),
+                            "serial": info.get("serial", "unknown"),
+                        }
+                    )
 
         if json_output:
             console.print(json.dumps(found, indent=2))
@@ -90,6 +97,7 @@ def list_printers(
     """List configured printers."""
     try:
         import zebra_day.print_mgr as zdpm
+
         zp = zdpm.zpl()
 
         printers = []
@@ -99,13 +107,15 @@ def list_printers(
                     continue
                 for name, info in lab_printers.items():
                     if isinstance(info, dict):
-                        printers.append({
-                            "lab": lab_name,
-                            "name": name,
-                            "ip": info.get("ip_address", "unknown"),
-                            "model": info.get("model", "unknown"),
-                            "styles": info.get("label_zpl_styles", []),
-                        })
+                        printers.append(
+                            {
+                                "lab": lab_name,
+                                "name": name,
+                                "ip": info.get("ip_address", "unknown"),
+                                "model": info.get("model", "unknown"),
+                                "styles": info.get("label_zpl_styles", []),
+                            }
+                        )
 
         if json_output:
             console.print(json.dumps(printers, indent=2))
@@ -125,7 +135,7 @@ def list_printers(
         for p in printers:
             styles = ", ".join(p["styles"][:2])
             if len(p["styles"]) > 2:
-                styles += f" (+{len(p['styles'])-2})"
+                styles += f" (+{len(p['styles']) - 2})"
             table.add_row(p["lab"], p["name"], p["ip"], p["model"], styles)
         console.print(table)
 
@@ -146,6 +156,7 @@ def test_print(
     """Send a test print to a specific printer."""
     try:
         import zebra_day.print_mgr as zdpm
+
         zp = zdpm.zpl()
 
         console.print(f"[cyan]→[/cyan] Sending test print to {printer_name}...")
@@ -162,4 +173,3 @@ def test_print(
     except Exception as e:
         console.print(f"[red]✗[/red] Print error: {e}")
         raise typer.Exit(1) from None
-

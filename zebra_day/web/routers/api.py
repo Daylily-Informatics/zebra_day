@@ -4,6 +4,7 @@ Versioned JSON API router for zebra_day.
 Provides programmatic access to printer management and label printing.
 All endpoints return JSON and are prefixed with /api/v1/.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -20,8 +21,10 @@ router = APIRouter()
 
 # ----- Request/Response Models -----
 
+
 class PrintRequest(BaseModel):
     """Request model for printing a label."""
+
     lab: str = Field(..., description="Lab identifier")
     printer: str = Field(..., description="Printer name")
     label_zpl_style: str | None = Field(None, description="ZPL template name")
@@ -37,6 +40,7 @@ class PrintRequest(BaseModel):
 
 class PrintResponse(BaseModel):
     """Response model for print request."""
+
     success: bool
     message: str
     png_url: str | None = None
@@ -44,6 +48,7 @@ class PrintResponse(BaseModel):
 
 class PrinterInfo(BaseModel):
     """Printer information model (v2.0.0 schema)."""
+
     id: str = Field(..., description="Printer identifier/key in JSON")
     ip_address: str
     printer_name: str | None = Field(None, description="User-friendly display name")
@@ -52,29 +57,38 @@ class PrinterInfo(BaseModel):
     model: str
     serial: str
     label_zpl_styles: list[str]
-    default_label_style: str | None = Field(None, description="Default label style to use when none specified")
+    default_label_style: str | None = Field(
+        None, description="Default label style to use when none specified"
+    )
     print_method: str
     notes: str | None = Field("", description="Optional notes")
 
 
 class LabInfo(BaseModel):
     """Lab information model (v2.0.0 schema)."""
+
     id: str = Field(..., description="Lab identifier/key in JSON")
     lab_name: str = Field(..., description="Human-readable lab name")
-    available_locations: list[str] = Field(default_factory=list, description="Valid location options for printers")
+    available_locations: list[str] = Field(
+        default_factory=list, description="Valid location options for printers"
+    )
     printers: list[PrinterInfo]
 
 
 class LabPrinters(BaseModel):
     """Lab and its printers (deprecated, use LabInfo)."""
+
     lab: str
     printers: list[PrinterInfo]
 
 
 class RenderRequest(BaseModel):
     """Request model for rendering ZPL to PNG."""
+
     template: str | None = Field(None, description="ZPL template name (e.g., 'tube_2inX1in')")
-    zpl_content: str | None = Field(None, description="Raw ZPL content (takes precedence over template)")
+    zpl_content: str | None = Field(
+        None, description="Raw ZPL content (takes precedence over template)"
+    )
     uid_barcode: str = Field("", description="UID for barcode")
     alt_a: str = Field("", description="Alternative field A")
     alt_b: str = Field("", description="Alternative field B")
@@ -86,12 +100,14 @@ class RenderRequest(BaseModel):
 
 class RenderResponse(BaseModel):
     """Response model for render request (when not returning PNG directly)."""
+
     success: bool
     message: str
     png_url: str = Field(..., description="URL to download the generated PNG")
 
 
 # ----- Endpoints -----
+
 
 @router.get("/labs", response_model=list[str])
 async def list_labs(request: Request) -> list[str]:
@@ -244,8 +260,7 @@ async def render_label(request: Request, render_req: RenderRequest) -> RenderRes
     # Validate that we have either template or zpl_content
     if not render_req.template and not render_req.zpl_content:
         raise HTTPException(
-            status_code=400,
-            detail="Either 'template' or 'zpl_content' must be provided"
+            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
         )
 
     try:
@@ -297,8 +312,7 @@ async def render_label_png(request: Request, render_req: RenderRequest):
     # Validate that we have either template or zpl_content
     if not render_req.template and not render_req.zpl_content:
         raise HTTPException(
-            status_code=400,
-            detail="Either 'template' or 'zpl_content' must be provided"
+            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
         )
 
     try:
@@ -347,19 +361,24 @@ async def get_config(request: Request) -> dict[str, Any]:
 
 # ----- Lab Settings Endpoints -----
 
+
 class LabUpdateRequest(BaseModel):
     """Request model for updating lab settings."""
+
     lab_name: str | None = Field(None, description="Human-readable lab name")
     available_locations: list[str] | None = Field(None, description="List of valid locations")
 
 
 class PrinterUpdateRequest(BaseModel):
     """Request model for updating printer settings."""
+
     printer_name: str | None = Field(None, description="User-friendly display name")
     lab_location: str | None = Field(None, description="Location within the lab")
     notes: str | None = Field(None, description="Optional notes")
     label_zpl_styles: list[str] | None = Field(None, description="Allowed ZPL styles")
-    default_label_style: str | None = Field(None, description="Default label style to use when none specified")
+    default_label_style: str | None = Field(
+        None, description="Default label style to use when none specified"
+    )
 
 
 @router.patch("/labs/{lab}", response_model=LabInfo)
@@ -398,7 +417,9 @@ async def update_printer(
 
     lab_printers = labs[lab].get("printers", {})
     if printer_id not in lab_printers:
-        raise HTTPException(status_code=404, detail=f"Printer '{printer_id}' not found in lab '{lab}'")
+        raise HTTPException(
+            status_code=404, detail=f"Printer '{printer_id}' not found in lab '{lab}'"
+        )
 
     printer_data = lab_printers[printer_id]
 
@@ -412,12 +433,16 @@ async def update_printer(
         printer_data["label_zpl_styles"] = update.label_zpl_styles
     if update.default_label_style is not None:
         # Validate that the style exists in label_zpl_styles (if it's not empty string)
-        if update.default_label_style and update.default_label_style not in printer_data.get("label_zpl_styles", []):
+        if update.default_label_style and update.default_label_style not in printer_data.get(
+            "label_zpl_styles", []
+        ):
             raise HTTPException(
                 status_code=400,
-                detail=f"Default label style '{update.default_label_style}' must be one of: {printer_data.get('label_zpl_styles', [])}"
+                detail=f"Default label style '{update.default_label_style}' must be one of: {printer_data.get('label_zpl_styles', [])}",
             )
-        printer_data["default_label_style"] = update.default_label_style if update.default_label_style else None
+        printer_data["default_label_style"] = (
+            update.default_label_style if update.default_label_style else None
+        )
 
     # Save changes
     zp.save_printer_json(zp.printers_filename, relative=False)

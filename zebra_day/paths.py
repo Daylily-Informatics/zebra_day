@@ -13,6 +13,7 @@ XDG Base Directory Specification:
 On macOS, we use ~/Library/Application Support for data and
 ~/Library/Preferences for config, but support XDG overrides.
 """
+
 from __future__ import annotations
 
 import os
@@ -139,4 +140,3 @@ def get_generated_files_dir() -> Path:
     files_dir = get_cache_dir() / "generated"
     files_dir.mkdir(parents=True, exist_ok=True)
     return files_dir
-

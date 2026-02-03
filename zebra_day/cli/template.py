@@ -64,12 +64,14 @@ def list_templates(
         for f in template_dir.iterdir():
             if f.is_file() and not f.name.startswith("."):
                 if f.suffix in [".zpl", ".txt", ""] or f.name.startswith("zpl_"):
-                    templates.append({
-                        "name": f.stem,
-                        "path": str(f),
-                        "size": f.stat().st_size,
-                        "source": "user" if "zebra_day" not in str(template_dir) else "package",
-                    })
+                    templates.append(
+                        {
+                            "name": f.stem,
+                            "path": str(f),
+                            "size": f.stat().st_size,
+                            "source": "user" if "zebra_day" not in str(template_dir) else "package",
+                        }
+                    )
 
     # Dedupe by name, prefer user templates
     seen = {}
@@ -118,6 +120,7 @@ def preview(
 
     try:
         import zebra_day.print_mgr as zdpm
+
         zp = zdpm.zpl()
 
         # Read template
@@ -172,4 +175,3 @@ def show(
 
     console.print(f"[dim]# {template_path}[/dim]\n")
     console.print(template_path.read_text())
-

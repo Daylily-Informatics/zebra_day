@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day CLI commands.
 """
+
 from typer.testing import CliRunner
 
 from zebra_day.cli import _get_version, app
@@ -105,4 +106,3 @@ class TestCLIGuiStatus:
         result = runner.invoke(app, ["gui", "status"])
         # exit_code 0 = running, exit_code 1 = not running (both valid)
         assert result.exit_code in (0, 1)
-

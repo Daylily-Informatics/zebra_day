@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day exceptions module.
 """
+
 import pytest
 
 from zebra_day import exceptions
@@ -110,4 +111,3 @@ class TestNetworkScanError:
         assert "192.168.1" in str(err)
         assert "timeout" in str(err)
         assert err.ip_stub == "192.168.1"
-

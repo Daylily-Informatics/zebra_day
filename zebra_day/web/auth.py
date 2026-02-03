@@ -169,4 +169,3 @@ def setup_cognito_auth(app: FastAPI) -> Any:
     )
 
     return cognito_auth
-

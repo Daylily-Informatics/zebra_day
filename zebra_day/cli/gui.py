@@ -60,14 +60,13 @@ def _check_auth_dependencies() -> bool:
     """Check if auth dependencies are available."""
     try:
         import jose  # noqa: F401
+
         return True
     except ImportError:
         return False
 
 
-def _resolve_ssl_paths(
-    cert: str | None, key: str | None
-) -> tuple[str | None, str | None, bool]:
+def _resolve_ssl_paths(cert: str | None, key: str | None) -> tuple[str | None, str | None, bool]:
     """
     Resolve SSL certificate and key paths.
 
@@ -108,10 +107,14 @@ def start(
     host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind to"),
     auth: str = typer.Option("none", "--auth", "-a", help="Authentication mode: none or cognito"),
     reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload (foreground)"),
-    background: bool = typer.Option(True, "--background/--foreground", "-b/-f", help="Run in background"),
+    background: bool = typer.Option(
+        True, "--background/--foreground", "-b/-f", help="Run in background"
+    ),
     cert: str | None = typer.Option(None, "--cert", help="Path to SSL certificate file"),
     key: str | None = typer.Option(None, "--key", help="Path to SSL private key file"),
-    no_https: bool = typer.Option(False, "--no-https", help="Disable HTTPS even if certificates are available"),
+    no_https: bool = typer.Option(
+        False, "--no-https", help="Disable HTTPS even if certificates are available"
+    ),
 ):
     """Start the zebra_day web UI server.
 
@@ -140,7 +143,7 @@ def start(
     if auth == "cognito":
         if not _check_auth_dependencies():
             console.print("[red]✗[/red]  Authentication requested but python-jose is not installed")
-            console.print("   Install with: [cyan]pip install -e \".[auth]\"[/cyan]")
+            console.print('   Install with: [cyan]pip install -e ".[auth]"[/cyan]')
             raise typer.Exit(1)
 
         # Check required env vars
@@ -174,7 +177,9 @@ def start(
         console.print("[yellow]⚠[/yellow]  Running in HTTP mode (insecure)")
         console.print("   For HTTPS, generate certificates with mkcert:")
         console.print(f"   [dim]mkdir -p {DEFAULT_CERT_DIR}[/dim]")
-        console.print(f"   [dim]mkcert -cert-file {DEFAULT_CERT_FILE} -key-file {DEFAULT_KEY_FILE} localhost 127.0.0.1 ::1[/dim]")
+        console.print(
+            f"   [dim]mkcert -cert-file {DEFAULT_CERT_FILE} -key-file {DEFAULT_KEY_FILE} localhost 127.0.0.1 ::1[/dim]"
+        )
 
     # Build command with SSL parameters
     ssl_args = ""
@@ -231,7 +236,9 @@ def start(
         console.print(f"   URL: [cyan]{protocol}://{host}:{port}[/cyan]")
         console.print(f"   Logs: [dim]{log_file}[/dim]")
     else:
-        console.print(f"[green]✓[/green]  Starting server on [cyan]{protocol}://{host}:{port}[/cyan]")
+        console.print(
+            f"[green]✓[/green]  Starting server on [cyan]{protocol}://{host}:{port}[/cyan]"
+        )
         console.print("   Press Ctrl+C to stop\n")
         try:
             result = subprocess.run(cmd, cwd=Path.cwd(), env=env)
@@ -334,4 +341,3 @@ def restart(
     stop()
     time.sleep(1)
     start(port=port, host=host, auth=auth, reload=False, background=True)
-

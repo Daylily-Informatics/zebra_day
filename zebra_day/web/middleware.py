@@ -3,6 +3,7 @@ Middleware for the zebra_day FastAPI application.
 
 Provides request logging and rate limiting functionality.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -136,7 +137,10 @@ class PrintRateLimiter:
 
             # Check rate limit
             if len(self._request_times[client_ip]) >= self.max_requests:
-                return False, f"Rate limit exceeded: {self.max_requests} requests per {self.window_seconds}s"
+                return (
+                    False,
+                    f"Rate limit exceeded: {self.max_requests} requests per {self.window_seconds}s",
+                )
 
             # Try to acquire semaphore (non-blocking check)
             if self._semaphore.locked() and self._semaphore._value == 0:
@@ -156,4 +160,3 @@ class PrintRateLimiter:
 
 # Global rate limiter instance
 print_rate_limiter = PrintRateLimiter()
-

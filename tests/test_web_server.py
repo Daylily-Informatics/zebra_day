@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day FastAPI web server and API endpoints.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -167,17 +168,23 @@ class TestAPIPrint:
 
     def test_print_missing_lab(self, client):
         """Test print request with missing lab returns error."""
-        response = client.post("/api/v1/print", json={
-            "printer": "some-printer",
-        })
+        response = client.post(
+            "/api/v1/print",
+            json={
+                "printer": "some-printer",
+            },
+        )
         # Missing required field should return 422
         assert response.status_code == 422
 
     def test_print_missing_printer(self, client):
         """Test print request with missing printer returns error."""
-        response = client.post("/api/v1/print", json={
-            "lab": "default",
-        })
+        response = client.post(
+            "/api/v1/print",
+            json={
+                "lab": "default",
+            },
+        )
         assert response.status_code == 422
 
 
@@ -186,19 +193,28 @@ class TestAPIRender:
 
     def test_render_missing_template_and_zpl(self, client):
         """Test render with no template or zpl_content returns 400."""
-        response = client.post("/api/v1/render", json={
-            "uid_barcode": "TEST123",
-        })
+        response = client.post(
+            "/api/v1/render",
+            json={
+                "uid_barcode": "TEST123",
+            },
+        )
         assert response.status_code == 400
-        assert "template" in response.json()["detail"].lower() or "zpl" in response.json()["detail"].lower()
+        assert (
+            "template" in response.json()["detail"].lower()
+            or "zpl" in response.json()["detail"].lower()
+        )
 
     def test_render_with_template_success(self, client):
         """Test render with template returns PNG URL."""
-        response = client.post("/api/v1/render", json={
-            "template": "tube_2inX1in",
-            "uid_barcode": "TEST123",
-            "alt_a": "Line A",
-        })
+        response = client.post(
+            "/api/v1/render",
+            json={
+                "template": "tube_2inX1in",
+                "uid_barcode": "TEST123",
+                "alt_a": "Line A",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -208,9 +224,12 @@ class TestAPIRender:
 
     def test_render_with_raw_zpl_success(self, client):
         """Test render with raw ZPL content returns PNG URL."""
-        response = client.post("/api/v1/render", json={
-            "zpl_content": "^XA^FO50,50^A0N,50,50^FDTest Label^FS^XZ",
-        })
+        response = client.post(
+            "/api/v1/render",
+            json={
+                "zpl_content": "^XA^FO50,50^A0N,50,50^FDTest Label^FS^XZ",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -218,18 +237,24 @@ class TestAPIRender:
 
     def test_render_png_direct_returns_image(self, client):
         """Test /render/png returns PNG file directly."""
-        response = client.post("/api/v1/render/png", json={
-            "template": "tube_2inX1in",
-            "uid_barcode": "DIRECT123",
-        })
+        response = client.post(
+            "/api/v1/render/png",
+            json={
+                "template": "tube_2inX1in",
+                "uid_barcode": "DIRECT123",
+            },
+        )
         assert response.status_code == 200
         assert response.headers["content-type"] == "image/png"
 
     def test_render_invalid_template_returns_error(self, client):
         """Test render with invalid template returns error."""
-        response = client.post("/api/v1/render", json={
-            "template": "nonexistent_template_xyz",
-        })
+        response = client.post(
+            "/api/v1/render",
+            json={
+                "template": "nonexistent_template_xyz",
+            },
+        )
         # Invalid template raises Exception which is caught as 500
         assert response.status_code == 500
         assert "does not exist" in response.json()["detail"]
@@ -240,9 +265,12 @@ class TestAPIPatchLab:
 
     def test_patch_lab_not_found(self, client):
         """Test patching non-existent lab returns 404."""
-        response = client.patch("/api/v1/labs/nonexistent-lab-xyz", json={
-            "lab_name": "Test Lab",
-        })
+        response = client.patch(
+            "/api/v1/labs/nonexistent-lab-xyz",
+            json={
+                "lab_name": "Test Lab",
+            },
+        )
         assert response.status_code == 404
 
     def test_patch_lab_update_name(self, client):
@@ -251,17 +279,23 @@ class TestAPIPatchLab:
         original_name = original["lab_name"]
 
         # Update the name
-        response = client.patch("/api/v1/labs/default", json={
-            "lab_name": "Updated Test Name",
-        })
+        response = client.patch(
+            "/api/v1/labs/default",
+            json={
+                "lab_name": "Updated Test Name",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["lab_name"] == "Updated Test Name"
 
         # Restore original name
-        client.patch("/api/v1/labs/default", json={
-            "lab_name": original_name,
-        })
+        client.patch(
+            "/api/v1/labs/default",
+            json={
+                "lab_name": original_name,
+            },
+        )
 
 
 class TestAPIPatchPrinter:

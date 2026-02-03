@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day paths module (XDG Base Directory).
 """
+
 from pathlib import Path
 
 from zebra_day import paths as xdg
@@ -58,4 +59,3 @@ class TestXDGPathConsistency:
         """Test data dir path ends with zebra_day."""
         result = xdg.get_data_dir()
         assert "zebra_day" in str(result)
-

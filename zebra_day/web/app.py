@@ -3,6 +3,7 @@ FastAPI application factory for zebra_day.
 
 This module provides the main FastAPI application for the zebra_day web interface.
 """
+
 from __future__ import annotations
 
 import os
@@ -250,4 +251,3 @@ def run_server(
     _log.info("Starting server at %s://%s:%d", protocol, host, port)
 
     uvicorn.run("zebra_day.web.app:create_app", **uvicorn_kwargs)
-

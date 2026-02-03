@@ -1,6 +1,7 @@
 """
 Tests for the zebra_day logging_config module.
 """
+
 import logging
 import tempfile
 from pathlib import Path
@@ -62,4 +63,3 @@ class TestConfigureLogging:
 
         logger = logging.getLogger("zebra_day")
         assert len(logger.handlers) > 0
-

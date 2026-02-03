@@ -3,6 +3,7 @@ Unit tests for core zebra_day functions.
 
 Tests for formulate_zpl, socket send (mocked), config JSON roundtrip.
 """
+
 import json
 import os
 import tempfile
@@ -119,15 +120,13 @@ class TestConfigJsonRoundtrip:
                     "model": "ZD421",
                     "serial": "TEST123",
                     "arp_data": "na",
-                    "notes": ""
+                    "notes": "",
                 }
-            }
+            },
         }
 
         # Save to temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
             tmp_path = tmp.name
 
         try:
@@ -141,8 +140,14 @@ class TestConfigJsonRoundtrip:
             assert "labs" in loaded
             assert "roundtrip_test" in loaded["labs"]
             # v2 schema: printers are nested
-            assert loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["ip_address"] == "10.0.0.99"
-            assert loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["printer_name"] == "Test Printer Display Name"
+            assert (
+                loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["ip_address"]
+                == "10.0.0.99"
+            )
+            assert (
+                loaded["labs"]["roundtrip_test"]["printers"]["TestPrinter"]["printer_name"]
+                == "Test Printer Display Name"
+            )
 
             # Load into new instance
             zd_pm2 = zd.zpl()
@@ -175,4 +180,3 @@ class TestConfigJsonRoundtrip:
         assert "default" in zd_pm.printers["labs"]
         assert "printers" in zd_pm.printers["labs"]["default"]
         assert "schema_version" in zd_pm.printers
-

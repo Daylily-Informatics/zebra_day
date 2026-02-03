@@ -27,8 +27,8 @@ jobs:
       - name: Run Ruff linter
         run: ruff check zebra_day tests
 
-      - name: Run Black formatter check
-        run: black --check zebra_day tests
+      - name: Run Ruff formatter check
+        run: ruff format --check zebra_day tests
 
       - name: Run mypy type checker
         run: mypy zebra_day --ignore-missing-imports
