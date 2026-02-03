@@ -1,9 +1,12 @@
 """ZPL template management commands for zebra_day CLI."""
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -58,7 +61,7 @@ def list_templates(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full paths"),
 ):
     """List available ZPL templates."""
-    templates = []
+    templates: list[dict[str, Any]] = []
 
     for template_dir in _get_template_dirs():
         for f in template_dir.iterdir():

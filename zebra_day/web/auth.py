@@ -38,9 +38,9 @@ try:
     _COGNITO_AVAILABLE = True
 except ImportError as e:
     _COGNITO_IMPORT_ERROR = str(e)
-    CognitoAuth = None  # type: ignore[misc, assignment]
-    CognitoConfig = None  # type: ignore[misc, assignment]
-    create_auth_dependency = None  # type: ignore[misc, assignment]
+    CognitoAuth = None
+    CognitoConfig = None
+    create_auth_dependency = None
 
 
 def is_cognito_available() -> bool:
@@ -70,11 +70,13 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
 
         # Allow public endpoints without authentication
         if any(path.startswith(public) for public in PUBLIC_PATHS):
-            return await call_next(request)
+            response = await call_next(request)
+            return response  # type: ignore[no-any-return]
 
         # Allow static files without authentication
         if path.startswith("/static") or path.startswith("/files") or path.startswith("/etc"):
-            return await call_next(request)
+            response = await call_next(request)
+            return response  # type: ignore[no-any-return]
 
         # Check for Authorization header
         auth_header = request.headers.get("Authorization")
@@ -116,7 +118,8 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        return await call_next(request)
+        response = await call_next(request)
+        return response  # type: ignore[no-any-return]
 
 
 def setup_cognito_auth(app: FastAPI) -> Any:

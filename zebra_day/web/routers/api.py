@@ -356,7 +356,7 @@ async def render_label_png(request: Request, render_req: RenderRequest):
 async def get_config(request: Request) -> dict[str, Any]:
     """Get the current printer configuration."""
     zp = request.app.state.zp
-    return zp.printers
+    return dict(zp.printers)
 
 
 # ----- Lab Settings Endpoints -----

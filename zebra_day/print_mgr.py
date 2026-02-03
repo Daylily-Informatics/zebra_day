@@ -21,6 +21,7 @@ import subprocess
 import time
 from importlib.resources import files
 from pathlib import Path
+from typing import Literal
 
 import zebra_day.cmd_mgr as zdcm
 from zebra_day import paths as xdg
@@ -557,7 +558,7 @@ def _get_local_ip() -> str:
     return result.stdout.strip().split("\n")[0] if result.stdout.strip() else "127.0.0.1"
 
 
-def _parse_auth_args() -> str:
+def _parse_auth_args() -> Literal["none", "cognito"]:
     """Parse --auth CLI argument.
 
     Returns:
@@ -574,7 +575,8 @@ def _parse_auth_args() -> str:
         help="Authentication mode: 'none' (public, default) or 'cognito' (AWS Cognito)",
     )
     args, _ = parser.parse_known_args()
-    return args.auth
+    auth_mode: Literal["none", "cognito"] = args.auth
+    return auth_mode
 
 
 def zday_start() -> None:

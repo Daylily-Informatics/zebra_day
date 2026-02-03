@@ -29,7 +29,7 @@ def _get_cognito_app() -> typer.Typer:
         # Import and return the full cognito CLI from daylily-cognito
         from daylily_cognito.cli import cognito_app
 
-        return cognito_app
+        return cognito_app  # type: ignore[no-any-return]
     else:
         # Return a minimal fallback app
         return _create_fallback_app()

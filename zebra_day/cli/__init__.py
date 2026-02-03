@@ -1,7 +1,11 @@
 """zebra_day CLI - Zebra Printer Fleet Management CLI using Typer."""
 
+from __future__ import annotations
+
 import os
+import socket
 import sys
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -91,7 +95,7 @@ def status(
     """Show printer fleet status, network connectivity, and service health."""
     import json as json_mod
 
-    status_data = {
+    status_data: dict[str, dict[str, Any]] = {
         "gui_server": {"running": False, "pid": None, "url": None},
         "printers": {"configured": 0, "labs": []},
         "config": {"exists": False, "path": None},
@@ -167,19 +171,16 @@ def bootstrap(
     3. Scan the network for Zebra printers (unless --skip-scan)
     """
     import json as json_mod
-    import socket
 
-    result = {
-        "config_dir": str(xdg.get_config_dir()),
-        "data_dir": str(xdg.get_data_dir()),
-        "printers_found": 0,
-        "labs": [],
-    }
+    config_dir = str(xdg.get_config_dir())
+    data_dir = str(xdg.get_data_dir())
+    printers_found = 0
+    labs: list[str] = []
 
     if not json_output:
         console.print("\n[bold cyan]zebra_day Bootstrap[/bold cyan]\n")
-        console.print("[green]✓[/green] Config directory: " + result["config_dir"])
-        console.print("[green]✓[/green] Data directory: " + result["data_dir"])
+        console.print("[green]✓[/green] Config directory: " + config_dir)
+        console.print("[green]✓[/green] Data directory: " + data_dir)
 
     if skip_scan:
         if not json_output:
@@ -209,20 +210,24 @@ def bootstrap(
             if hasattr(zp, "printers") and "labs" in zp.printers:
                 for lab in zp.printers["labs"]:
                     printers_in_lab = len(list(zp.printers["labs"][lab].keys()))
-                    result["printers_found"] += printers_in_lab
-                    result["labs"].append(lab)
+                    printers_found += printers_in_lab
+                    labs.append(lab)
 
             if not json_output:
-                console.print(
-                    f"[green]✓[/green] Scan complete: {result['printers_found']} printer(s) found"
-                )
-                if result["labs"]:
-                    console.print(f"    Labs: {', '.join(result['labs'])}")
+                console.print(f"[green]✓[/green] Scan complete: {printers_found} printer(s) found")
+                if labs:
+                    console.print(f"    Labs: {', '.join(labs)}")
         except Exception as e:
             if not json_output:
                 console.print(f"[yellow]⚠[/yellow] Scan error: {e}")
 
     if json_output:
+        result = {
+            "config_dir": config_dir,
+            "data_dir": data_dir,
+            "printers_found": printers_found,
+            "labs": labs,
+        }
         console.print(json_mod.dumps(result, indent=2))
     else:
         console.print("\n[bold green]✓ Bootstrap complete![/bold green]")

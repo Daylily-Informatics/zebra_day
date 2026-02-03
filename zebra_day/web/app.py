@@ -77,7 +77,7 @@ def create_app(
         from zebra_day.web.auth import CognitoAuthMiddleware, setup_cognito_auth
 
         cognito_auth = setup_cognito_auth(app)
-        app.add_middleware(CognitoAuthMiddleware, cognito_auth=cognito_auth)
+        app.add_middleware(CognitoAuthMiddleware, cognito_auth=cognito_auth)  # type: ignore[arg-type]
         app.state.cognito_auth = cognito_auth
         app.state.auth_mode = "cognito"
         _log.info("Cognito authentication middleware enabled")
@@ -234,7 +234,7 @@ def run_server(
         )
 
     # Build uvicorn config
-    uvicorn_kwargs = {
+    uvicorn_kwargs: dict[str, str | int | bool | None] = {
         "host": host,
         "port": port,
         "reload": reload,
@@ -250,4 +250,4 @@ def run_server(
 
     _log.info("Starting server at %s://%s:%d", protocol, host, port)
 
-    uvicorn.run("zebra_day.web.app:create_app", **uvicorn_kwargs)
+    uvicorn.run("zebra_day.web.app:create_app", **uvicorn_kwargs)  # type: ignore[arg-type]

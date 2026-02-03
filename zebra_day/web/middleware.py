@@ -87,7 +87,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         else:
             _log.info("Request completed", extra=log_context)
 
-        return response
+        return response  # type: ignore[no-any-return]
 
 
 class PrintRateLimiter:
