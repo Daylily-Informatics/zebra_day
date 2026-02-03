@@ -4,6 +4,11 @@ zebra_day - A Python library to manage Zebra printer fleets and ZPL print reques
 
 from __future__ import annotations
 
+try:
+    from zebra_day._version import __version__
+except ImportError:
+    __version__ = "0.0.0.dev0"
+
 from zebra_day.exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
@@ -19,10 +24,9 @@ from zebra_day.exceptions import (
 from zebra_day.logging_config import configure_logging, get_logger
 
 __all__ = [
-    # Logging
+    "__version__",
     "configure_logging",
     "get_logger",
-    # Exceptions
     "ZebraDayError",
     "PrinterConnectionError",
     "PrinterNotFoundError",

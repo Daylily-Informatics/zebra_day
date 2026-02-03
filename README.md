@@ -1,6 +1,12 @@
 <img src=zebra_day/imgs/bar_red.png>
 
-## zebra_day Overview [2.0.0](https://github.com/Daylily-Informatics/zebra_day/releases/tag/2.0.0)
+## zebra_day
+
+[![GitHub Release](https://img.shields.io/github/v/release/Daylily-Informatics/zebra_day?style=flat-square&label=release)](https://github.com/Daylily-Informatics/zebra_day/releases/latest)
+[![GitHub Tag](https://img.shields.io/github/v/tag/Daylily-Informatics/zebra_day?style=flat-square&label=tag)](https://github.com/Daylily-Informatics/zebra_day/tags)
+[![PyPI](https://img.shields.io/pypi/v/zebra_day?style=flat-square)](https://pypi.org/project/zebra_day/)
+[![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 ### Build, Deploy, Run, Monitor, Teardown
 
@@ -790,13 +796,3 @@ Tthen run `sudo docker compose up --build -d` to run it then reach it at http://
 
   * Set varios printer config via ZPL commands (presently this package only fetches config).
 
-
-# BadgeLand
-
-[![Python CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
-
-<br>
- 
- 
- 
- 
