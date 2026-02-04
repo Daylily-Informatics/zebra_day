@@ -473,6 +473,69 @@ zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_
 
 <br><br>
 
+## Simplified API (v2.1.5+)
+
+Starting with v2.1.5, zebra_day provides a simplified top-level API for common operations. These functions are thin wrappers around the `print_mgr.zpl()` class, making the library more intuitive to use.
+
+### Quick Example
+
+```python
+import zebra_day as zd
+
+# Query available labs
+labs = zd.query_labs()
+print(labs)  # ['default', 'production']
+
+# Query printers for a specific lab
+printers = zd.query_printers('default')
+print(printers)  # {'192.168.1.100': {'ip_address': '...', 'model': 'ZD620', ...}}
+
+# Scan network for Zebra printers
+zd.scan(ip_stub='192.168.1', lab='default')
+
+# Print a label
+zpl_str = zd.print_zpl(
+    lab='default',
+    printer_name='192.168.1.100',
+    label_zpl_style='tube_2inX1in',
+    uid_barcode='SAMPLE-001',
+    alt_a='Patient Name',
+    alt_b='2024-01-15'
+)
+
+# Start the web GUI
+zd.start_gui(host='0.0.0.0', port=8118, https=True)
+```
+
+### Before/After Comparison
+
+| Operation | Old API (print_mgr.zpl) | New Simplified API |
+|-----------|-------------------------|-------------------|
+| Query labs | `zp = zdpm.zpl(); list(zp.printers['labs'].keys())` | `zd.query_labs()` |
+| Query printers | `zp.printers['labs']['default']['printers']` | `zd.query_printers('default')` |
+| Scan network | `zp.probe_zebra_printers_add_to_printers_json(...)` | `zd.scan(ip_stub='...', lab='...')` |
+| Print label | `zp.print_zpl(lab=..., printer_name=..., ...)` | `zd.print_zpl(lab=..., printer_name=..., ...)` |
+| Start GUI | (via CLI only) | `zd.start_gui(port=8118)` |
+
+### Function Reference
+
+#### `zd.query_labs() -> List[str]`
+Returns a list of all configured lab identifiers.
+
+#### `zd.query_printers(lab: str) -> Dict[str, Dict]`
+Returns a dictionary of printers for the specified lab. Raises `KeyError` if lab doesn't exist.
+
+#### `zd.scan(ip_stub: str = "192.168.1", lab: str = "default") -> None`
+Scans the network range (`{ip_stub}.0` to `{ip_stub}.255`) for Zebra printers and adds them to the specified lab.
+
+#### `zd.print_zpl(lab, printer_name, label_zpl_style, uid_barcode='', alt_a='', ..., alt_f='') -> str`
+Sends a print job to the specified printer. Returns the ZPL string sent.
+
+#### `zd.start_gui(host: str = "0.0.0.0", port: int = 8118, https: bool = True) -> None`
+Starts the FastAPI web GUI server. HTTPS is enabled by default if certificates are available.
+
+<br><br>
+
 ## Print Request HTTP API
 
 ### Quick Start
