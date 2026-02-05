@@ -64,7 +64,21 @@ elif command -v conda >/dev/null 2>&1; then
 fi
 
 if [ -z "$CONDA_CMD" ]; then
-    log_warn "Neither conda nor mamba found; falling back to local .venv if available"
+    printf "\n${RED}${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}\n"
+    printf "${RED}${BOLD}║  ERROR: conda/mamba not found                                ║${NC}\n"
+    printf "${RED}${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}\n\n"
+    log_error "Neither conda nor mamba is installed or available in PATH."
+    printf "\n"
+    printf "  ${BOLD}To install Miniconda, run:${NC}\n"
+    printf "    ${CYAN}bash ${SCRIPT_DIR}/scripts/install_miniconda${NC}\n"
+    printf "\n"
+    printf "  ${BOLD}Or install manually:${NC}\n"
+    printf "    ${CYAN}https://docs.conda.io/en/latest/miniconda.html${NC}\n"
+    printf "\n"
+    printf "  After installation, open a new terminal and try again:\n"
+    printf "    ${CYAN}source ./zday_activate${NC}\n"
+    printf "\n"
+    _ZDAY_ACTIVATE_OK=0
 fi
 
 # Only continue if prerequisites are met
@@ -122,45 +136,13 @@ elif [ -n "$CONDA_CMD" ]; then
             _ZDAY_ACTIVATE_OK=0
         fi
     else
+        log_error "Conda environment '${CONDA_ENV_NAME}' not found and no env file to create it."
+        log_info "Run: ${CYAN}$CONDA_CMD env create -n ${CONDA_ENV_NAME} -f ${ENV_FILE}${NC}"
         _ZDAY_ACTIVATE_OK=0
     fi
 else
+    log_error "Failed to activate conda environment."
     _ZDAY_ACTIVATE_OK=0
-fi
-
-# Fallback to .venv
-if [ "$_ZDAY_ACTIVATE_OK" -eq 0 ]; then
-    if [ -x "${VENV_BIN}/python" ]; then
-        log_info "Falling back to repo-local Python at ${VENV_BIN}/python"
-        export PATH="${VENV_BIN}:${PATH}"
-        log_success "Using repo-local .venv on PATH"
-        _ZDAY_ACTIVATE_OK=1
-    else
-        # Try to create .venv with Python >= 3.10
-        log_info "No .venv found. Attempting to create one with Python >= 3.10..."
-        _ZDAY_PY=""
-        for _py in python3.13 python3.12 python3.11 python3.10; do
-            if command -v "$_py" >/dev/null 2>&1; then
-                _ZDAY_PY="$_py"
-                break
-            fi
-        done
-        if [ -n "$_ZDAY_PY" ]; then
-            log_info "Found $_ZDAY_PY, creating .venv..."
-            if "$_ZDAY_PY" -m venv "${SCRIPT_DIR}/.venv" 2>/dev/null; then
-                log_success "Created .venv with $_ZDAY_PY"
-                export PATH="${VENV_BIN}:${PATH}"
-                _ZDAY_ACTIVATE_OK=1
-            else
-                log_error "Failed to create .venv with $_ZDAY_PY"
-                _ZDAY_ACTIVATE_OK=0
-            fi
-        else
-            log_error "No Python >= 3.10 found. Please install Python 3.10+ and try again."
-            _ZDAY_ACTIVATE_OK=0
-        fi
-        unset _ZDAY_PY _py
-    fi
 fi
 
 # ========== Install Package ==========
