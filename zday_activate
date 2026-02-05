@@ -8,6 +8,11 @@
 #   1. Create/activate a .venv Python virtual environment
 #   2. Install zebra_day in development mode
 #   3. Enable tab completion for the 'zday' CLI
+#   4. Auto-install persistent tab completion on first run
+#
+# Options:
+#   --install-completion   Force (re)install persistent tab completion
+#   --no-completion        Skip tab completion entirely
 #
 # Prerequisites:
 #   - Python 3.10+ must be installed and available in PATH
@@ -91,12 +96,29 @@ fi
 
 # Activate the virtual environment
 if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
+    # Save original PATH and PS1 for deactivation
+    export _ZDAY_OLD_PATH="$PATH"
+    export _ZDAY_OLD_PS1="${PS1:-}"
+    export _ZDAY_ACTIVE=1
+    export ZDAY_PROJECT_ROOT="$SCRIPT_DIR"
+
     if [ -f "${VENV_BIN}/activate" ]; then
-        . "${VENV_BIN}/activate"
+        # Source activate but suppress its PS1 modification
+        VIRTUAL_ENV_DISABLE_PROMPT=1 . "${VENV_BIN}/activate"
         log_success "Activated virtual environment"
     else
         export PATH="${VENV_BIN}:${PATH}"
         log_success "Added .venv to PATH"
+    fi
+
+    # Set custom PS1 with (zday) prefix
+    _zday_shell="$(basename "$SHELL")"
+    if [ "$_zday_shell" = "zsh" ]; then
+        # For zsh, use %F{cyan} for color
+        export PS1="%F{cyan}(zday)%f ${_ZDAY_OLD_PS1}"
+    else
+        # For bash/sh, use ANSI escape codes
+        export PS1="\[\033[0;36m\](zday)\[\033[0m\] ${_ZDAY_OLD_PS1}"
     fi
 fi
 
@@ -116,23 +138,93 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
     else
         ZDAY_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/zebra_day"
     fi
-    ZDAY_CONFIG_FILE="${ZDAY_CONFIG_DIR}/printer_config.json"
+    ZDAY_CONFIG_YAML="${ZDAY_CONFIG_DIR}/zebra-day-config.yaml"
+    ZDAY_CONFIG_JSON="${ZDAY_CONFIG_DIR}/printer_config.json"
 
-    if [ -f "$ZDAY_CONFIG_FILE" ]; then
-        log_success "Printer config found: ${ZDAY_CONFIG_FILE}"
+    if [ -f "$ZDAY_CONFIG_YAML" ]; then
+        log_success "Config found: ${ZDAY_CONFIG_YAML}"
+    elif [ -f "$ZDAY_CONFIG_JSON" ]; then
+        log_success "Legacy config found: ${ZDAY_CONFIG_JSON} (will migrate to YAML)"
     else
         log_warn "No printer config found"
-        printf "   Run: ${CYAN}zday bootstrap${NC} to initialize\n"
+        printf "   Run: ${CYAN}zday bootstrap${NC} or ${CYAN}zday config init${NC} to initialize\n"
     fi
 
     # ========== Tab Completion ==========
+    # Marker file to track if completion has been installed
+    ZDAY_COMPLETION_MARKER="${ZDAY_CONFIG_DIR}/.completion_installed"
     _zday_shell="$(basename "$SHELL")"
-    if [ "$_zday_shell" = "zsh" ]; then
-        eval "$(zday --show-completion zsh 2>/dev/null)"
-    elif [ "$_zday_shell" = "bash" ]; then
-        eval "$(zday --show-completion bash 2>/dev/null)"
+
+    # Check for --no-completion or --install-completion flags
+    _zday_install_completion=0
+    _zday_skip_completion=0
+    for _arg in "$@"; do
+        case "$_arg" in
+            --install-completion) _zday_install_completion=1 ;;
+            --no-completion) _zday_skip_completion=1 ;;
+        esac
+    done
+
+    # Auto-install on first run (if marker doesn't exist)
+    if [ ! -f "$ZDAY_COMPLETION_MARKER" ] && [ "$_zday_skip_completion" -eq 0 ]; then
+        _zday_install_completion=1
     fi
-    log_success "Tab completion enabled for zday CLI"
+
+    # Install persistent completion if requested
+    # Use Python directly to ensure correct shell-specific installation
+    if [ "$_zday_install_completion" -eq 1 ] && [ "$_zday_skip_completion" -eq 0 ]; then
+        log_info "Installing persistent tab completion for ${_zday_shell}..."
+        _zday_install_result=$(python -c "
+from typer.completion import install
+try:
+    shell, path = install(shell='${_zday_shell}', prog_name='zday', complete_var='_ZDAY_COMPLETE')
+    print(f'OK:{path}')
+except Exception as e:
+    print(f'ERROR:{e}')
+" 2>&1)
+        case "$_zday_install_result" in
+            OK:*)
+                _zday_install_path="${_zday_install_result#OK:}"
+                log_success "Tab completion installed to: ${_zday_install_path}"
+                # Create marker file
+                mkdir -p "$(dirname "$ZDAY_COMPLETION_MARKER")"
+                touch "$ZDAY_COMPLETION_MARKER"
+                log_info "Restart your shell or source your shell config to enable completion"
+                unset _zday_install_path
+                ;;
+            *)
+                log_warn "Could not install persistent completion (will use session-only)"
+                ;;
+        esac
+        unset _zday_install_result
+    fi
+
+    # Always enable for current session
+    # Note: We use Python directly to generate shell-specific completion because
+    # Typer's --show-completion doesn't properly pass shell argument in all cases
+    if [ "$_zday_skip_completion" -eq 0 ]; then
+        _zday_completion_script=""
+        if [ "$_zday_shell" = "zsh" ]; then
+            _zday_completion_script=$(python -c "
+from typer.completion import get_completion_script
+print(get_completion_script(prog_name='zday', complete_var='_ZDAY_COMPLETE', shell='zsh'))
+" 2>/dev/null)
+        elif [ "$_zday_shell" = "bash" ]; then
+            _zday_completion_script=$(python -c "
+from typer.completion import get_completion_script
+print(get_completion_script(prog_name='zday', complete_var='_ZDAY_COMPLETE', shell='bash'))
+" 2>/dev/null)
+        fi
+        if [ -n "$_zday_completion_script" ]; then
+            eval "$_zday_completion_script"
+            log_success "Tab completion enabled for current session ($_zday_shell)"
+        else
+            log_warn "Could not enable tab completion for $_zday_shell"
+        fi
+        unset _zday_completion_script
+    fi
+
+    unset _zday_install_completion _zday_skip_completion _arg
 
     # ========== Summary ==========
     printf "\n${BOLD}${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}\n"
@@ -146,6 +238,8 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
     printf "    ${CYAN}zday gui${NC}       Web UI server management (start, stop, status, logs)\n"
     printf "    ${CYAN}zday printer${NC}   Printer fleet (scan, list, test)\n"
     printf "    ${CYAN}zday template${NC}  ZPL templates (list, preview, edit)\n"
+    printf "    ${CYAN}zday config${NC}    Configuration (init, show, path, validate, edit, reset)\n"
+    printf "    ${CYAN}zday env${NC}       Environment (activate, deactivate, reset, status)\n"
     printf "    ${CYAN}zday cognito${NC}   Authentication (status, info, create)\n"
     printf "\n"
     printf "  ${BOLD}Quick Start:${NC}\n"
@@ -155,6 +249,7 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
     printf "    zday info         Show configuration\n"
     printf "\n"
     printf "  ${BOLD}Tip:${NC} Use TAB to autocomplete zday commands and subcommands\n"
+    printf "  ${BOLD}Deactivate:${NC} source zday_deactivate\n"
     printf "\n"
 fi
 

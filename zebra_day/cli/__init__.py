@@ -14,6 +14,7 @@ from rich.table import Table
 from zebra_day import paths as xdg
 from zebra_day.cli.cognito import cognito_app
 from zebra_day.cli.config import config_app
+from zebra_day.cli.env import env_app
 from zebra_day.cli.gui import gui_app
 from zebra_day.cli.printer import printer_app
 from zebra_day.cli.template import template_app
@@ -32,6 +33,7 @@ app.add_typer(gui_app, name="gui", help="Web UI server management")
 app.add_typer(printer_app, name="printer", help="Printer fleet management")
 app.add_typer(template_app, name="template", help="ZPL template management")
 app.add_typer(config_app, name="config", help="Configuration management")
+app.add_typer(env_app, name="env", help="Development environment management")
 app.add_typer(cognito_app, name="cognito", help="Cognito authentication management")
 
 
