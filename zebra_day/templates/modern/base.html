@@ -48,12 +48,26 @@
     <div class="toast-container" id="toast-container"></div>
 
     <!-- Loading overlay -->
-    <div class="loading-overlay d-none" id="loading-overlay">
-        <div class="loading-spinner">
-            <div class="spinner"></div>
-            <p>Loading...</p>
-        </div>
-    </div>
+	    <div class="loading-overlay d-none" id="loading-overlay">
+	        <div class="loading-spinner">
+	            <div class="spinner"></div>
+	            <p id="loading-message">Loading...</p>
+
+	            <!-- Network scan progress (shown only during SSE scan) -->
+	            <div class="scan-progress d-none" id="scan-progress">
+	                <div class="scan-progress-meta">
+	                    <div class="scan-progress-counter" id="scan-progress-counter">Checked 0/255</div>
+	                    <div class="scan-current" id="scan-current-ip"></div>
+	                </div>
+	                <div class="scan-ip-list" id="scan-ip-list"></div>
+	                <div class="scan-actions">
+	                    <button type="button" class="btn btn-outline btn-sm" id="scan-cancel-btn" disabled>
+	                        <i class="fas fa-stop"></i> Cancel Scan and Save Results
+	                    </button>
+	                </div>
+	            </div>
+	        </div>
+	    </div>
 
     <!-- Main content -->
     <main class="main">

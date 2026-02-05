@@ -336,8 +336,22 @@ def restart(
     port: int = typer.Option(8118, "--port", "-p", help="Port to run the server on"),
     host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind to"),
     auth: str = typer.Option("none", "--auth", "-a", help="Authentication mode: none or cognito"),
+    cert: str | None = typer.Option(None, "--cert", help="Path to SSL certificate file"),
+    key: str | None = typer.Option(None, "--key", help="Path to SSL private key file"),
+    no_https: bool = typer.Option(
+        False, "--no-https", help="Disable HTTPS even if certificates are available"
+    ),
 ):
     """Restart the zebra_day web UI server."""
     stop()
     time.sleep(1)
-    start(port=port, host=host, auth=auth, reload=False, background=True)
+    start(
+        port=port,
+        host=host,
+        auth=auth,
+        reload=False,
+        background=True,
+        cert=cert,
+        key=key,
+        no_https=no_https,
+    )

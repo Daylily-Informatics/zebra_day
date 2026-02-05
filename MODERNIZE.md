@@ -23,7 +23,7 @@ This document tracked the modernization of zebra_day from 0.5.0 to 2.0.0.
 
 ### Phase 2 - XDG Filesystem Safety
 - [x] Implemented zebra_day/paths.py with XDG Base Directory support
-- [x] Config: ~/.config/zebra_day/ (Linux) or ~/Library/Preferences/zebra_day/ (macOS)
+- [x] Config: ~/.config/zebra_day/ (Linux + macOS; legacy macOS path supported for migration)
 - [x] Data: ~/.local/share/zebra_day/ (Linux) or ~/Library/Application Support/zebra_day/ (macOS)
 - [x] Logs: ~/.local/state/zebra_day/ (Linux) or ~/Library/Logs/zebra_day/ (macOS)
 - [x] Replaced os.system() calls with pathlib + shutil

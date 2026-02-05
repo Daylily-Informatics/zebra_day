@@ -654,6 +654,66 @@ select.form-control {
     margin: 0 auto var(--spacing-md);
 }
 
+/* Network Scan Progress (inside loading overlay) */
+.scan-progress {
+    margin-top: var(--spacing-lg);
+    width: min(720px, calc(100vw - 2rem));
+    text-align: left;
+}
+
+.scan-progress-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-md);
+}
+
+.scan-progress-counter {
+    color: var(--color-gray-200);
+    font-weight: 600;
+}
+
+.scan-current {
+    color: var(--color-gray-300);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.875rem;
+}
+
+.scan-ip-list {
+    background: var(--color-gray-800);
+    border: 1px solid var(--color-gray-700);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    height: 240px;
+    overflow: auto;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.875rem;
+    color: var(--color-gray-200);
+}
+
+.scan-ip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: 2px 0;
+}
+
+.scan-ip-row .scan-ip {
+    white-space: nowrap;
+}
+
+.scan-ip-row .scan-ip-meta {
+    color: var(--color-gray-400);
+    font-size: 0.8rem;
+}
+
+.scan-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--spacing-md);
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }

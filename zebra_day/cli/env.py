@@ -9,6 +9,8 @@ import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from zebra_day import paths as xdg
+
 console = Console()
 
 env_app = typer.Typer(help="Development environment management")
@@ -103,6 +105,7 @@ def status():
     is_active = bool(os.environ.get("_ZDAY_ACTIVE"))
     project_root = os.environ.get("ZDAY_PROJECT_ROOT", "")
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
+    config_path = str(xdg.get_config_file_path())
 
     console.print("\n[bold]Environment Status[/bold]\n")
 
@@ -112,9 +115,11 @@ def status():
             console.print(f"    Project root: [cyan]{project_root}[/cyan]")
         if virtual_env:
             console.print(f"    Virtual env:  [cyan]{virtual_env}[/cyan]")
+        console.print(f"    Config file:  [cyan]{config_path}[/cyan]")
     else:
         console.print("  [dim]○[/dim] zebra_day environment: [dim]Not active[/dim]")
         console.print("    Run [cyan]zday env activate[/cyan] for instructions")
+        console.print(f"    Config file:  [cyan]{config_path}[/cyan]")
 
     console.print()
 

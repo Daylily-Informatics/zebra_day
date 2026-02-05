@@ -16,6 +16,10 @@ pip install -e ".[dev]"
 
 # Activate environment (for development)
 source zday_activate      # Sets up env, installs package, enables tab completion
+                          # Your prompt will change to: (zday) $
+
+# Deactivate environment
+source zday_deactivate    # Restores original PATH and prompt
 
 # Run Tests
 pytest -v
@@ -153,6 +157,12 @@ zday config validate               # Validate config schema
 zday config edit                   # Open config in $EDITOR
 zday config reset [--force]        # Reset config to template defaults
 
+# Environment management (development)
+zday env status                    # Show if environment is active
+zday env activate                  # Show command to activate environment
+zday env deactivate                # Show command to deactivate environment
+zday env reset                     # Show command to reset (deactivate + reactivate)
+
 # Cognito authentication (requires pip install -e ".[auth]")
 zday cognito status               # Show auth configuration
 zday cognito info                 # Setup instructions
@@ -167,6 +177,48 @@ The old commands `zday_start` and `zday_quickstart` still work but are deprecate
 | `zday_quickstart` | `zday bootstrap && zday gui start` |
 | `zday_start` | `zday gui start` |
 | `zday_start --auth cognito` | `zday gui start --auth cognito` |
+
+### Environment Activation
+
+For development, use the provided activation scripts to set up your environment:
+
+```bash
+# Activate the development environment
+source zday_activate
+
+# Your prompt changes to show the active environment:
+# (zday) $
+
+# Check environment status
+zday env status
+```
+
+The activation script:
+- Activates the Python virtual environment (`.venv`)
+- Installs zebra_day in development mode
+- Enables tab completion for the `zday` CLI
+- Sets the `(zday)` prefix in your shell prompt (cyan color)
+
+**Deactivation:**
+
+```bash
+# Deactivate and restore your original environment
+source zday_deactivate
+```
+
+**Reset (for troubleshooting):**
+
+```bash
+# If environment seems broken, reset it cleanly:
+source zday_deactivate && source zday_activate
+```
+
+**Activation Script Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--install-completion` | Force reinstall persistent tab completion |
+| `--no-completion` | Skip tab completion setup |
 
 ### Local HTTPS Setup
 
@@ -336,7 +388,7 @@ zebra_day uses XDG Base Directory specification for file storage:
 
 | Type | macOS | Linux |
 |------|-------|-------|
-| **Config** | `~/Library/Preferences/zebra_day/` | `~/.config/zebra_day/` |
+| **Config** | `~/.config/zebra_day/` | `~/.config/zebra_day/` |
 | **Data** | `~/Library/Application Support/zebra_day/` | `~/.local/share/zebra_day/` |
 | **Logs** | `~/Library/Logs/zebra_day/` | `~/.local/state/zebra_day/` |
 | **Cache** | `~/Library/Caches/zebra_day/` | `~/.cache/zebra_day/` |
@@ -345,6 +397,10 @@ Key files:
 - `zebra-day-config.yaml` - Printer fleet configuration (in config dir)
 - `label_styles/` - ZPL template files (in data dir)
 - `label_styles/tmps/` - Draft templates (in data dir)
+
+Note (macOS): older installs may still have config at
+`~/Library/Preferences/zebra_day/`; zebra_day will copy that forward into the
+XDG config directory the first time it loads config.
 
 Use `zday info` to see the exact paths on your system.
 
@@ -462,8 +518,8 @@ zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP st
 
 print(zlab.printers)  # This should print out the config dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the config file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
 
-# The config will look something like this (v2.0.0 schema with nested printers)
-## {'schema_version': '2.0.0', 'labs': {'default': {'lab_name': 'Default', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
+# The config will look something like this (v2.1.0 schema with lab metadata + nested printers)
+## {'schema_version': '2.1.0', 'labs': {'default': {'lab_name': 'Default', 'lab_display_name': 'Default', 'lab_description': '', 'network_stub': '192.168.1', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
 
 # Assuming a printer was detected, send a test print request. Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now. There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
 

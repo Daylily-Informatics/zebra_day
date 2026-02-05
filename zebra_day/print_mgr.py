@@ -13,10 +13,12 @@ See 'cmd_mgr' for interacting with zebras printer config capabilities.
 from __future__ import annotations
 
 import datetime
+import http.client
 import json
-import os
+import re
 import shutil
 import socket
+import ssl
 import subprocess
 import time
 from importlib.resources import files
@@ -25,7 +27,6 @@ from typing import Literal
 
 import yaml
 
-import zebra_day.cmd_mgr as zdcm
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
 
@@ -108,8 +109,10 @@ class zpl:
             config_path: Path to printer config file (YAML or JSON). If not specified,
                 uses XDG config path with YAML preference and JSON fallback.
         """
-        # Ensure label styles directories exist
-        xdg.get_label_drafts_dir()  # Creates tmps/ too
+        # Ensure user label styles directory exists (unified template workflow)
+        # Legacy drafts may still exist under label_styles/tmps, but new saves
+        # should target label_styles/ by default.
+        xdg.get_label_styles_dir()
 
         # Config file search order:
         # 1. Explicit path provided
@@ -161,6 +164,45 @@ class zpl:
             self.printers["schema_version"] = "2.0.0"
         if "labs" not in self.printers:
             self.printers["labs"] = {}
+
+        # Schema migration: v2.0.0 -> v2.1.0 (lab-level metadata required)
+        schema_version = str(self.printers.get("schema_version", "2.0.0"))
+        if schema_version == "2.0.0":
+            upgraded_any = False
+            labs = self.printers.get("labs", {})
+
+            if isinstance(labs, dict):
+                for lab_key, lab_data in labs.items():
+                    if not isinstance(lab_data, dict):
+                        continue
+
+                    lab_name = lab_data.get("lab_name", lab_key)
+
+                    if "lab_display_name" not in lab_data:
+                        lab_data["lab_display_name"] = lab_name
+                        upgraded_any = True
+                    if "lab_description" not in lab_data:
+                        lab_data["lab_description"] = ""
+                        upgraded_any = True
+                    if "network_stub" not in lab_data:
+                        lab_data["network_stub"] = ""
+                        upgraded_any = True
+
+                    # Ensure v2 structure
+                    lab_data.setdefault("available_locations", [])
+                    lab_data.setdefault("printers", {})
+
+            # Only bump/save when we actually performed the upgrade.
+            if upgraded_any:
+                self.printers["schema_version"] = "2.1.0"
+                _log.warning("Config upgraded from v2.0.0 to v2.1.0")
+
+                # Persist upgrade for YAML configs.
+                if config_path.suffix in (".yaml", ".yml"):
+                    try:
+                        self.save_printer_config(str(config_path))
+                    except Exception:
+                        _log.exception("Failed to save upgraded config to: %s", config_path)
 
     def _migrate_json_to_yaml(self, json_path: Path, yaml_path: Path) -> None:
         """Migrate a JSON config file to YAML format.
@@ -216,8 +258,17 @@ class zpl:
         _log.info("Creating minimal config: %s", target_path)
 
         minimal_config = {
-            "schema_version": "2.0.0",
-            "labs": {"default": {"lab_name": "Default", "available_locations": [], "printers": {}}},
+            "schema_version": "2.1.0",
+            "labs": {
+                "default": {
+                    "lab_name": "Default",
+                    "lab_display_name": "Default",
+                    "lab_description": "",
+                    "network_stub": "",
+                    "available_locations": [],
+                    "printers": {},
+                }
+            },
         }
 
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -267,7 +318,14 @@ class zpl:
         _log.debug("Config saved to: %s", target_path)
 
     def probe_zebra_printers_add_to_printers_json(
-        self, ip_stub="192.168.1", scan_wait="0.25", lab="default", relative=False
+        self,
+        ip_stub="192.168.1",
+        scan_wait="0.5",
+        lab="default",
+        relative=False,
+        cancel_event=None,
+        progress_callback=None,
+        lab_description: str = "",
     ):
         """
         Scan the network for zebra printers.
@@ -283,76 +341,187 @@ class zpl:
         ---
 
         ip_stub = all 255 possibilities will be probed beneath this stub provided
-        scan_wait = seconds to re-try probing until moving on. 0.25 default may be too quick
+        scan_wait = seconds to re-try probing until moving on. 0.5 default may be too quick/slow
         lab = code for the lab key to add/update to given finding new printers
         """
         # Ensure schema version is set
         if "schema_version" not in self.printers:
-            self.printers["schema_version"] = "2.0.0"
+            self.printers["schema_version"] = "2.1.0"
 
-        # Initialize lab with v2 structure if not exists
+        # Bump older configs in-memory if needed
+        if str(self.printers.get("schema_version")) == "2.0.0":
+            self.printers["schema_version"] = "2.1.0"
+
+        # Initialize lab with v2.1 structure if not exists
         if lab not in self.printers["labs"]:
+            derived_name = lab.replace("-", " ").title()
             self.printers["labs"][lab] = {
-                "lab_name": lab.replace("-", " ").title(),
+                "lab_name": derived_name,
+                "lab_display_name": derived_name,
+                "lab_description": lab_description or "",
+                "network_stub": str(ip_stub or ""),
                 "available_locations": [],
                 "printers": {},
             }
 
-        # Ensure lab has printers sub-object (migration from v1)
-        if "printers" not in self.printers["labs"][lab]:
-            self.printers["labs"][lab]["printers"] = {}
-            self.printers["labs"][lab].setdefault("lab_name", lab.replace("-", " ").title())
-            self.printers["labs"][lab].setdefault("available_locations", [])
+        # Ensure lab has expected keys (migration from older schemas)
+        lab_obj = self.printers["labs"][lab]
+        if "printers" not in lab_obj:
+            lab_obj["printers"] = {}
+        lab_obj.setdefault("lab_name", lab.replace("-", " ").title())
+        lab_obj.setdefault("lab_display_name", lab_obj.get("lab_name", lab))
+        lab_obj.setdefault("lab_description", "")
+        lab_obj.setdefault("network_stub", "")
+        lab_obj.setdefault("available_locations", [])
+
+        # Record network stub for this scan (always update)
+        if ip_stub is not None:
+            lab_obj["network_stub"] = str(ip_stub)
+        if lab_description:
+            lab_obj["lab_description"] = str(lab_description)
 
         # Scan network for Zebra printers using pure Python
-        wait_time = float(scan_wait) if scan_wait else 0.25
+        wait_time = float(scan_wait) if scan_wait else 0.5
+        total = 255
+        checked = 0
+        cancelled = False
 
-        for i in range(1, 255):
+        for i in range(1, 256):
+            if (
+                cancel_event is not None
+                and getattr(cancel_event, "is_set", None)
+                and cancel_event.is_set()
+            ):
+                cancelled = True
+                break
+
             ip = f"{ip_stub}.{i}"
+            found_this_ip = False
+            model = "Unknown"
+            serial = "Unknown"
+
+            if progress_callback:
+                try:
+                    progress_callback(
+                        {
+                            "kind": "checking",
+                            "ip": ip,
+                            "checked": checked,
+                            "total": total,
+                        }
+                    )
+                except Exception:
+                    pass
+
             try:
-                # Try to connect to ZPL port (9100)
-                import socket
+                # Scan should only check for a webserver listening (HTTP/HTTPS)
+                # and parse the HTML response. Do NOT probe raw ZPL port 9100 here
+                # because it can hang (or be open for non-Zebra services).
+                html = ""
+                headers_lower: dict[str, str] = {}
+                scheme_used = None
 
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(wait_time)
-                result = sock.connect_ex((ip, 9100))
-                sock.close()
-
-                if result == 0:
-                    # Port is open, try to get printer info
-                    model = "Unknown"
-                    serial = "Unknown"
-
+                def _try_fetch(scheme: str, ip_addr: str = ip) -> tuple[bool, str]:
+                    nonlocal headers_lower
+                    conn = None
                     try:
-                        # Query printer for model and serial
-                        printer = zdcm.ZebraPrinter(ip)
-                        config = printer.get_configuration()
+                        if scheme == "http":
+                            conn = http.client.HTTPConnection(ip_addr, 80, timeout=wait_time)
+                        else:
+                            # Printers often use self-signed certs; for scanning we only
+                            # need the HTML content, so we skip verification.
+                            ctx = ssl._create_unverified_context()
+                            conn = http.client.HTTPSConnection(
+                                ip_addr, 443, timeout=wait_time, context=ctx
+                            )
 
-                        # Parse model from config
-                        if "MODEL" in config:
-                            for line in config.split("\n"):
-                                if "MODEL" in line.upper():
-                                    parts = line.split(":")
-                                    if len(parts) > 1:
-                                        model = parts[1].strip()
-                                        break
+                        conn.request(
+                            "GET",
+                            "/",
+                            headers={
+                                "User-Agent": "zebra-day-network-scan/1.0",
+                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                            },
+                        )
+                        resp = conn.getresponse()
+                        hdrs = {k.lower(): v for (k, v) in resp.getheaders()}
+                        body = resp.read(64 * 1024)
+                        text = body.decode("utf-8", errors="ignore")
 
-                        # Parse serial from config
-                        if "SERIAL" in config.upper():
-                            for line in config.split("\n"):
-                                if "SERIAL" in line.upper():
-                                    parts = line.split(":")
-                                    if len(parts) > 1:
-                                        serial = parts[1].strip()
-                                        break
+                        # If HTTP redirects to HTTPS, we still want to attempt HTTPS.
+                        loc = hdrs.get("location", "")
+                        if scheme == "http" and resp.status in {
+                            301,
+                            302,
+                            303,
+                            307,
+                            308,
+                        }:
+                            if loc.lower().startswith("https://"):
+                                return True, "__TRY_HTTPS__"
+
+                        headers_lower = hdrs
+                        return True, text
                     except Exception:
-                        pass  # Use defaults if we can't query printer
+                        return False, ""
+                    finally:
+                        try:
+                            if conn is not None:
+                                conn.close()
+                        except Exception:
+                            pass
+
+                ok, text = _try_fetch("http")
+                if ok and text == "__TRY_HTTPS__":
+                    ok, text = _try_fetch("https")
+                    if ok:
+                        scheme_used = "https"
+                elif ok:
+                    scheme_used = "http"
+
+                if not ok:
+                    ok, text = _try_fetch("https")
+                    if ok:
+                        scheme_used = "https"
+
+                html = text or ""
+
+                # Heuristic detection: Zebra web UIs typically contain "zebra",
+                # "zebralink", or "link-os".
+                haystack = " ".join(
+                    [
+                        html,
+                        headers_lower.get("server", ""),
+                        headers_lower.get("www-authenticate", ""),
+                    ]
+                ).lower()
+
+                if "zebra" in haystack or "zebralink" in haystack or "link-os" in haystack:
+                    found_this_ip = True
+
+                    # Best-effort parsing of model/serial/name from HTML.
+                    title = None
+                    m = re.search(r"<title>([^<]{1,200})</title>", html, flags=re.I)
+                    if m:
+                        title = m.group(1).strip()
+
+                    m = re.search(r"model\s*[:#]?\s*([A-Za-z0-9._-]{2,64})", html, flags=re.I)
+                    if m:
+                        model = m.group(1).strip()
+
+                    m = re.search(
+                        r"serial\s*(?:number)?\s*[:#]?\s*([A-Za-z0-9._-]{2,64})",
+                        html,
+                        flags=re.I,
+                    )
+                    if m:
+                        serial = m.group(1).strip()
 
                     if ip not in self.printers["labs"][lab]["printers"]:
                         # The label formats set here are the installed defaults
                         self.printers["labs"][lab]["printers"][ip] = {
                             "ip_address": ip,
-                            "printer_name": None,  # User can set friendly name later
+                            "printer_name": title or None,
                             "lab_location": None,  # User can set location later
                             "manufacturer": "zebra",
                             "model": model,
@@ -365,12 +534,59 @@ class zpl:
                             "default_label_style": "tube_2inX1in",  # Default to first style
                             "print_method": "socket",
                             "arp_data": "",
-                            "notes": "",
+                            "notes": (f"Discovered via {scheme_used or 'http(s)'} web scan"),
                         }
+
+                        if progress_callback:
+                            try:
+                                progress_callback(
+                                    {
+                                        "kind": "found",
+                                        "ip": ip,
+                                        "model": model,
+                                        "serial": serial,
+                                    }
+                                )
+                            except Exception:
+                                pass
             except Exception:
                 pass  # Skip unreachable IPs
+            finally:
+                checked += 1
+                if progress_callback:
+                    try:
+                        progress_callback(
+                            {
+                                "kind": "checked",
+                                "ip": ip,
+                                "checked": checked,
+                                "total": total,
+                                "open": found_this_ip,
+                            }
+                        )
+                    except Exception:
+                        pass
 
         self.save_printer_config()
+
+        if progress_callback:
+            try:
+                progress_callback(
+                    {
+                        "kind": "done",
+                        "cancelled": cancelled,
+                        "checked": checked,
+                        "total": total,
+                    }
+                )
+            except Exception:
+                pass
+
+        return {
+            "cancelled": cancelled,
+            "checked": checked,
+            "total": total,
+        }
 
     def save_printer_json(
         self, json_filename: str = "/etc/printer_config.json", relative: bool = True
@@ -419,7 +635,7 @@ class zpl:
         self._create_config_from_template(target_path)
 
     def clear_printers_json(self, config_file: str | None = None) -> None:
-        """Reset config to empty minimal v2.0.0 structure.
+        """Reset config to empty minimal v2.1.0 structure.
 
         Args:
             config_file: Path to the config file (ignored, uses XDG path)
@@ -427,7 +643,7 @@ class zpl:
         target_path = xdg.get_config_file_path()
 
         # Write empty config with v2 schema
-        empty_config = {"schema_version": "2.0.0", "labs": {}}
+        empty_config = {"schema_version": "2.1.0", "labs": {}}
         target_path.parent.mkdir(parents=True, exist_ok=True)
         with open(target_path, "w") as f:
             f.write("# zebra_day Configuration File\n\n")
@@ -464,6 +680,64 @@ class zpl:
         result = list(unique_labels)
         return result
 
+    def get_lab_metadata(self, lab: str) -> dict:
+        """Return lab metadata (v2.1.0).
+
+        Args:
+            lab: Lab key in the config (e.g. "default")
+        """
+        labs = self.printers.get("labs", {})
+        if lab not in labs or not isinstance(labs[lab], dict):
+            raise KeyError(f"Lab '{lab}' not found")
+        lab_obj = labs[lab]
+        return {
+            "lab": lab,
+            "lab_name": lab_obj.get("lab_name", lab),
+            "lab_display_name": lab_obj.get("lab_display_name", lab_obj.get("lab_name", lab)),
+            "lab_description": lab_obj.get("lab_description", ""),
+            "network_stub": lab_obj.get("network_stub", ""),
+            "available_locations": lab_obj.get("available_locations", []),
+        }
+
+    def update_lab_metadata(
+        self,
+        lab: str,
+        *,
+        lab_name: str | None = None,
+        lab_display_name: str | None = None,
+        lab_description: str | None = None,
+        network_stub: str | None = None,
+        available_locations: list[str] | None = None,
+    ) -> dict:
+        """Update lab metadata fields and persist config.
+
+        Only fields that are not None are updated.
+        """
+        labs = self.printers.get("labs", {})
+        if lab not in labs or not isinstance(labs[lab], dict):
+            raise KeyError(f"Lab '{lab}' not found")
+
+        lab_obj = labs[lab]
+        if lab_name is not None:
+            lab_obj["lab_name"] = str(lab_name)
+        if lab_display_name is not None:
+            lab_obj["lab_display_name"] = str(lab_display_name)
+        if lab_description is not None:
+            lab_obj["lab_description"] = str(lab_description)
+        if network_stub is not None:
+            lab_obj["network_stub"] = str(network_stub)
+        if available_locations is not None:
+            lab_obj["available_locations"] = list(available_locations)
+
+        # Ensure required keys exist
+        lab_obj.setdefault("lab_display_name", lab_obj.get("lab_name", lab))
+        lab_obj.setdefault("lab_description", "")
+        lab_obj.setdefault("network_stub", "")
+        lab_obj.setdefault("printers", {})
+
+        self.save_printer_config()
+        return self.get_lab_metadata(lab)
+
     # Given these inputs, format them in to the specified zpl template and
     # prepare a string to send to a printer
     def formulate_zpl(
@@ -490,15 +764,8 @@ class zpl:
           just differntiates one.
         """
 
-        zpl_file = str(files("zebra_day")) + f"/etc/label_styles/{label_zpl_style}.zpl"
-        if not os.path.exists(zpl_file):
-            zpl_file = str(files("zebra_day")) + f"/etc/label_styles/tmps/{label_zpl_style}.zpl"
-            if not os.path.exists(zpl_file):
-                raise Exception(
-                    f"ZPL File : {zpl_file} does not exist in the TOPLEVEL or TMPS zebra_day/etc/label_styles dir."
-                )
-
-        with open(zpl_file) as file:
+        template_path = self.resolve_template_path(str(label_zpl_style), include_legacy_drafts=True)
+        with open(template_path) as file:
             content = file.read()
         zpl_string = content.format(
             uid_barcode=uid_barcode,
@@ -512,6 +779,170 @@ class zpl:
         )
 
         return zpl_string
+
+    def _package_label_styles_dir(self) -> Path:
+        """Return the package-shipped label styles directory."""
+
+        return Path(str(files("zebra_day"))) / "etc" / "label_styles"
+
+    def _normalize_template_stem(self, template: str) -> str:
+        """Normalize a template identifier to a safe stem (no path components).
+
+        Only strips .zpl extension if present. Other extensions like .3in are
+        preserved as part of the template name.
+        """
+
+        raw = str(template or "").strip()
+        if not raw:
+            raise ValueError("Template name cannot be empty")
+
+        # Check for path components (directory separators)
+        if "/" in raw or "\\" in raw:
+            raise ValueError("Template name must be a simple filename (no directories)")
+
+        # Only strip .zpl extension, preserve other "extensions" like .3in
+        if raw.endswith(".zpl"):
+            stem = raw[:-4]
+        else:
+            stem = raw
+
+        if not stem:
+            raise ValueError("Template name cannot be empty")
+        return stem
+
+    def resolve_template_path(self, template: str, *, include_legacy_drafts: bool = False) -> Path:
+        """Resolve a template name to an on-disk .zpl path.
+
+        Resolution order (stable):
+        1) User config dir (XDG): ~/.config/zebra_day/label_styles/
+        2) Package etc dir: zebra_day/etc/label_styles/
+
+        Legacy drafts (if enabled):
+        - ~/.config/zebra_day/label_styles/tmps/
+        - zebra_day/etc/label_styles/tmps/
+        """
+
+        stem = self._normalize_template_stem(template)
+        filename = f"{stem}.zpl"
+
+        user_path = xdg.get_label_styles_dir() / filename
+        if user_path.exists():
+            return user_path
+
+        pkg_dir = self._package_label_styles_dir()
+        pkg_path = pkg_dir / filename
+        if pkg_path.exists():
+            return pkg_path
+
+        if include_legacy_drafts:
+            user_draft = xdg.get_label_drafts_dir() / filename
+            if user_draft.exists():
+                return user_draft
+
+            pkg_draft = pkg_dir / "tmps" / filename
+            if pkg_draft.exists():
+                return pkg_draft
+
+        raise FileNotFoundError(f"Template '{stem}' not found")
+
+    def get_template_content(self, template: str, *, include_legacy_drafts: bool = True) -> str:
+        """Load template file contents as text."""
+
+        path = self.resolve_template_path(template, include_legacy_drafts=include_legacy_drafts)
+        return path.read_text()
+
+    def list_template_names(self, *, include_legacy_drafts: bool = False) -> list[str]:
+        """List template names (stems) available to callers."""
+
+        names: set[str] = set()
+
+        def _add_from_dir(d: Path) -> None:
+            if not d.exists():
+                return
+            for f in d.iterdir():
+                if f.is_file() and f.suffix == ".zpl":
+                    names.add(f.stem)
+
+        # Stable templates
+        _add_from_dir(xdg.get_label_styles_dir())
+        _add_from_dir(self._package_label_styles_dir())
+
+        # Legacy drafts (optional)
+        if include_legacy_drafts:
+            _add_from_dir(xdg.get_label_drafts_dir())
+            _add_from_dir(self._package_label_styles_dir() / "tmps")
+
+        return sorted(names)
+
+    def save_template(
+        self,
+        filename: str,
+        zpl_content: str,
+        *,
+        location: Literal["user", "package"] = "user",
+        overwrite: bool = True,
+        backup: bool = True,
+    ) -> Path:
+        """Save a ZPL template.
+
+        Default save target is the user's XDG config dir:
+          ~/.config/zebra_day/label_styles/
+        """
+
+        raw = str(filename or "").strip()
+        if not raw:
+            raise ValueError("filename is required")
+
+        p = Path(raw)
+        if p.name != raw:
+            raise ValueError("filename must be a simple filename (no directories)")
+
+        if p.suffix and p.suffix != ".zpl":
+            raise ValueError("filename must end with .zpl")
+
+        stem = p.stem
+        if not stem:
+            raise ValueError("filename must not be empty")
+
+        target_name = f"{stem}.zpl"
+        if location == "user":
+            target_dir = xdg.get_label_styles_dir()
+        elif location == "package":
+            target_dir = self._package_label_styles_dir()
+        else:
+            raise ValueError(f"Unknown location: {location}")
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = target_dir / target_name
+
+        if target_path.exists() and not overwrite:
+            raise FileExistsError(f"Template already exists: {target_path}")
+
+        if target_path.exists() and backup:
+            ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H%M%S.%fZ")
+            backup_path = target_dir / f"{stem}.bak.{ts}.zpl"
+            shutil.copy2(target_path, backup_path)
+
+        target_path.write_text(str(zpl_content))
+        return target_path
+
+    def delete_template(
+        self, template: str, *, location: Literal["user", "package"] = "user"
+    ) -> None:
+        """Delete a template by name from the requested location."""
+
+        stem = self._normalize_template_stem(template)
+        filename = f"{stem}.zpl"
+        if location == "user":
+            path = xdg.get_label_styles_dir() / filename
+        elif location == "package":
+            path = self._package_label_styles_dir() / filename
+        else:
+            raise ValueError(f"Unknown location: {location}")
+
+        if not path.exists():
+            raise FileNotFoundError(f"Template not found: {stem}")
+        path.unlink()
 
     def generate_label_png(self, zpl_string=None, png_fn=None, relative=False):
         """

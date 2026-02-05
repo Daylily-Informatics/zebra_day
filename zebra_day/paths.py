@@ -10,17 +10,48 @@ XDG Base Directory Specification:
 - XDG_STATE_HOME: User state files (~/.local/state) - logs, history
 - XDG_CACHE_HOME: User cache files (~/.cache)
 
-On macOS, we use ~/Library/Application Support for data and
-~/Library/Preferences for config, but support XDG overrides.
+On all platforms, we default to XDG locations (e.g. ~/.config) for config.
+
+Legacy note (macOS): older versions used ~/Library/Preferences/zebra_day for
+configuration. We still provide helpers to locate legacy paths so callers can
+migrate forward to XDG.
 """
 
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
 APP_NAME = "zebra_day"
+
+
+def _maybe_copy_file(src: Path, dst: Path) -> bool:
+    """Best-effort copy from src -> dst if dst is missing.
+
+    Returns:
+        True if a copy occurred, else False.
+    """
+    try:
+        if src.exists() and not dst.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            return True
+    except Exception:
+        # Path helpers should be safe to call during import/startup; callers
+        # handle "file missing" cases elsewhere.
+        return False
+    return False
+
+
+def _maybe_migrate_legacy_macos_config_file(target_path: Path) -> None:
+    """If on macOS and only legacy config exists, copy it into XDG location."""
+    if sys.platform != "darwin":
+        return
+
+    legacy_yaml = get_legacy_macos_config_file_path()
+    _maybe_copy_file(legacy_yaml, target_path)
 
 
 def _get_xdg_dir(env_var: str, fallback: Path) -> Path:
@@ -37,17 +68,33 @@ def get_config_dir() -> Path:
     Returns:
         Path to zebra_day config directory (created if needed)
     """
-    if sys.platform == "darwin":
-        # macOS: Use XDG if set, otherwise ~/Library/Preferences
-        fallback = Path.home() / "Library" / "Preferences" / APP_NAME
-    else:
-        # Linux/other: Use XDG
-        fallback = Path.home() / ".config" / APP_NAME
-
-    base = _get_xdg_dir("XDG_CONFIG_HOME", fallback.parent)
-    config_dir = base / APP_NAME if "XDG_CONFIG_HOME" in os.environ else fallback
+    # Cross-platform default: XDG (~/.config) unless XDG_CONFIG_HOME is set.
+    base = _get_xdg_dir("XDG_CONFIG_HOME", Path.home() / ".config")
+    config_dir = base / APP_NAME
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
+
+
+def get_legacy_macos_config_dir() -> Path:
+    """Get the legacy macOS configuration directory.
+
+    Older zebra_day versions used this location by default. New code should use
+    :func:`get_config_dir` / :func:`get_config_file_path`.
+
+    Returns:
+        Path to ~/Library/Preferences/zebra_day (not created automatically)
+    """
+    return Path.home() / "Library" / "Preferences" / APP_NAME
+
+
+def get_legacy_macos_config_file_path() -> Path:
+    """Get legacy macOS path to zebra-day-config.yaml (not created)."""
+    return get_legacy_macos_config_dir() / "zebra-day-config.yaml"
+
+
+def get_legacy_macos_json_config_path() -> Path:
+    """Get legacy macOS path to printer_config.json (not created)."""
+    return get_legacy_macos_config_dir() / "printer_config.json"
 
 
 def get_data_dir() -> Path:
@@ -108,7 +155,9 @@ def get_config_file_path() -> Path:
     Returns:
         Path to zebra-day-config.yaml in XDG config directory
     """
-    return get_config_dir() / "zebra-day-config.yaml"
+    target = get_config_dir() / "zebra-day-config.yaml"
+    _maybe_migrate_legacy_macos_config_file(target)
+    return target
 
 
 def get_printer_config_path() -> Path:
@@ -132,12 +181,21 @@ def get_legacy_json_config_path() -> Path:
     Returns:
         Path to printer_config.json in XDG config directory
     """
-    return get_config_dir() / "printer_config.json"
+    target = get_config_dir() / "printer_config.json"
+    if sys.platform == "darwin":
+        legacy_json = get_legacy_macos_json_config_path()
+        _maybe_copy_file(legacy_json, target)
+    return target
 
 
 def get_label_styles_dir() -> Path:
-    """Get path to the label styles directory."""
-    styles_dir = get_data_dir() / "label_styles"
+    """Get path to the *user* label styles directory.
+
+    Historically this pointed at the XDG *data* directory. As of the unified
+    template workflow, user-editable templates live under the XDG *config*
+    directory so they are easy to locate and manage alongside zebra_day config.
+    """
+    styles_dir = get_config_dir() / "label_styles"
     styles_dir.mkdir(parents=True, exist_ok=True)
     return styles_dir
 

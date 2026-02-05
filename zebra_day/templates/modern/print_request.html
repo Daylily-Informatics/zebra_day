@@ -20,7 +20,7 @@
                 <select id="lab-select" name="lab" class="form-control" onchange="updatePrinters()" required>
                     <option value="">Select a lab...</option>
                     {% for lab in labs %}
-                    <option value="{{ lab }}" {% if selected_lab == lab %}selected{% endif %}>{{ lab }}</option>
+					<option value="{{ lab }}" {% if selected_lab == lab %}selected{% endif %}>{{ labs_meta.get(lab, {}).get("lab_display_name", lab) }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -34,16 +34,16 @@
                 <label class="form-label required">Label Template</label>
                 <select name="label_zpl_style" class="form-control" required>
                     <option value="">Select a template...</option>
-                    {% if stable_templates %}
-                    <optgroup label="Stable Templates">
-                        {% for template in stable_templates %}
+                    {% if user_templates %}
+                    <optgroup label="User Templates">
+                        {% for template in user_templates %}
                         <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
                         {% endfor %}
                     </optgroup>
                     {% endif %}
-                    {% if draft_templates %}
-                    <optgroup label="Draft Templates">
-                        {% for template in draft_templates %}
+                    {% if package_templates %}
+                    <optgroup label="Package Templates">
+                        {% for template in package_templates %}
                         <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
                         {% endfor %}
                     </optgroup>

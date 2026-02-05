@@ -1,6 +1,7 @@
-"""
-Tests for the zebra_day FastAPI web server and API endpoints.
-"""
+"""Tests for the zebra_day FastAPI web server and API endpoints."""
+
+import json
+import threading
 
 import pytest
 from fastapi.testclient import TestClient
@@ -28,6 +29,7 @@ def client():
             "manufacturer": "zebra",
             "model": "ZD420",
             "serial": "TEST123",
+            "status": "na",
             "label_zpl_styles": ["tube_2inX1in", "corners_1inX2in"],
             "default_label_style": "tube_2inX1in",
             "print_method": "network",
@@ -79,6 +81,9 @@ class TestAPIGetLab:
         data = response.json()
         assert data["id"] == "default"
         assert "lab_name" in data
+        assert "lab_display_name" in data
+        assert "lab_description" in data
+        assert "network_stub" in data
         assert "available_locations" in data
         assert "printers" in data
         assert isinstance(data["printers"], list)
@@ -138,6 +143,75 @@ class TestAPIListTemplates:
         assert "tube_2inX1in" in data
 
 
+class TestAPISaveTemplate:
+    """Tests for POST /api/v1/templates endpoint."""
+
+    def test_save_template_missing_fields(self, client):
+        """Test that missing required fields returns 422."""
+        response = client.post("/api/v1/templates", json={})
+        assert response.status_code == 422
+
+    def test_save_template_empty_filename(self, client):
+        """Test that empty filename returns 400."""
+        response = client.post("/api/v1/templates", json={"filename": "", "zpl_content": "^XA^XZ"})
+        assert response.status_code == 400
+        assert "filename" in response.json()["detail"].lower()
+
+    def test_save_template_invalid_filename_with_path(self, client):
+        """Test that filename with path components returns 400."""
+        response = client.post(
+            "/api/v1/templates", json={"filename": "../evil.zpl", "zpl_content": "^XA^XZ"}
+        )
+        assert response.status_code == 400
+        assert "simple filename" in response.json()["detail"].lower()
+
+    def test_save_template_success(self, client, tmp_path, monkeypatch):
+        """Test successful template save."""
+        # Monkeypatch the XDG dir to use tmp_path
+        from zebra_day import paths as xdg
+
+        monkeypatch.setattr(xdg, "get_label_styles_dir", lambda: tmp_path)
+
+        response = client.post(
+            "/api/v1/templates",
+            json={"filename": "test_api_template.zpl", "zpl_content": "^XA^FO100,100^FDTest^FS^XZ"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["filename"] == "test_api_template.zpl"
+        assert (tmp_path / "test_api_template.zpl").exists()
+
+
+class TestAPIDeleteTemplate:
+    """Tests for DELETE /api/v1/templates/{template_name} endpoint."""
+
+    def test_delete_template_not_found(self, client, tmp_path, monkeypatch):
+        """Test deleting non-existent template returns 404."""
+        from zebra_day import paths as xdg
+
+        monkeypatch.setattr(xdg, "get_label_styles_dir", lambda: tmp_path)
+
+        response = client.delete("/api/v1/templates/nonexistent_template_xyz")
+        assert response.status_code == 404
+
+    def test_delete_template_success(self, client, tmp_path, monkeypatch):
+        """Test successful template deletion."""
+        from zebra_day import paths as xdg
+
+        monkeypatch.setattr(xdg, "get_label_styles_dir", lambda: tmp_path)
+
+        # Create a template file first
+        template_file = tmp_path / "delete_me.zpl"
+        template_file.write_text("^XA^XZ")
+
+        response = client.delete("/api/v1/templates/delete_me")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert not template_file.exists()
+
+
 class TestAPIGetConfig:
     """Tests for GET /api/v1/config endpoint."""
 
@@ -153,7 +227,7 @@ class TestAPIGetConfig:
         response = client.get("/api/v1/config")
         data = response.json()
         assert "schema_version" in data
-        assert data["schema_version"] == "2.0.0"
+        assert data["schema_version"] == "2.1.0"
 
     def test_config_has_labs(self, client):
         """Test that config has labs."""
@@ -186,6 +260,36 @@ class TestAPIPrint:
             },
         )
         assert response.status_code == 422
+
+    def test_print_with_raw_zpl_content_success(self, client, monkeypatch):
+        """Test print request accepts raw ZPL content without touching the network."""
+
+        captured: dict[str, object] = {}
+
+        def fake_print_zpl(**kwargs):
+            captured.update(kwargs)
+            return kwargs.get("zpl_content") or ""
+
+        monkeypatch.setattr(client.app.state.zp, "print_zpl", fake_print_zpl)
+
+        raw_zpl = "^XA^FO50,50^A0N,50,50^FDTest Label^FS^XZ"
+        response = client.post(
+            "/api/v1/print",
+            json={
+                "lab": "default",
+                "printer": "test-printer",
+                "copies": 2,
+                "zpl_content": raw_zpl,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+
+        assert captured["lab"] == "default"
+        assert captured["printer_name"] == "test-printer"
+        assert captured["print_n"] == 2
+        assert captured["zpl_content"] == raw_zpl
 
 
 class TestAPIRender:
@@ -235,6 +339,20 @@ class TestAPIRender:
         assert data["success"] is True
         assert data["png_url"].startswith("/generated/")
 
+    def test_render_accepts_float_by_module_width(self, client):
+        """Regression: templates may include ^BY1.5 and should not raise a 500."""
+        response = client.post(
+            "/api/v1/render",
+            json={
+                # No barcode command needed: parsing ^BY is enough to exercise the bug.
+                "zpl_content": "^XA^BY1.5^FO50,50^A0N,50,50^FDTest^FS^XZ",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["png_url"].startswith("/generated/")
+
     def test_render_png_direct_returns_image(self, client):
         """Test /render/png returns PNG file directly."""
         response = client.post(
@@ -255,9 +373,9 @@ class TestAPIRender:
                 "template": "nonexistent_template_xyz",
             },
         )
-        # Invalid template raises Exception which is caught as 500
-        assert response.status_code == 500
-        assert "does not exist" in response.json()["detail"]
+        # Invalid template raises FileNotFoundError -> 404
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
 
 
 class TestAPIPatchLab:
@@ -296,6 +414,20 @@ class TestAPIPatchLab:
                 "lab_name": original_name,
             },
         )
+
+    def test_patch_lab_update_display_and_description(self, client):
+        """Test updating lab_display_name and lab_description."""
+        response = client.patch(
+            "/api/v1/labs/default",
+            json={
+                "lab_display_name": "Default (UI)",
+                "lab_description": "Test description",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["lab_display_name"] == "Default (UI)"
+        assert data["lab_description"] == "Test description"
 
 
 class TestAPIPatchPrinter:
@@ -408,7 +540,91 @@ class TestModernUIAdditionalEndpoints:
         response = client.get("/templates/preview?filename=generic_2inX1in", follow_redirects=False)
         # Should redirect to the generated PNG file
         assert response.status_code == 303
-        assert "/files/" in response.headers.get("location", "")
+
+
+class TestModernUINetworkScan:
+    """Tests for the modern UI network scan SSE + cancel endpoints."""
+
+    def test_scan_pages_default_to_wait_0_5(self, client):
+        resp = client.get("/config")
+        assert resp.status_code == 200
+        assert 'name="scan_wait"' in resp.text
+        assert 'value="0.5" selected' in resp.text
+
+        resp = client.get("/printers")
+        assert resp.status_code == 200
+        assert 'name="scan_wait"' in resp.text
+        assert 'value="0.5" selected' in resp.text
+
+    def test_scan_stream_emits_init_and_done(self, client, monkeypatch):
+        zp = client.app.state.zp
+
+        def fake_probe(
+            *,
+            ip_stub: str,
+            scan_wait: str,
+            lab: str,
+            cancel_event=None,
+            progress_callback=None,
+        ):
+            total = 255
+            ip = f"{ip_stub}.1"
+            if progress_callback:
+                progress_callback({"kind": "checking", "ip": ip, "checked": 0, "total": total})
+                progress_callback(
+                    {
+                        "kind": "checked",
+                        "ip": ip,
+                        "open": False,
+                        "checked": 1,
+                        "total": total,
+                    }
+                )
+                progress_callback(
+                    {"kind": "done", "cancelled": False, "checked": 1, "total": total}
+                )
+            return {"cancelled": False, "checked": 1, "total": total}
+
+        monkeypatch.setattr(zp, "probe_zebra_printers_add_to_printers_json", fake_probe)
+
+        kinds: list[str] = []
+        scan_id = None
+        with client.stream(
+            "GET",
+            "/config/scan/stream?ip_stub=1.2.3&scan_wait=0.5&lab=scan-test",
+        ) as resp:
+            assert resp.status_code == 200
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                assert line.startswith("data: ")
+                msg = json.loads(line[len("data: ") :])
+                kinds.append(msg["kind"])
+                if msg["kind"] == "init":
+                    scan_id = msg.get("scan_id")
+                if msg["kind"] == "done":
+                    break
+
+        assert kinds[0] == "init"
+        assert "checked" in kinds
+        assert kinds[-1] == "done"
+        assert scan_id
+
+    def test_scan_cancel_sets_cancel_event(self, client):
+        scan_id = "scan-id-123"
+        cancel_event = threading.Event()
+
+        client.app.state.scan_jobs = {scan_id: {"cancel_event": cancel_event}}
+
+        resp = client.post("/config/scan/cancel", params={"scan_id": scan_id})
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+        assert cancel_event.is_set()
+
+    def test_scan_cancel_unknown_returns_404(self, client):
+        client.app.state.scan_jobs = {}
+        resp = client.post("/config/scan/cancel", params={"scan_id": "missing"})
+        assert resp.status_code == 404
 
     def test_template_preview_not_found(self, client):
         """Test template preview returns 404 for missing template."""

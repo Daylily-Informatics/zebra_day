@@ -132,12 +132,8 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
     fi
 
     # ========== Check Config File ==========
-    # XDG Base Directory convention
-    if [ "$(uname)" = "Darwin" ]; then
-        ZDAY_CONFIG_DIR="${HOME}/Library/Preferences/zebra_day"
-    else
-        ZDAY_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/zebra_day"
-    fi
+    # Standard: XDG Base Directory convention across macOS + Linux
+    ZDAY_CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/zebra_day"
     ZDAY_CONFIG_YAML="${ZDAY_CONFIG_DIR}/zebra-day-config.yaml"
     ZDAY_CONFIG_JSON="${ZDAY_CONFIG_DIR}/printer_config.json"
 
@@ -145,6 +141,12 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
         log_success "Config found: ${ZDAY_CONFIG_YAML}"
     elif [ -f "$ZDAY_CONFIG_JSON" ]; then
         log_success "Legacy config found: ${ZDAY_CONFIG_JSON} (will migrate to YAML)"
+    elif [ "$(uname)" = "Darwin" ] && [ -f "${HOME}/Library/Preferences/zebra_day/zebra-day-config.yaml" ]; then
+        log_warn "Legacy macOS config found: ${HOME}/Library/Preferences/zebra_day/zebra-day-config.yaml"
+        log_warn "   zebra_day will copy it to: ${ZDAY_CONFIG_YAML} (XDG) on first config load"
+    elif [ "$(uname)" = "Darwin" ] && [ -f "${HOME}/Library/Preferences/zebra_day/printer_config.json" ]; then
+        log_warn "Legacy macOS JSON config found: ${HOME}/Library/Preferences/zebra_day/printer_config.json"
+        log_warn "   zebra_day will copy it to: ${ZDAY_CONFIG_JSON} (XDG) on first config load"
     else
         log_warn "No printer config found"
         printf "   Run: ${CYAN}zday bootstrap${NC} or ${CYAN}zday config init${NC} to initialize\n"

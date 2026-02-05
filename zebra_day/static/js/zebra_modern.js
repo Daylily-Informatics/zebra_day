@@ -122,7 +122,7 @@ function showToast(type, title, message, duration = 5000) {
 function showLoading(message = 'Loading...') {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
-        const p = overlay.querySelector('p');
+        const p = document.getElementById('loading-message') || overlay.querySelector('p');
         if (p) p.textContent = message;
         overlay.classList.remove('d-none');
     }
@@ -133,6 +133,178 @@ function hideLoading() {
     if (overlay) {
         overlay.classList.add('d-none');
     }
+}
+
+// Network Scan (SSE)
+window.__zdayNetworkScan = window.__zdayNetworkScan || {
+    source: null,
+    scanId: null,
+    lab: null,
+};
+
+function _scanEls() {
+    return {
+        progress: document.getElementById('scan-progress'),
+        counter: document.getElementById('scan-progress-counter'),
+        current: document.getElementById('scan-current-ip'),
+        list: document.getElementById('scan-ip-list'),
+        cancelBtn: document.getElementById('scan-cancel-btn'),
+    };
+}
+
+function _resetScanOverlay() {
+    const els = _scanEls();
+    if (els.counter) els.counter.textContent = 'Checked 0/255';
+    if (els.current) els.current.innerHTML = '';
+    if (els.list) els.list.innerHTML = '';
+    if (els.cancelBtn) {
+        els.cancelBtn.disabled = true;
+    }
+}
+
+function showNetworkScanOverlay(message) {
+    showLoading(message || 'Scanning network for Zebra printers...');
+    const els = _scanEls();
+    if (els.progress) els.progress.classList.remove('d-none');
+    _resetScanOverlay();
+}
+
+function hideNetworkScanOverlay() {
+    const els = _scanEls();
+    if (els.progress) els.progress.classList.add('d-none');
+    hideLoading();
+}
+
+function startNetworkScan(event, formEl) {
+    // Progressive enhancement: if SSE/EventSource isn't available, let the form submit normally.
+    if (!window.EventSource) {
+        return true;
+    }
+    if (event) event.preventDefault();
+
+    const formData = new FormData(formEl);
+    const ipStub = (formData.get('ip_stub') || '192.168.1').toString().trim();
+    const scanWait = (formData.get('scan_wait') || '0.5').toString().trim();
+    const lab = (formData.get('lab') || 'scan-results').toString().trim();
+
+    startNetworkScanWithParams(ipStub, scanWait, lab);
+    return false;
+}
+
+function startNetworkScanWithParams(ipStub, scanWait, lab) {
+    // Close any existing scan stream
+    if (window.__zdayNetworkScan.source) {
+        try { window.__zdayNetworkScan.source.close(); } catch (_) {}
+    }
+    window.__zdayNetworkScan.source = null;
+    window.__zdayNetworkScan.scanId = null;
+    window.__zdayNetworkScan.lab = lab;
+
+    showNetworkScanOverlay('Scanning network for Zebra printers...');
+
+    const els = _scanEls();
+    if (els.cancelBtn) {
+        els.cancelBtn.onclick = async function () {
+            const scanId = window.__zdayNetworkScan.scanId;
+            if (!scanId) return;
+            els.cancelBtn.disabled = true;
+            try {
+                const url = `/config/scan/cancel?scan_id=${encodeURIComponent(scanId)}`;
+                const resp = await fetch(url, { method: 'POST' });
+                if (!resp.ok) {
+                    throw new Error(`Cancel failed (${resp.status})`);
+                }
+                showToast('info', 'Scan Cancelled', 'Stopping scan and saving partial results...');
+            } catch (e) {
+                showToast('error', 'Cancel Failed', e?.message || 'Cancel request failed');
+                els.cancelBtn.disabled = false;
+            }
+        };
+    }
+
+    const params = new URLSearchParams({
+        ip_stub: ipStub,
+        scan_wait: scanWait,
+        lab: lab,
+    });
+
+    const source = new EventSource(`/config/scan/stream?${params.toString()}`);
+    window.__zdayNetworkScan.source = source;
+
+    source.onmessage = function (evt) {
+        let msg;
+        try {
+            msg = JSON.parse(evt.data);
+        } catch (_) {
+            return;
+        }
+
+        const kind = msg.kind;
+        if (kind === 'init') {
+            window.__zdayNetworkScan.scanId = msg.scan_id;
+            if (els.cancelBtn) els.cancelBtn.disabled = false;
+            if (els.counter && msg.total) {
+                els.counter.textContent = `Checked 0/${msg.total}`;
+            }
+            return;
+        }
+
+        if (kind === 'checking') {
+            if (els.current) {
+                els.current.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Scanning <strong>${msg.ip}</strong>`;
+            }
+            return;
+        }
+
+        if (kind === 'checked') {
+            if (els.counter) {
+                els.counter.textContent = `Checked ${msg.checked}/${msg.total}`;
+            }
+            if (els.list) {
+                const row = document.createElement('div');
+                row.className = 'scan-ip-row';
+                const meta = msg.open ? 'open:9100' : 'closed';
+                row.innerHTML = `<span class="scan-ip">${msg.ip}</span><span class="scan-ip-meta">${meta}</span>`;
+                els.list.appendChild(row);
+                els.list.scrollTop = els.list.scrollHeight;
+            }
+            return;
+        }
+
+        if (kind === 'found') {
+            showToast('success', 'Printer Found', `${msg.ip} (${msg.model || 'Unknown'})`);
+            return;
+        }
+
+        if (kind === 'error') {
+            showToast('error', 'Scan Error', msg.message || 'Unknown scan error');
+            try { source.close(); } catch (_) {}
+            hideNetworkScanOverlay();
+            return;
+        }
+
+        if (kind === 'done') {
+            if (els.current) {
+                const verb = msg.cancelled ? 'Cancelled' : 'Completed';
+                els.current.textContent = `${verb}. Redirecting...`;
+            }
+            if (els.cancelBtn) els.cancelBtn.disabled = true;
+            try { source.close(); } catch (_) {}
+
+            // Redirect to results lab page (partial results are already saved).
+            const targetLab = window.__zdayNetworkScan.lab || lab;
+            setTimeout(() => {
+                window.location.href = `/printers/${encodeURIComponent(targetLab)}`;
+            }, 400);
+        }
+    };
+
+    source.onerror = function () {
+        // Let normal completion happen if it was a clean shutdown.
+        showToast('error', 'Scan Connection Lost', 'Lost connection to scan stream');
+        try { source.close(); } catch (_) {}
+        hideNetworkScanOverlay();
+    };
 }
 
 // Copy to Clipboard
