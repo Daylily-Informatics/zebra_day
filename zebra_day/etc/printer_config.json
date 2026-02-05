@@ -1,10 +1,45 @@
 {
     "schema_version": "2.0.0",
     "labs": {
-        "": {
-            "lab_name": "",
+        "default": {
+            "lab_name": "Default",
             "available_locations": [],
-            "printers": {}
+            "printers": {
+                "192.168.4.39": {
+                    "ip_address": "192.168.4.39",
+                    "printer_name": null,
+                    "lab_location": null,
+                    "manufacturer": "zebra",
+                    "model": "Unknown",
+                    "serial": "Unknown",
+                    "label_zpl_styles": [
+                        "tube_2inX1in",
+                        "plate_1inX0.25in",
+                        "tube_2inX0.3in"
+                    ],
+                    "default_label_style": "tube_2inX1in",
+                    "print_method": "socket",
+                    "arp_data": "",
+                    "notes": ""
+                },
+                "192.168.4.46": {
+                    "ip_address": "192.168.4.46",
+                    "printer_name": null,
+                    "lab_location": null,
+                    "manufacturer": "zebra",
+                    "model": "Unknown",
+                    "serial": "Unknown",
+                    "label_zpl_styles": [
+                        "tube_2inX1in",
+                        "plate_1inX0.25in",
+                        "tube_2inX0.3in"
+                    ],
+                    "default_label_style": "tube_2inX1in",
+                    "print_method": "socket",
+                    "arp_data": "",
+                    "notes": ""
+                }
+            }
         }
     }
 }
