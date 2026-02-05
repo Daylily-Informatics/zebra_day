@@ -1,27 +1,4 @@
 {
     "schema_version": "2.0.0",
-    "labs": {
-        "default": {
-            "lab_name": "Default",
-            "available_locations": [],
-            "printers": {
-                "test-printer": {
-                    "ip_address": "192.168.1.100",
-                    "printer_name": "Test Printer",
-                    "lab_location": "Test Location",
-                    "manufacturer": "zebra",
-                    "model": "ZD420",
-                    "serial": "TEST123",
-                    "label_zpl_styles": [
-                        "tube_2inX1in",
-                        "corners_1inX2in"
-                    ],
-                    "default_label_style": "tube_2inX1in",
-                    "print_method": "network",
-                    "arp_data": "na",
-                    "notes": "Test printer for unit tests"
-                }
-            }
-        }
-    }
+    "labs": {}
 }
