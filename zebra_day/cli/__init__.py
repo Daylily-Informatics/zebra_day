@@ -13,6 +13,7 @@ from rich.table import Table
 
 from zebra_day import paths as xdg
 from zebra_day.cli.cognito import cognito_app
+from zebra_day.cli.config import config_app
 from zebra_day.cli.gui import gui_app
 from zebra_day.cli.printer import printer_app
 from zebra_day.cli.template import template_app
@@ -30,6 +31,7 @@ app = typer.Typer(
 app.add_typer(gui_app, name="gui", help="Web UI server management")
 app.add_typer(printer_app, name="printer", help="Printer fleet management")
 app.add_typer(template_app, name="template", help="ZPL template management")
+app.add_typer(config_app, name="config", help="Configuration management")
 app.add_typer(cognito_app, name="cognito", help="Cognito authentication management")
 
 
@@ -66,12 +68,15 @@ def info():
     table.add_row("Logs Dir", str(xdg.get_logs_dir()))
     table.add_row("Cache Dir", str(xdg.get_cache_dir()))
 
-    # Printer config
-    printer_cfg = xdg.get_printer_config_path()
-    if printer_cfg.exists():
-        table.add_row("Printer Config", f"[green]{printer_cfg}[/green]")
+    # Config file (YAML preferred, JSON fallback)
+    yaml_cfg = xdg.get_config_file_path()
+    json_cfg = xdg.get_legacy_json_config_path()
+    if yaml_cfg.exists():
+        table.add_row("Config File", f"[green]{yaml_cfg}[/green]")
+    elif json_cfg.exists():
+        table.add_row("Config File", f"[yellow]{json_cfg}[/yellow] [dim](legacy JSON)[/dim]")
     else:
-        table.add_row("Printer Config", f"[yellow]not found[/yellow] [dim]({printer_cfg})[/dim]")
+        table.add_row("Config File", f"[yellow]not found[/yellow] [dim]({yaml_cfg})[/dim]")
 
     # Check if GUI server is running
     pid_file = xdg.get_state_dir() / "gui.pid"

@@ -13,10 +13,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 import zebra_day.cmd_mgr as zdcm
+from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
 
 _log = get_logger(__name__)
@@ -377,16 +379,19 @@ async def modern_config(request: Request):
 
 @router.get("/config/view", response_class=HTMLResponse)
 async def modern_config_view(request: Request):
-    """View printer configuration JSON."""
+    """View printer configuration as YAML."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
-    config_json = json.dumps(zp.printers, indent=4)
+    # Convert config to YAML with header
+    config_yaml = "# zebra_day Configuration File\n\n" + yaml.dump(
+        zp.printers, default_flow_style=False, sort_keys=False
+    )
 
     context = get_template_context(
         request,
         title="View Configuration",
-        config_json=config_json,
+        config_yaml=config_yaml,
         mode="view",
     )
     return templates.TemplateResponse("modern/config_editor.html", context)
@@ -394,16 +399,19 @@ async def modern_config_view(request: Request):
 
 @router.get("/config/edit", response_class=HTMLResponse)
 async def modern_config_edit(request: Request, error_msg: str | None = None):
-    """Edit printer configuration JSON."""
+    """Edit printer configuration as YAML."""
     zp = request.app.state.zp
     templates = request.app.state.templates
 
-    config_json = json.dumps(zp.printers, indent=4)
+    # Convert config to YAML with header
+    config_yaml = "# zebra_day Configuration File\n\n" + yaml.dump(
+        zp.printers, default_flow_style=False, sort_keys=False
+    )
 
     context = get_template_context(
         request,
         title="Edit Configuration",
-        config_json=config_json,
+        config_yaml=config_yaml,
         mode="edit",
         error_msg=error_msg,
     )
@@ -411,47 +419,41 @@ async def modern_config_edit(request: Request, error_msg: str | None = None):
 
 
 @router.post("/config/save")
-async def modern_config_save(request: Request, json_data: str = Form(...)):
-    """Save edited printer configuration JSON."""
+async def modern_config_save(request: Request, yaml_data: str = Form(...)):
+    """Save edited printer configuration as YAML."""
     zp = request.app.state.zp
-    pkg_path = request.app.state.pkg_path
 
     try:
-        # Validate JSON
-        new_config = json.loads(json_data)
+        # Validate YAML
+        new_config = yaml.safe_load(yaml_data)
 
-        # Backup current config
-        json_file = pkg_path / "etc" / "printer_config.json"
-        if json_file.exists():
-            bkup_dir = pkg_path / "etc" / "old_printer_config"
-            bkup_dir.mkdir(parents=True, exist_ok=True)
-            rec_date = str(datetime.now()).replace(" ", "_")
-            bkup_file = bkup_dir / f"printer_config.{rec_date}.json"
-            bkup_file.write_text(json_file.read_text())
+        if not isinstance(new_config, dict):
+            raise ValueError("Config must be a YAML dictionary")
 
-        # Save new config
-        json_file.write_text(json.dumps(new_config, indent=4))
-
-        # Reload config
-        zp.load_printer_json(json_file=zp.printers_filename, relative=False)
+        # Update printers and save
+        zp.printers = new_config
+        zp.save_printer_config()
 
         return RedirectResponse(url="/config", status_code=303)
 
-    except json.JSONDecodeError as e:
-        return RedirectResponse(url=f"/config/edit?error_msg=Invalid JSON: {e}", status_code=303)
+    except yaml.YAMLError as e:
+        return RedirectResponse(url=f"/config/edit?error_msg=Invalid YAML: {e}", status_code=303)
+    except ValueError as e:
+        return RedirectResponse(url=f"/config/edit?error_msg={e}", status_code=303)
 
 
 @router.get("/config/backups", response_class=HTMLResponse)
 async def modern_config_backups(request: Request):
-    """List prior config files."""
+    """List prior config files (YAML and legacy JSON)."""
     templates = request.app.state.templates
-    pkg_path = request.app.state.pkg_path
-    bkup_dir = pkg_path / "etc" / "old_printer_config"
+
+    # Use XDG backup directory
+    bkup_dir = xdg.get_config_backups_dir()
 
     backup_files = []
     if bkup_dir.exists():
         for f in sorted(bkup_dir.iterdir(), reverse=True):
-            if f.is_file():
+            if f.is_file() and f.suffix in (".yaml", ".yml", ".json"):
                 backup_files.append(f.name)
 
     context = get_template_context(
@@ -484,16 +486,16 @@ async def modern_config_reset(request: Request):
     """Reset printer config from template."""
     zp = request.app.state.zp
     zp.replace_printer_json_from_template()
-    time.sleep(1.2)
+    time.sleep(0.5)
     return RedirectResponse(url="/config", status_code=303)
 
 
 @router.get("/config/clear")
 async def modern_config_clear(request: Request):
-    """Clear the printer configuration JSON."""
+    """Clear the printer configuration."""
     zp = request.app.state.zp
     zp.clear_printers_json()
-    time.sleep(1.2)
+    time.sleep(0.5)
     return RedirectResponse(url="/config", status_code=303)
 
 

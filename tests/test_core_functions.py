@@ -4,7 +4,6 @@ Unit tests for core zebra_day functions.
 Tests for formulate_zpl, socket send (mocked), config JSON roundtrip.
 """
 
-import json
 import os
 import tempfile
 from unittest import mock
@@ -95,11 +94,13 @@ class TestFormulateZpl:
         assert "does not exist" in str(exc_info.value)
 
 
-class TestConfigJsonRoundtrip:
-    """Tests for printer config JSON serialization/deserialization."""
+class TestConfigRoundtrip:
+    """Tests for printer config YAML serialization/deserialization."""
 
-    def test_save_and_load_printer_json(self):
-        """Test that config can be saved and reloaded."""
+    def test_save_and_load_printer_config(self):
+        """Test that config can be saved and reloaded as YAML."""
+        import yaml
+
         from zebra_day import print_mgr as zd
 
         zd_pm = zd.zpl()
@@ -125,17 +126,17 @@ class TestConfigJsonRoundtrip:
             },
         }
 
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        # Save to temp file (YAML format)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as tmp:
             tmp_path = tmp.name
 
         try:
-            zd_pm.save_printer_json(tmp_path, relative=False)
+            zd_pm.save_printer_config(tmp_path)
 
-            # Verify file exists and is valid JSON
+            # Verify file exists and is valid YAML
             assert os.path.exists(tmp_path)
             with open(tmp_path) as f:
-                loaded = json.load(f)
+                loaded = yaml.safe_load(f)
 
             assert "labs" in loaded
             assert "roundtrip_test" in loaded["labs"]
@@ -150,8 +151,7 @@ class TestConfigJsonRoundtrip:
             )
 
             # Load into new instance
-            zd_pm2 = zd.zpl()
-            zd_pm2.load_printer_json(tmp_path, relative=False)
+            zd_pm2 = zd.zpl(config_path=tmp_path)
 
             assert "roundtrip_test" in zd_pm2.printers["labs"]
         finally:

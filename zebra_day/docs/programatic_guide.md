@@ -9,8 +9,8 @@ zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
-print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
-# The json will look something like this (v2.0.0 schema with nested printers)
+print(zlab.printers)  # This should print out the config dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the config file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
+# The config will look something like this (v2.0.0 schema with nested printers)
 ## {'schema_version': '2.0.0', 'labs': {'default': {'lab_name': 'Default', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
 
 # Assuming a printer was detected, send a test print request. Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now. There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
@@ -32,26 +32,29 @@ zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_
   zlab = zdpm.zpl()
   ```
 
-  The IP of the machine creating the obj is determined, and the default printer config.json is read.
+  The IP of the machine creating the obj is determined, and the default printer config is read.
 
 
-### Load/Save/Clear Printer Config json
+### Load/Save/Clear Printer Config
 
-> As of 0.6.0, printer configuration is stored in XDG-compliant locations:
-> - **Linux**: `~/.config/zebra_day/printer_config.json`
-> - **macOS**: `~/Library/Preferences/zebra_day/printer_config.json`
+> As of 2.2.0, printer configuration uses YAML format and is stored in XDG-compliant locations:
+> - **Linux**: `~/.config/zebra_day/zebra-day-config.yaml`
+> - **macOS**: `~/Library/Preferences/zebra_day/zebra-day-config.yaml`
 >
-> Use `zday info` to see the exact path on your system.
+> Use `zday config path` or `zday info` to see the exact path on your system.
+>
+> Legacy JSON configuration files are automatically migrated to YAML on first load.
 
 ```python
-# These methods now use the XDG paths automatically
-zlab.save_printer_json()
-zlab.load_printer_json()
+# These methods now use the XDG paths automatically (YAML format)
+zlab.save_printer_config()  # New method (saves YAML)
+zlab.save_printer_json()    # Legacy method (redirects to save_printer_config)
+zlab.load_printer_json()    # Legacy method (loads YAML or JSON)
 zlab.clear_printers_json()
 zlab.replace_printer_json_from_template()
 ```
 
-When clearing or writing a new config.json, the existing one is saved to a backup location. Users can open these and effectively rollback if errors are made. Replace from template means overwriting the active one with the json example file which accompanies the repo.
+When clearing or writing a new config, the existing one is saved to a backup location. Users can open these and effectively rollback if errors are made. Replace from template means overwriting the active one with the template file which accompanies the repo.
 
 
 ### Scan Local Network For Zebra Printers
@@ -83,34 +86,34 @@ Rather than print a physical label, produce a `png`... this is most helpful when
 
 ## Data Structures
 
-### Printer json (v2.0.0 Schema)
+### Printer Configuration (v2.0.0 Schema, YAML Format)
 This is the file which describes the printer fleet. It may be manually edited or edited via the GUI.
 
-```json
-{
-    "schema_version": "2.0.0",
-    "labs": {
-        "default": {
-            "lab_name": "Default",
-            "available_locations": ["Bench A", "Bench B"],
-            "printers": {
-                "192.168.1.7": {
-                    "ip_address": "192.168.1.7",
-                    "printer_name": "Main Lab Printer",
-                    "lab_location": "Bench A",
-                    "manufacturer": "zebra",
-                    "model": "ZD620",
-                    "serial": "12345",
-                    "label_zpl_styles": ["tube_2inX1in", "plate_1inX0.25in"],
-                    "default_label_style": "tube_2inX1in",
-                    "print_method": "socket",
-                    "arp_data": "",
-                    "notes": "Primary sample printer"
-                }
-            }
-        }
-    }
-}
+```yaml
+# zebra-day-config.yaml
+schema_version: "2.0.0"
+
+labs:
+  default:
+    lab_name: Default
+    available_locations:
+      - Bench A
+      - Bench B
+    printers:
+      "192.168.1.7":
+        ip_address: "192.168.1.7"
+        printer_name: Main Lab Printer
+        lab_location: Bench A
+        manufacturer: zebra
+        model: ZD620
+        serial: "12345"
+        label_zpl_styles:
+          - tube_2inX1in
+          - plate_1inX0.25in
+        default_label_style: tube_2inX1in
+        print_method: socket
+        arp_data: ""
+        notes: Primary sample printer
 ```
 
 **Schema v2.0.0 Changes:**

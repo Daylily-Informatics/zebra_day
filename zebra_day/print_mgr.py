@@ -23,6 +23,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Literal
 
+import yaml
+
 import zebra_day.cmd_mgr as zdcm
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
@@ -98,34 +100,171 @@ class zpl:
     zd_pm = zd.zpl()
     """
 
-    def __init__(self, json_config: str | None = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize the class.
 
         Args:
-            json_config: Path to printer config JSON. If not specified,
-                uses XDG config path or falls back to package path.
+            config_path: Path to printer config file (YAML or JSON). If not specified,
+                uses XDG config path with YAML preference and JSON fallback.
         """
         # Ensure label styles directories exist
         xdg.get_label_drafts_dir()  # Creates tmps/ too
 
-        # Determine config file location (XDG first, then package fallback)
-        xdg_config = xdg.get_printer_config_path()
-        pkg_config = Path(str(files("zebra_day"))) / "etc" / "printer_config.json"
+        # Config file search order:
+        # 1. Explicit path provided
+        # 2. XDG YAML config
+        # 3. XDG legacy JSON config (auto-migrates to YAML)
+        # 4. Package template (copies to XDG YAML)
+        yaml_config = xdg.get_config_file_path()
+        json_config = xdg.get_legacy_json_config_path()
+        pkg_template = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
 
-        if json_config:
-            jcfg = Path(json_config) if not json_config.startswith("/") else Path(json_config)
-        elif xdg_config.exists():
-            jcfg = xdg_config
-        elif pkg_config.exists():
-            jcfg = pkg_config
+        if config_path:
+            cfg_path = Path(config_path)
+            if cfg_path.exists():
+                self._load_config_file(cfg_path)
+            else:
+                self._create_config_from_template(cfg_path)
+        elif yaml_config.exists():
+            self._load_config_file(yaml_config)
+        elif json_config.exists():
+            # Migrate JSON to YAML
+            self._migrate_json_to_yaml(json_config, yaml_config)
+        elif pkg_template.exists():
+            # Create config from template
+            self._create_config_from_template(yaml_config)
         else:
-            jcfg = xdg_config  # Will create new config here
+            # Fallback: create minimal config
+            self._create_minimal_config(yaml_config)
 
-        if jcfg.exists():
-            self.load_printer_json(str(jcfg), relative=False)
+    def _load_config_file(self, config_path: Path) -> None:
+        """Load configuration from a YAML or JSON file.
+
+        Args:
+            config_path: Path to the config file
+        """
+        _log.debug("Loading config from: %s", config_path)
+        self.printers_filename = str(config_path)
+
+        with open(config_path) as f:
+            content = f.read()
+
+        # Detect format and parse
+        if config_path.suffix in (".yaml", ".yml"):
+            self.printers = yaml.safe_load(content) or {}
         else:
-            self.create_new_printers_json_with_single_test_printer(str(jcfg))
+            self.printers = json.loads(content)
+
+        # Ensure schema version exists
+        if "schema_version" not in self.printers:
+            self.printers["schema_version"] = "2.0.0"
+        if "labs" not in self.printers:
+            self.printers["labs"] = {}
+
+    def _migrate_json_to_yaml(self, json_path: Path, yaml_path: Path) -> None:
+        """Migrate a JSON config file to YAML format.
+
+        The JSON file is preserved as a backup.
+
+        Args:
+            json_path: Path to the existing JSON config
+            yaml_path: Path where the YAML config will be created
+        """
+        _log.info("Migrating config from JSON to YAML: %s -> %s", json_path, yaml_path)
+
+        # Load JSON config
+        with open(json_path) as f:
+            config = json.load(f)
+
+        # Save as YAML
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(yaml_path, "w") as f:
+            f.write("# zebra_day Configuration File\n")
+            f.write("# Migrated from JSON format\n\n")
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+        # Backup the JSON file
+        backup_dir = xdg.get_config_backups_dir()
+        backup_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_migrated_from.json"
+        shutil.copy2(json_path, backup_dir / backup_name)
+        _log.info("JSON backup saved to: %s", backup_dir / backup_name)
+
+        # Load the new YAML config
+        self._load_config_file(yaml_path)
+
+    def _create_config_from_template(self, target_path: Path) -> None:
+        """Create a new config file from the template.
+
+        Args:
+            target_path: Path where the config will be created
+        """
+        template_path = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
+        _log.info("Creating config from template: %s", target_path)
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(template_path, target_path)
+
+        self._load_config_file(target_path)
+
+    def _create_minimal_config(self, target_path: Path) -> None:
+        """Create a minimal empty config file.
+
+        Args:
+            target_path: Path where the config will be created
+        """
+        _log.info("Creating minimal config: %s", target_path)
+
+        minimal_config = {
+            "schema_version": "2.0.0",
+            "labs": {"default": {"lab_name": "Default", "available_locations": [], "printers": {}}},
+        }
+
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "w") as f:
+            f.write("# zebra_day Configuration File\n\n")
+            yaml.dump(minimal_config, f, default_flow_style=False, sort_keys=False)
+
+        self._load_config_file(target_path)
+
+    def save_printer_config(self, config_path: str | None = None) -> None:
+        """Save the current printer configuration to YAML file.
+
+        Creates a backup of the previous config in the backups directory.
+
+        Args:
+            config_path: Optional path to save to. If not specified, uses current config path.
+        """
+        if config_path:
+            target_path = Path(config_path)
+        elif hasattr(self, "printers_filename"):
+            target_path = Path(self.printers_filename)
+        else:
+            target_path = xdg.get_config_file_path()
+
+        # Ensure target is YAML
+        if target_path.suffix not in (".yaml", ".yml"):
+            target_path = target_path.with_suffix(".yaml")
+
+        # Create backup if file exists
+        if target_path.exists():
+            backup_dir = xdg.get_config_backups_dir()
+            rec_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_path = backup_dir / f"{rec_date}_config_backup.yaml"
+            try:
+                shutil.copy2(target_path, backup_path)
+                _log.debug("Backup created: %s", backup_path)
+            except OSError as e:
+                _log.warning("Failed to create backup: %s", e)
+
+        # Save config as YAML
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "w") as f:
+            f.write("# zebra_day Configuration File\n\n")
+            yaml.dump(self.printers, f, default_flow_style=False, sort_keys=False)
+
+        self.printers_filename = str(target_path)
+        _log.debug("Config saved to: %s", target_path)
 
     def probe_zebra_printers_add_to_printers_json(
         self, ip_stub="192.168.1", scan_wait="0.25", lab="default", relative=False
@@ -231,126 +370,76 @@ class zpl:
             except Exception:
                 pass  # Skip unreachable IPs
 
-        self.save_printer_json(self.printers_filename, relative=False)
+        self.save_printer_config()
 
     def save_printer_json(
         self, json_filename: str = "/etc/printer_config.json", relative: bool = True
     ) -> None:
-        """
-        Save the current self.printers to the specified JSON file.
+        """Save the current config.
 
-        Creates a backup of the previous config in the backups directory.
+        .. deprecated:: 2.2.0
+            Use :meth:`save_printer_config` instead.
+        """
+        # Redirect to YAML save
+        self.save_printer_config()
+
+    def load_printer_json(
+        self, json_file: str = "etc/printer_config.json", relative: bool = True
+    ) -> None:
+        """Load a config file (JSON or YAML).
+
+        .. deprecated:: 2.2.0
+            Use :meth:`_load_config_file` instead.
 
         Args:
-            json_filename: Path to save the config to
+            json_file: Path to config file
             relative: If True, path is relative to package directory
         """
-        # Resolve the target path
         if relative:
-            json_path = Path(str(files("zebra_day"))) / json_filename.lstrip("/")
+            config_path = Path(str(files("zebra_day"))) / json_file
         else:
-            json_path = Path(json_filename)
+            config_path = Path(json_file)
 
-        # Create backup if file exists
-        if hasattr(self, "printers_filename") and Path(self.printers_filename).exists():
-            backup_dir = xdg.get_config_backups_dir()
-            rec_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_path = backup_dir / f"{rec_date}_printer_config.json"
-            try:
-                shutil.copy2(self.printers_filename, backup_path)
-                _log.debug("Backup created: %s", backup_path)
-            except OSError as e:
-                _log.warning("Failed to create backup: %s", e)
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        # Save the config
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(json_path, "w") as json_file:
-            json.dump(self.printers, json_file, indent=4)
+        self._load_config_file(config_path)
 
-        self.load_printer_json(str(json_path), relative=False)
+    def create_new_printers_json_with_single_test_printer(self, fn: str | None = None) -> None:
+        """Create a new config from the template.
 
-    def load_printer_json(self, json_file="etc/printer_config.json", relative=True):
+        .. deprecated:: 2.2.0
+            Use :meth:`_create_config_from_template` instead.
         """
-        Loads printer json from a specified file, saves it to the active json.
-        If specified file does not exist, it is created with the base
-          printers json
-
-        json_file = path to file
-        """
-        if relative:
-            json_file = f"{str(files('zebra_day'))}/{json_file}"
+        if fn is None:
+            target_path = xdg.get_config_file_path()
         else:
-            pass
+            target_path = Path(fn)
 
-        _log.debug("Loading printer config from: %s", json_file)
+        self._create_config_from_template(target_path)
 
-        if not os.path.exists(json_file):
-            raise Exception(
-                f"""The file specified does not exist. Consider specifying the default 'etc/printer_config.json , provided: {json_file}, which had {str(files("zebra_day"))} prefixed to it', for {json_file}"""
-            )
-        fh = open(json_file)
-        self.printers_filename = json_file
-        self.printers = json.load(fh)
-        # self.save_printer_json() <---  use the save_printer_json call after calling this. Else, recursion.
-
-    def create_new_printers_json_with_single_test_printer(self, fn=None):
-        """
-        Create a new printers json with just the png printer defined
-        """
-
-        if fn in [None]:
-            fn = str(files("zebra_day")) + "/etc/printer_config.json"
-
-        if not hasattr(self, "printers"):
-            self.printers = {}
-            self.printers_filename = fn
-
-        jdat = None
-        with open(f"{str(files('zebra_day'))}/etc/printer_config.template.json") as file:
-            jdat = json.load(file)
-
-        self.printers = jdat
-
-        self.save_printer_json(fn, relative=False)
-
-    def clear_printers_json(self, json_file: str = "/etc/printer_config.json") -> None:
-        """
-        Reset printers JSON to empty minimal v2.0.0 structure.
+    def clear_printers_json(self, config_file: str | None = None) -> None:
+        """Reset config to empty minimal v2.0.0 structure.
 
         Args:
-            json_file: Path to the config file (relative to package)
+            config_file: Path to the config file (ignored, uses XDG path)
         """
-        json_path = Path(str(files("zebra_day"))) / json_file.lstrip("/")
+        target_path = xdg.get_config_file_path()
 
         # Write empty config with v2 schema
         empty_config = {"schema_version": "2.0.0", "labs": {}}
-        json_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(json_path, "w") as f:
-            json.dump(empty_config, f, indent=4)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(target_path, "w") as f:
+            f.write("# zebra_day Configuration File\n\n")
+            yaml.dump(empty_config, f, default_flow_style=False, sort_keys=False)
 
-        self.printers_filename = str(json_path)
+        self.printers_filename = str(target_path)
         self.printers = empty_config
 
-        self.save_printer_json(str(json_path), relative=False)
-
     def replace_printer_json_from_template(self) -> None:
-        """
-        Replace the active printer config with the default template.
-
-        Copies the template JSON to the active config location.
-        """
-        pkg_path = Path(str(files("zebra_day")))
-        template_path = pkg_path / "etc" / "printer_config.template.json"
-        target_path = pkg_path / "etc" / "printer_config.json"
-
-        # Copy template to active config using shutil
-        shutil.copy2(template_path, target_path)
-
-        with open(target_path) as fh:
-            self.printers = json.load(fh)
-        self.printers_filename = str(target_path)
-
-        self.save_printer_json(self.printers_filename, relative=False)
+        """Replace the active printer config with the default template."""
+        target_path = xdg.get_config_file_path()
+        self._create_config_from_template(target_path)
 
     def get_valid_label_styles_for_lab(self, lab=None):
         """

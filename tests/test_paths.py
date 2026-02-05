@@ -36,8 +36,21 @@ class TestXDGPaths:
         assert isinstance(result, Path)
 
     def test_get_printer_config_path_returns_path(self):
-        """Test get_printer_config_path returns a Path object."""
+        """Test get_printer_config_path returns a Path object (now YAML)."""
         result = xdg.get_printer_config_path()
+        assert isinstance(result, Path)
+        # Since 2.2.0, this now returns the YAML config path
+        assert result.name == "zebra-day-config.yaml"
+
+    def test_get_config_file_path_returns_yaml_path(self):
+        """Test get_config_file_path returns YAML path."""
+        result = xdg.get_config_file_path()
+        assert isinstance(result, Path)
+        assert result.name == "zebra-day-config.yaml"
+
+    def test_get_legacy_json_config_path_returns_json_path(self):
+        """Test get_legacy_json_config_path returns JSON path."""
+        result = xdg.get_legacy_json_config_path()
         assert isinstance(result, Path)
         assert result.name == "printer_config.json"
 

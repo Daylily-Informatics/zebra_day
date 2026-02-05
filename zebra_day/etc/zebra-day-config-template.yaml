@@ -1,10 +1,13 @@
-{
-    "schema_version": "2.0.0",
-    "labs": {
-        "default": {
-            "lab_name": "Default",
-            "available_locations": [],
-            "printers": {}
-        }
-    }
-}
+# zebra_day Configuration File
+# Schema version 2.0.0
+#
+# This file configures labs and printers for zebra_day.
+# See https://github.com/Daylily-Informatics/zebra_day for documentation.
+
+schema_version: "2.0.0"
+
+labs:
+  default:
+    lab_name: Default
+    available_locations: []
+    printers: {}

@@ -102,8 +102,36 @@ def get_cache_dir() -> Path:
 
 
 # Specific file/directory paths
+def get_config_file_path() -> Path:
+    """Get path to the zebra-day configuration YAML file.
+
+    Returns:
+        Path to zebra-day-config.yaml in XDG config directory
+    """
+    return get_config_dir() / "zebra-day-config.yaml"
+
+
 def get_printer_config_path() -> Path:
-    """Get path to the printer configuration JSON file."""
+    """Get path to the printer configuration file.
+
+    .. deprecated:: 2.2.0
+        Use :func:`get_config_file_path` instead. This function now returns
+        the YAML config path for backward compatibility.
+
+    Returns:
+        Path to zebra-day-config.yaml (YAML format)
+    """
+    return get_config_file_path()
+
+
+def get_legacy_json_config_path() -> Path:
+    """Get path to the legacy JSON configuration file.
+
+    Used during migration from JSON to YAML format.
+
+    Returns:
+        Path to printer_config.json in XDG config directory
+    """
     return get_config_dir() / "printer_config.json"
 
 

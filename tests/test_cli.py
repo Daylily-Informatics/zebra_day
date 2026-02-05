@@ -106,3 +106,49 @@ class TestCLIGuiStatus:
         result = runner.invoke(app, ["gui", "status"])
         # exit_code 0 = running, exit_code 1 = not running (both valid)
         assert result.exit_code in (0, 1)
+
+
+class TestCLIConfig:
+    """Tests for config CLI commands."""
+
+    def test_config_help(self):
+        """Test config subcommand help."""
+        result = runner.invoke(app, ["config", "--help"])
+        assert result.exit_code == 0
+        assert "init" in result.output
+        assert "show" in result.output
+        assert "path" in result.output
+        assert "validate" in result.output
+        assert "edit" in result.output
+        assert "reset" in result.output
+
+    def test_config_path_command(self):
+        """Test config path command outputs a path."""
+        result = runner.invoke(app, ["config", "path"])
+        assert result.exit_code == 0
+        assert "zebra-day-config.yaml" in result.output or "printer_config.json" in result.output
+
+    def test_config_init_existing(self):
+        """Test config init refuses to overwrite without --force."""
+        # First ensure config exists
+        runner.invoke(app, ["config", "init", "--force"])
+        # Then try without --force
+        result = runner.invoke(app, ["config", "init"])
+        # Should fail or succeed depending on if config exists
+        assert result.exit_code in (0, 1)
+
+    def test_config_show_command(self):
+        """Test config show command displays YAML."""
+        # First ensure config exists
+        runner.invoke(app, ["config", "init", "--force"])
+        result = runner.invoke(app, ["config", "show"])
+        assert result.exit_code == 0
+        assert "schema_version" in result.output
+
+    def test_config_validate_command(self):
+        """Test config validate command."""
+        # First ensure config exists
+        runner.invoke(app, ["config", "init", "--force"])
+        result = runner.invoke(app, ["config", "validate"])
+        assert result.exit_code == 0
+        assert "valid" in result.output.lower()

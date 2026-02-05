@@ -145,6 +145,14 @@ zday template preview TEMPLATE     # Generate PNG preview
 zday template edit TEMPLATE        # Open in editor
 zday template show TEMPLATE        # Display template contents
 
+# Configuration management
+zday config init                   # Initialize config from template
+zday config show                   # Display current config (YAML)
+zday config path                   # Print path to config file
+zday config validate               # Validate config schema
+zday config edit                   # Open config in $EDITOR
+zday config reset [--force]        # Reset config to template defaults
+
 # Cognito authentication (requires pip install -e ".[auth]")
 zday cognito status               # Show auth configuration
 zday cognito info                 # Setup instructions
@@ -334,7 +342,7 @@ zebra_day uses XDG Base Directory specification for file storage:
 | **Cache** | `~/Library/Caches/zebra_day/` | `~/.cache/zebra_day/` |
 
 Key files:
-- `printer_config.json` - Printer fleet configuration (in config dir)
+- `zebra-day-config.yaml` - Printer fleet configuration (in config dir)
 - `label_styles/` - ZPL template files (in data dir)
 - `label_styles/tmps/` - Draft templates (in data dir)
 
@@ -396,7 +404,7 @@ Found 2 printers:
   - 192.168.1.7 (ZTC GX420d)
   - 192.168.1.20 (ZD620)
 
-Configuration saved to: ~/.config/zebra_day/printer_config.json
+Configuration saved to: ~/.config/zebra_day/zebra-day-config.yaml
 
 Run 'zday gui start' to launch the web interface.
 </pre>
@@ -452,9 +460,9 @@ zlab = zdpm.zpl()
 
 zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
 
-print(zlab.printers)  # This should print out the json dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the json file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
+print(zlab.printers)  # This should print out the config dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the config file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
 
-# The json will look something like this (v2.0.0 schema with nested printers)
+# The config will look something like this (v2.0.0 schema with nested printers)
 ## {'schema_version': '2.0.0', 'labs': {'default': {'lab_name': 'Default', 'printers': {'192.168.1.7': {'ip_address': '192.168.1.7', ...}}}}}
 
 # Assuming a printer was detected, send a test print request. Using the 'lab', 'printer' and 'label_zpl_style' above (you'd have your own IP/Name, other values should remain the same for now. There are multiple label ZPL formats available, the test_2inX1in is for quick testing & only formats in the two UID values specified.
@@ -814,7 +822,7 @@ Next, create a flow which uses this Apex Class.
 * Choose `Actions and Related Records`, and check the box at the bottom of the page to `Include a Run Asynchronously path...`
   * upon clicking this box, the graphic representation of the flow to the left of the page will now have 2 branches at the bottom of the flow rule, one `Run Immediately` and one `Run Asynchronously`.  The `Run Immediately` branch was throwing errors, so I removed it to debug at a latter date.
   * Click the node just below the `Run Asynch` oval. Add an `Action`. Select the `Make HTTP Request` we created via the Apex Class above.  Give it a `Label`, let the API Name auto generate.
-  * In the `Endpoint URL` field, enter the url `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode={!$Record.Name}&lab=default&printer=!!YOURPRINTERIP!!&label_zpl_style=tube_2inX1in`, where Record.Name will be replaced with the Object.Name from the object triggering the flow.  Replace !!YOURPRINTERIP!! with one of the printer IPs zebra_day detected above.  If you are using the auto-generated zebra printers config json file, you may leave `default` as the value for `lab=` as this will be the default name given when zebra_day autodetects printers.
+  * In the `Endpoint URL` field, enter the url `https://dfbf-23-93-175-197.ngrok-free.app/_print_label?uid_barcode={!$Record.Name}&lab=default&printer=!!YOURPRINTERIP!!&label_zpl_style=tube_2inX1in`, where Record.Name will be replaced with the Object.Name from the object triggering the flow.  Replace !!YOURPRINTERIP!! with one of the printer IPs zebra_day detected above.  If you are using the auto-generated zebra printers config file, you may leave `default` as the value for `lab=` as this will be the default name given when zebra_day autodetects printers.
   * add the same HTTPrequest action to the node just below `Run Immediately`.
   * click `Save` in the upper right corner of the page. Give it a name
   * Click `Debug Again`, run the `Run Immediately` branch first. This will fail.
@@ -853,7 +861,7 @@ If it will work on AWS, it will work anyplace really (with some provider specifi
 ## Docker
 Find an example in the docker folder at the top level of this project. Copy the Dockerfile and the docker-compose.yml to a local folder on your computer.
 In that folder, `mkdir etc && chmod 777 etc && mkdir logs && chmod 777 logs` to setup the example folders.
-Tthen run `sudo docker compose up --build -d` to run it then reach it at http://<your-ip>:8118. This doesn't auto-detect printers so you'll have to run the printer discovery and probably manually edit your JSON file.
+Then run `sudo docker compose up --build -d` to run it then reach it at http://<your-ip>:8118. This doesn't auto-detect printers so you'll have to run the printer discovery and probably manually edit your YAML config file.
 
 # Add'l Future Development
 

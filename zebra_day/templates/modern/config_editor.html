@@ -22,7 +22,7 @@
 
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-file-code"></i> Printer Configuration JSON</h3>
+        <h3 class="card-title"><i class="fas fa-file-code"></i> Printer Configuration (YAML)</h3>
         {% if mode == 'edit' %}
         <span class="badge badge-warning">Editing</span>
         {% else %}
@@ -31,7 +31,7 @@
     </div>
     <form method="post" action="/config/save">
         <div class="form-group">
-            <textarea name="json_data" id="json-editor" class="form-control code-editor" rows="30" {% if mode != 'edit' %}readonly{% endif %}>{{ config_json }}</textarea>
+            <textarea name="yaml_data" id="yaml-editor" class="form-control code-editor" rows="30" {% if mode != 'edit' %}readonly{% endif %}>{{ config_yaml }}</textarea>
         </div>
         {% if mode == 'edit' %}
         <div class="form-actions">
@@ -80,16 +80,6 @@ async function clearConfig() {
         window.location.href = '/config/clear';
     }
 }
-
-// Auto-format JSON on blur
-document.getElementById('json-editor')?.addEventListener('blur', function() {
-    try {
-        const parsed = JSON.parse(this.value);
-        this.value = JSON.stringify(parsed, null, 4);
-    } catch (e) {
-        // Invalid JSON, leave as-is
-    }
-});
 </script>
 {% endblock %}
 
