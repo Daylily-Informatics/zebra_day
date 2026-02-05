@@ -12,47 +12,25 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+import zebra_day.print_mgr as zdpm
 from zebra_day import paths as xdg
 
 template_app = typer.Typer(help="ZPL template management commands")
 console = Console()
 
 
-def _get_template_dirs() -> list[Path]:
-    """Get all template directories."""
-    from importlib.resources import files
-
-    dirs = []
-    # XDG data directory
-    xdg_styles = xdg.get_label_styles_dir()
-    if xdg_styles.exists():
-        dirs.append(xdg_styles)
-
-    # Package directory
-    try:
-        pkg_styles = Path(str(files("zebra_day"))) / "etc" / "label_styles"
-        if pkg_styles.exists():
-            dirs.append(pkg_styles)
-    except Exception:
-        pass
-
-    return dirs
+def _get_zp():
+    """Get PrintMgr instance."""
+    return zdpm.zpl()
 
 
 def _find_template(name: str) -> Path | None:
-    """Find a template file by name."""
-    for template_dir in _get_template_dirs():
-        # Try exact match
-        for ext in ["", ".zpl", ".txt"]:
-            path = template_dir / f"{name}{ext}"
-            if path.exists():
-                return path
-        # Try with zpl_ prefix
-        for ext in ["", ".zpl", ".txt"]:
-            path = template_dir / f"zpl_{name}{ext}"
-            if path.exists():
-                return path
-    return None
+    """Find a template file by name using PrintMgr."""
+    zp = _get_zp()
+    try:
+        return zp.resolve_template_path(name)
+    except FileNotFoundError:
+        return None
 
 
 @template_app.command("list")
@@ -61,27 +39,40 @@ def list_templates(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full paths"),
 ):
     """List available ZPL templates."""
+    zp = _get_zp()
+
+    user_dir = xdg.get_label_styles_dir()
+    pkg_dir = zp._package_label_styles_dir()
+
     templates: list[dict[str, Any]] = []
 
-    for template_dir in _get_template_dirs():
-        for f in template_dir.iterdir():
-            if f.is_file() and not f.name.startswith("."):
-                if f.suffix in [".zpl", ".txt", ""] or f.name.startswith("zpl_"):
-                    templates.append(
-                        {
-                            "name": f.stem,
-                            "path": str(f),
-                            "size": f.stat().st_size,
-                            "source": "user" if "zebra_day" not in str(template_dir) else "package",
-                        }
-                    )
+    # User templates
+    if user_dir.exists():
+        for f in sorted(user_dir.iterdir()):
+            if f.is_file() and f.suffix == ".zpl":
+                templates.append(
+                    {
+                        "name": f.stem,
+                        "path": str(f),
+                        "size": f.stat().st_size,
+                        "source": "user",
+                    }
+                )
 
-    # Dedupe by name, prefer user templates
-    seen = {}
-    for t in templates:
-        if t["name"] not in seen or t["source"] == "user":
-            seen[t["name"]] = t
-    templates = list(seen.values())
+    user_names = {t["name"] for t in templates}
+
+    # Package templates (skip if already in user)
+    if pkg_dir.exists():
+        for f in sorted(pkg_dir.iterdir()):
+            if f.is_file() and f.suffix == ".zpl" and f.stem not in user_names:
+                templates.append(
+                    {
+                        "name": f.stem,
+                        "path": str(f),
+                        "size": f.stat().st_size,
+                        "source": "package",
+                    }
+                )
 
     if json_output:
         console.print(json.dumps(templates, indent=2))
@@ -178,3 +169,88 @@ def show(
 
     console.print(f"[dim]# {template_path}[/dim]\n")
     console.print(template_path.read_text())
+
+
+@template_app.command("save")
+def save(
+    filename: str = typer.Argument(..., help="Template filename (e.g., 'my_label.zpl')"),
+    content_source: str = typer.Option(
+        ..., "--content", "-c", help="ZPL content or path to file containing ZPL"
+    ),
+    location: str = typer.Option(
+        "user", "--location", "-l", help="Save location: 'user' or 'package'"
+    ),
+    no_backup: bool = typer.Option(False, "--no-backup", help="Disable backup of existing file"),
+    force: bool = typer.Option(False, "--force", "-f", help="Overwrite without confirmation"),
+):
+    """Save a ZPL template.
+
+    Saves to ~/.config/zebra_day/label_styles/ by default (--location=user).
+    Use --location=package to save to the package directory (requires write access).
+    """
+    zp = _get_zp()
+
+    # If content_source is a file path, read it
+    content_path = Path(content_source)
+    if content_path.exists() and content_path.is_file():
+        zpl_content = content_path.read_text()
+        console.print(f"[dim]Reading ZPL from: {content_path}[/dim]")
+    else:
+        zpl_content = content_source
+
+    # Validate location
+    if location not in ("user", "package"):
+        console.print(f"[red]✗[/red] Invalid location: {location} (must be 'user' or 'package')")
+        raise typer.Exit(1)
+
+    try:
+        path = zp.save_template(
+            filename=filename,
+            zpl_content=zpl_content,
+            location=location,  # type: ignore[arg-type]
+            overwrite=force,
+            backup=not no_backup,
+        )
+        console.print(f"[green]✓[/green] Template saved: {path}")
+    except FileExistsError as e:
+        console.print(f"[red]✗[/red] {e}")
+        console.print("[yellow]→[/yellow] Use --force to overwrite")
+        raise typer.Exit(1) from None
+    except (ValueError, PermissionError) as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise typer.Exit(1) from None
+
+
+@template_app.command("delete")
+def delete(
+    name: str = typer.Argument(..., help="Template name to delete"),
+    location: str = typer.Option(
+        "user", "--location", "-l", help="Delete from: 'user' or 'package'"
+    ),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+):
+    """Delete a ZPL template.
+
+    By default, deletes from user config directory (~/.config/zebra_day/label_styles/).
+    Use --location=package to delete from package directory (requires write access).
+    """
+    # Validate location
+    if location not in ("user", "package"):
+        console.print(f"[red]✗[/red] Invalid location: {location} (must be 'user' or 'package')")
+        raise typer.Exit(1)
+
+    if not force:
+        confirm = typer.confirm(f"Delete template '{name}' from {location}?")
+        if not confirm:
+            raise typer.Abort()
+
+    zp = _get_zp()
+    try:
+        zp.delete_template(name, location=location)  # type: ignore[arg-type]
+        console.print(f"[green]✓[/green] Template '{name}' deleted from {location}")
+    except FileNotFoundError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise typer.Exit(1) from None
+    except PermissionError as e:
+        console.print(f"[red]✗[/red] {e}")
+        raise typer.Exit(1) from None

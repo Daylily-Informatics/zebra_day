@@ -91,11 +91,17 @@ def validate_config():
 
         errors = []
 
+        if not isinstance(config, dict):
+            console.print("[red]✗[/red] Invalid config: root YAML object must be a mapping")
+            raise typer.Exit(1)
+
+        schema_version = str(config.get("schema_version", ""))
+
         # Check schema version
-        if "schema_version" not in config:
+        if not schema_version:
             errors.append("Missing 'schema_version' field")
-        elif config["schema_version"] != "2.0.0":
-            errors.append(f"Unknown schema version: {config['schema_version']}")
+        elif schema_version not in {"2.0.0", "2.1.0"}:
+            errors.append(f"Unknown schema version: {schema_version}")
 
         # Check labs structure
         if "labs" not in config:
@@ -107,6 +113,16 @@ def validate_config():
                 if not isinstance(lab_data, dict):
                     errors.append(f"Lab '{lab_id}' must be a dictionary")
                     continue
+
+                if "lab_name" not in lab_data:
+                    errors.append(f"Lab '{lab_id}' missing 'lab_name' field")
+
+                # v2.1.0 required lab-level metadata
+                if schema_version == "2.1.0":
+                    for req_key in ("lab_display_name", "lab_description", "network_stub"):
+                        if req_key not in lab_data:
+                            errors.append(f"Lab '{lab_id}' missing '{req_key}' field")
+
                 if "printers" not in lab_data:
                     errors.append(f"Lab '{lab_id}' missing 'printers' field")
 
@@ -116,6 +132,10 @@ def validate_config():
                 console.print(f"   • {err}")
             raise typer.Exit(1)
 
+        if schema_version == "2.0.0":
+            console.print(
+                "[yellow]⚠[/yellow] Config uses schema v2.0.0; it will be upgraded to v2.1.0 when loaded"
+            )
         console.print(f"[green]✓[/green] Config is valid: {config_path}")
 
     except yaml.YAMLError as e:

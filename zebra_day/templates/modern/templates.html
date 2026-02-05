@@ -9,15 +9,18 @@
 </div>
 
 <div class="grid grid-2">
-    <!-- Stable Templates -->
+    <!-- User Templates -->
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">
-                <i class="fas fa-check-circle text-success"></i> Stable Templates
+                <i class="fas fa-user text-success"></i> User Templates
             </h3>
-            <span class="badge badge-success">{{ stable_templates | length }}</span>
+            <span class="badge badge-success">{{ user_templates | length }}</span>
         </div>
-        {% if stable_templates %}
+        <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
+            <i class="fas fa-folder"></i> ~/.config/zebra_day/label_styles/
+        </p>
+        {% if user_templates %}
         <div class="table-container" style="box-shadow: none;">
             <table class="table">
                 <thead>
@@ -27,7 +30,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for template in stable_templates %}
+                    {% for template in user_templates %}
                     <tr>
                         <td>
                             <i class="fas fa-file-code text-muted"></i>
@@ -49,20 +52,24 @@
         {% else %}
         <div class="empty-state">
             <i class="fas fa-file-code"></i>
-            <p>No stable templates found</p>
+            <p>No user templates yet</p>
+            <small class="text-muted">Edit a package template and save to create a user template</small>
         </div>
         {% endif %}
     </div>
 
-    <!-- Draft Templates -->
+    <!-- Package Templates -->
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">
-                <i class="fas fa-pencil-alt text-warning"></i> Draft Templates
+                <i class="fas fa-box text-info"></i> Package Templates
             </h3>
-            <span class="badge badge-warning">{{ draft_templates | length }}</span>
+            <span class="badge badge-info">{{ package_templates | length }}</span>
         </div>
-        {% if draft_templates %}
+        <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
+            <i class="fas fa-folder"></i> Built-in templates shipped with zebra_day
+        </p>
+        {% if package_templates %}
         <div class="table-container" style="box-shadow: none;">
             <table class="table">
                 <thead>
@@ -72,17 +79,17 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for template in draft_templates %}
+                    {% for template in package_templates %}
                     <tr>
                         <td>
                             <i class="fas fa-file-alt text-muted"></i>
                             <strong>{{ template }}</strong>
                         </td>
                         <td>
-                            <a href="/templates/edit?filename={{ template }}&dtype=tmps" class="btn btn-sm btn-outline">
+                            <a href="/templates/edit?filename={{ template }}" class="btn btn-sm btn-outline">
                                 <i class="fas fa-edit"></i> Edit
                             </a>
-                            <a href="/templates/preview?filename={{ template }}&dtype=tmps" class="btn btn-sm btn-primary">
+                            <a href="/templates/preview?filename={{ template }}" class="btn btn-sm btn-primary">
                                 <i class="fas fa-eye"></i> Preview
                             </a>
                         </td>
@@ -93,9 +100,8 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <i class="fas fa-pencil-alt"></i>
-            <p>No draft templates yet</p>
-            <small class="text-muted">Edit a stable template to create a draft</small>
+            <i class="fas fa-box"></i>
+            <p>No package templates found</p>
         </div>
         {% endif %}
     </div>

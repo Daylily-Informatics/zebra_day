@@ -19,6 +19,100 @@
     <span>{{ printer_name }}</span>
 </div>
 
+<!-- Live Status Card -->
+{% if live_status %}
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-heartbeat"></i> Live Status</h3>
+        <a href="/printers/{{ lab }}/{{ printer_id }}?refresh=1" class="btn btn-outline btn-sm">
+            <i class="fas fa-sync"></i> Refresh
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="grid grid-4">
+            <div>
+                <div class="text-muted">Status</div>
+                <div>
+                    {% if live_status.online %}
+                        {% if live_status.paper_out or live_status.ribbon_out or live_status.head_up %}
+                        <span class="badge badge-error"><i class="fas fa-exclamation-triangle"></i> Error</span>
+                        {% elif live_status.paused %}
+                        <span class="badge badge-warning"><i class="fas fa-pause-circle"></i> Paused</span>
+                        {% else %}
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Online</span>
+                        {% endif %}
+                    {% else %}
+                    <span class="badge badge-error"><i class="fas fa-times-circle"></i> Offline</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="text-muted">Firmware</div>
+                <div><strong>{{ live_status.firmware | default('—') }}</strong></div>
+            </div>
+            <div>
+                <div class="text-muted">DPI</div>
+                <div><strong>{{ live_status.dpi | default('—') }}</strong></div>
+            </div>
+            <div>
+                <div class="text-muted">Labels Printed</div>
+                <div><strong>{{ live_status.label_count | default('—') }}</strong></div>
+            </div>
+        </div>
+        {% if live_status.online %}
+        <div class="grid grid-4 mt-md">
+            <div>
+                <div class="text-muted">Paper</div>
+                <div>
+                    {% if live_status.paper_out %}
+                    <span class="badge badge-error"><i class="fas fa-times"></i> Out</span>
+                    {% else %}
+                    <span class="badge badge-success"><i class="fas fa-check"></i> OK</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="text-muted">Ribbon</div>
+                <div>
+                    {% if live_status.ribbon_out %}
+                    <span class="badge badge-error"><i class="fas fa-times"></i> Out</span>
+                    {% else %}
+                    <span class="badge badge-success"><i class="fas fa-check"></i> OK</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="text-muted">Printhead</div>
+                <div>
+                    {% if live_status.head_up %}
+                    <span class="badge badge-error"><i class="fas fa-times"></i> Open</span>
+                    {% else %}
+                    <span class="badge badge-success"><i class="fas fa-check"></i> Closed</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="text-muted">Print Queue</div>
+                <div>
+                    {% if live_status.paused %}
+                    <span class="badge badge-warning"><i class="fas fa-pause"></i> Paused</span>
+                    {% else %}
+                    <span class="badge badge-success"><i class="fas fa-play"></i> Ready</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if live_status.odometer and live_status.odometer.raw %}
+        <div class="mt-md">
+            <div class="text-muted">Odometer (Raw)</div>
+            <pre style="margin-top: 0.5rem; padding: 0.5rem; background: var(--color-gray-700); border-radius: 4px; font-size: 0.8rem; overflow-x: auto;">{{ live_status.odometer.raw }}</pre>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <div class="grid grid-2">
     <!-- Printer Info -->
     <div class="card">
@@ -50,11 +144,11 @@
                 </tr>
                 <tr>
                     <td><strong>Model</strong></td>
-                    <td>{{ printer_info.model | default('Unknown') }}</td>
+                    <td>{{ (live_status.model if live_status and live_status.model else printer_info.model) | default('Unknown') }}</td>
                 </tr>
                 <tr>
                     <td><strong>Serial</strong></td>
-                    <td>{{ printer_info.serial | default('Unknown') }}</td>
+                    <td>{{ (live_status.serial if live_status and live_status.serial else printer_info.serial) | default('Unknown') }}</td>
                 </tr>
                 <tr>
                     <td><strong>IP Address</strong></td>

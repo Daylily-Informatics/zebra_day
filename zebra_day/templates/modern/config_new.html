@@ -16,7 +16,7 @@
         <div class="card-header">
             <h3 class="card-title"><i class="fas fa-wifi"></i> Scan Network for Printers</h3>
         </div>
-        <form action="/config/scan" method="get">
+	    <form action="/config/scan" method="get" onsubmit="return startNetworkScan(event, this)">
             <div class="form-group">
                 <label class="form-label">IP Range Prefix</label>
                 <input type="text" name="ip_stub" class="form-control" value="{{ ip_root }}" placeholder="192.168.1">
@@ -29,15 +29,15 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Scan Wait Time</label>
-                <select name="scan_wait" class="form-control">
+	                <select name="scan_wait" class="form-control">
                     <option value="0.15">Fast (0.15s)</option>
-                    <option value="0.25" selected>Normal (0.25s)</option>
-                    <option value="0.5">Slow (0.5s)</option>
+	                    <option value="0.25">Normal (0.25s)</option>
+	                    <option value="0.5" selected>Slow (0.5s)</option>
                     <option value="1.0">Very Slow (1.0s)</option>
                 </select>
                 <small class="text-muted">Longer wait times find more printers on slow networks</small>
             </div>
-            <button type="submit" class="btn btn-primary" onclick="showLoading('Scanning network for Zebra printers...')">
+	            <button type="submit" class="btn btn-primary">
                 <i class="fas fa-search"></i> Start Network Scan
             </button>
         </form>

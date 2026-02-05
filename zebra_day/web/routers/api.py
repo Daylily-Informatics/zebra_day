@@ -8,7 +8,7 @@ All endpoints return JSON and are prefixed with /api/v1/.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -28,6 +28,10 @@ class PrintRequest(BaseModel):
     lab: str = Field(..., description="Lab identifier")
     printer: str = Field(..., description="Printer name")
     label_zpl_style: str | None = Field(None, description="ZPL template name")
+    zpl_content: str | None = Field(
+        None,
+        description=("Raw ZPL content to print directly (takes precedence over label_zpl_style)."),
+    )
     uid_barcode: str = Field("", description="UID for barcode")
     alt_a: str = Field("", description="Alternative field A")
     alt_b: str = Field("", description="Alternative field B")
@@ -65,10 +69,15 @@ class PrinterInfo(BaseModel):
 
 
 class LabInfo(BaseModel):
-    """Lab information model (v2.0.0 schema)."""
+    """Lab information model (v2.1.0 schema)."""
 
     id: str = Field(..., description="Lab identifier/key in JSON")
     lab_name: str = Field(..., description="Human-readable lab name")
+    lab_display_name: str = Field(..., description="Short user-friendly display name")
+    lab_description: str = Field(..., description="Human-readable lab description")
+    network_stub: str = Field(
+        ..., description="IP stub last scanned for this lab (e.g. '192.168.1')"
+    )
     available_locations: list[str] = Field(
         default_factory=list, description="Valid location options for printers"
     )
@@ -104,6 +113,33 @@ class RenderResponse(BaseModel):
     success: bool
     message: str
     png_url: str = Field(..., description="URL to download the generated PNG")
+
+
+class TemplateSaveRequest(BaseModel):
+    """Request model for saving a ZPL template."""
+
+    filename: str = Field(..., description="Template filename (e.g., 'my_label.zpl' or 'my_label')")
+    zpl_content: str = Field(..., description="ZPL template content")
+    location: Literal["user", "package"] = Field(
+        "user", description="Save location: 'user' (XDG config) or 'package'"
+    )
+    overwrite: bool = Field(True, description="Overwrite existing file if present")
+    backup: bool = Field(True, description="Create backup before overwriting")
+
+
+class TemplateSaveResponse(BaseModel):
+    """Response model for template save."""
+
+    success: bool
+    path: str = Field(..., description="Full path where template was saved")
+    filename: str = Field(..., description="Template filename")
+
+
+class TemplateDeleteResponse(BaseModel):
+    """Response model for template deletion."""
+
+    success: bool
+    message: str
 
 
 # ----- Endpoints -----
@@ -149,6 +185,9 @@ async def get_lab(request: Request, lab: str) -> LabInfo:
     return LabInfo(
         id=lab,
         lab_name=lab_data.get("lab_name", lab),
+        lab_display_name=lab_data.get("lab_display_name", lab_data.get("lab_name", lab)),
+        lab_description=lab_data.get("lab_description", ""),
+        network_stub=lab_data.get("network_stub", ""),
         available_locations=lab_data.get("available_locations", []),
         printers=printers,
     )
@@ -188,25 +227,61 @@ async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
 
 @router.get("/templates", response_model=list[str])
 async def list_templates(request: Request) -> list[str]:
-    """List all available ZPL templates."""
+    """List all available ZPL templates.
 
-    pkg_path = request.app.state.pkg_path
-    styles_dir = pkg_path / "etc" / "label_styles"
+    Returns template names (stems) from:
+    1. User config dir (~/.config/zebra_day/label_styles/)
+    2. Package dir (zebra_day/etc/label_styles/)
+    """
+    zp = request.app.state.zp
+    return zp.list_template_names(include_legacy_drafts=False)
 
-    templates = []
-    if styles_dir.exists():
-        for f in styles_dir.iterdir():
-            if f.is_file() and f.suffix == ".zpl":
-                templates.append(f.stem)
 
-    # Also include drafts
-    tmps_dir = styles_dir / "tmps"
-    if tmps_dir.exists():
-        for f in tmps_dir.iterdir():
-            if f.is_file() and f.suffix == ".zpl":
-                templates.append(f.stem)
+@router.post("/templates", response_model=TemplateSaveResponse)
+async def save_template(request: Request, data: TemplateSaveRequest) -> TemplateSaveResponse:
+    """Save a ZPL template.
 
-    return sorted(templates)
+    Default save location is the user's XDG config dir (~/.config/zebra_day/label_styles/).
+    If backup=True (default), existing files are backed up before overwriting.
+    """
+    zp = request.app.state.zp
+
+    try:
+        path = zp.save_template(
+            filename=data.filename,
+            zpl_content=data.zpl_content,
+            location=data.location,
+            overwrite=data.overwrite,
+            backup=data.backup,
+        )
+        return TemplateSaveResponse(success=True, path=str(path), filename=path.name)
+    except FileExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.delete("/templates/{template_name}", response_model=TemplateDeleteResponse)
+async def delete_template(
+    request: Request,
+    template_name: str,
+    location: Literal["user", "package"] = "user",
+) -> TemplateDeleteResponse:
+    """Delete a ZPL template by name.
+
+    By default, deletes from user config dir. Use location='package' to delete from package dir.
+    """
+    zp = request.app.state.zp
+
+    try:
+        zp.delete_template(template_name, location=location)
+        return TemplateDeleteResponse(success=True, message=f"Template '{template_name}' deleted")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.post("/print", response_model=PrintResponse)
@@ -226,6 +301,7 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
             lab=print_req.lab,
             printer_name=print_req.printer,
             label_zpl_style=print_req.label_zpl_style,
+            zpl_content=print_req.zpl_content,
             uid_barcode=print_req.uid_barcode,
             alt_a=print_req.alt_a,
             alt_b=print_req.alt_b,
@@ -366,6 +442,9 @@ class LabUpdateRequest(BaseModel):
     """Request model for updating lab settings."""
 
     lab_name: str | None = Field(None, description="Human-readable lab name")
+    lab_display_name: str | None = Field(None, description="Short user-friendly display name")
+    lab_description: str | None = Field(None, description="Human-readable lab description")
+    network_stub: str | None = Field(None, description="IP stub last scanned for this lab")
     available_locations: list[str] | None = Field(None, description="List of valid locations")
 
 
@@ -394,6 +473,12 @@ async def update_lab(request: Request, lab: str, update: LabUpdateRequest) -> La
 
     if update.lab_name is not None:
         lab_data["lab_name"] = update.lab_name
+    if update.lab_display_name is not None:
+        lab_data["lab_display_name"] = update.lab_display_name
+    if update.lab_description is not None:
+        lab_data["lab_description"] = update.lab_description
+    if update.network_stub is not None:
+        lab_data["network_stub"] = update.network_stub
     if update.available_locations is not None:
         lab_data["available_locations"] = update.available_locations
 

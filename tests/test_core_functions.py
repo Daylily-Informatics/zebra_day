@@ -91,7 +91,7 @@ class TestFormulateZpl:
                 label_zpl_style="nonexistent_template_xyz123",
             )
 
-        assert "does not exist" in str(exc_info.value)
+        assert "not found" in str(exc_info.value)
 
 
 class TestConfigRoundtrip:
@@ -109,6 +109,9 @@ class TestConfigRoundtrip:
         # Add test data with v2 schema structure
         zd_pm.printers["labs"]["roundtrip_test"] = {
             "lab_name": "Roundtrip Test Lab",
+            "lab_display_name": "Roundtrip",
+            "lab_description": "Roundtrip description",
+            "network_stub": "10.0.0",
             "available_locations": ["Bench A", "Bench B"],
             "printers": {
                 "TestPrinter": {
@@ -154,6 +157,7 @@ class TestConfigRoundtrip:
             zd_pm2 = zd.zpl(config_path=tmp_path)
 
             assert "roundtrip_test" in zd_pm2.printers["labs"]
+            assert "lab_display_name" in zd_pm2.printers["labs"]["roundtrip_test"]
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -180,3 +184,132 @@ class TestConfigRoundtrip:
         assert "default" in zd_pm.printers["labs"]
         assert "printers" in zd_pm.printers["labs"]["default"]
         assert "schema_version" in zd_pm.printers
+        assert zd_pm.printers["schema_version"] == "2.1.0"
+
+
+class TestZebraPrinterQueries:
+    """Tests for the ZebraPrinter query methods in cmd_mgr."""
+
+    @mock.patch("zebra_day.cmd_mgr.socket.socket")
+    def test_get_host_identification_success(self, mock_socket_class):
+        """Test parsing of ~HI response."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b"ZD420-203dpi ZPL,V84.20.21Z,8,8192KB,options"
+        mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
+        mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        printer = ZebraPrinter("192.168.1.100")
+        result = printer.get_host_identification(timeout=1.0)
+
+        assert result is not None
+        assert result["model"] == "ZD420-203dpi ZPL"
+        assert result["firmware"] == "V84.20.21Z"
+        assert result["dpi"] == "8"
+        assert result["memory"] == "8192KB"
+
+    @mock.patch("zebra_day.cmd_mgr.socket.socket")
+    def test_get_host_identification_timeout(self, mock_socket_class):
+        """Test that timeout returns None."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        mock_socket = mock.MagicMock()
+        mock_socket.connect.side_effect = TimeoutError("timeout")
+        mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
+        mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        printer = ZebraPrinter("192.168.1.100")
+        result = printer.get_host_identification(timeout=1.0)
+
+        assert result is None
+
+    @mock.patch("zebra_day.cmd_mgr.socket.socket")
+    def test_get_serial_number_success(self, mock_socket_class):
+        """Test parsing of ~HQSN response."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b"SERIAL NUMBER\r\nD8J203901234\r\n"
+        mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
+        mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        printer = ZebraPrinter("192.168.1.100")
+        result = printer.get_serial_number(timeout=1.0)
+
+        assert result == "D8J203901234"
+
+    @mock.patch("zebra_day.cmd_mgr.socket.socket")
+    def test_get_host_status_success(self, mock_socket_class):
+        """Test parsing of ~HS response."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        # Simulate a normal ~HS response (printer online, not paused, no errors)
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b"0000,0,0,0000,000,0,0,0,000,0,0,0\r\n"
+        mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
+        mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        printer = ZebraPrinter("192.168.1.100")
+        result = printer.get_host_status(timeout=1.0)
+
+        assert result is not None
+        assert result["paused"] is False
+        assert result["paper_out"] is False
+        assert result["head_up"] is False
+        assert result["ribbon_out"] is False
+
+    @mock.patch("zebra_day.cmd_mgr.socket.socket")
+    def test_get_host_status_with_errors(self, mock_socket_class):
+        """Test parsing of ~HS response with errors."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        # Simulate ~HS response with paused=1, paper_out=1
+        mock_socket = mock.MagicMock()
+        mock_socket.recv.return_value = b"0000,1,0,0000,000,1,0,0,000,0,0,0\r\n"
+        mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
+        mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
+
+        printer = ZebraPrinter("192.168.1.100")
+        result = printer.get_host_status(timeout=1.0)
+
+        assert result is not None
+        assert result["paused"] is True
+        assert result["paper_out"] is True
+
+    def test_get_cached_status_returns_dict(self):
+        """Test that get_cached_status returns a properly structured dict."""
+        from zebra_day.cmd_mgr import clear_printer_cache, get_cached_status
+
+        clear_printer_cache()
+
+        # This will fail to connect (no printer) but should return a valid structure
+        result = get_cached_status("192.168.255.255", timeout=0.1)
+
+        assert isinstance(result, dict)
+        assert "online" in result
+        assert "ip" in result
+        assert result["ip"] == "192.168.255.255"
+        assert result["online"] is False  # Should be offline due to failed connection
+
+    def test_cache_hit(self):
+        """Test that cache is hit on second call."""
+        from zebra_day.cmd_mgr import _printer_status_cache, clear_printer_cache
+
+        clear_printer_cache()
+
+        # Pre-populate cache
+        test_status = {"online": True, "model": "TEST", "ip": "10.0.0.1"}
+        import time
+
+        _printer_status_cache["10.0.0.1"] = (test_status, time.time())
+
+        from zebra_day.cmd_mgr import get_cached_status
+
+        # Should return cached value without network call
+        result = get_cached_status("10.0.0.1", timeout=0.1)
+
+        assert result["model"] == "TEST"
+        assert result["online"] is True
+
+        clear_printer_cache()

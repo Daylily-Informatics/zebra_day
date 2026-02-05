@@ -4,27 +4,40 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Template Saved</h1>
-    <p class="page-subtitle">Your changes have been saved to a draft file</p>
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">
+        {% if success %}Template save operation completed{% else %}Save operation failed{% endif %}
+    </p>
 </div>
 
+{% if success %}
 <div class="card">
     <div class="card-header">
         <span class="card-icon text-success"><i class="fas fa-check-circle"></i></span>
         <h3 class="card-title">Success</h3>
     </div>
-    
-    <p>Your changes have been saved to a new draft file:</p>
-    
+
+    <p>Your template has been saved:</p>
+
     <div class="alert alert-info mt-md">
         <i class="fas fa-file-code"></i>
-        <code>{{ new_filename }}</code>
+        <code>{{ saved_filename }}</code>
     </div>
-    
+
     <p class="text-muted mt-md">
-        Draft files are saved in the <code>tmps/</code> directory. To promote a draft to stable, 
-        rename the file and move it to the main label_styles directory.
+        {% if location == 'user' %}
+        <i class="fas fa-user text-success"></i> Saved to user config directory:
+        <code>~/.config/zebra_day/label_styles/</code>
+        {% else %}
+        <i class="fas fa-box text-info"></i> Saved to package directory.
+        {% endif %}
     </p>
+
+    {% if saved_path %}
+    <p class="text-muted" style="font-size: 0.85rem;">
+        <i class="fas fa-folder-open"></i> Full path: <code>{{ saved_path }}</code>
+    </p>
+    {% endif %}
 </div>
 
 <div class="card mt-lg">
@@ -33,7 +46,7 @@
             <i class="fas fa-arrow-left"></i> Back to Templates
         </a>
         <div class="d-flex gap-md">
-            <a href="/templates/edit?filename={{ new_filename }}&dtype=tmps" class="btn btn-primary">
+            <a href="/templates/edit?filename={{ saved_filename }}" class="btn btn-primary">
                 <i class="fas fa-edit"></i> Continue Editing
             </a>
             <a href="/" class="btn btn-outline">
@@ -42,5 +55,31 @@
         </div>
     </div>
 </div>
+{% else %}
+<div class="card">
+    <div class="card-header">
+        <span class="card-icon text-error"><i class="fas fa-times-circle"></i></span>
+        <h3 class="card-title">Save Failed</h3>
+    </div>
+
+    <p>An error occurred while saving the template:</p>
+
+    <div class="alert alert-error mt-md">
+        <i class="fas fa-exclamation-triangle"></i>
+        {{ error_message }}
+    </div>
+</div>
+
+<div class="card mt-lg">
+    <div class="d-flex" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--spacing-md);">
+        <a href="/templates" class="btn btn-outline">
+            <i class="fas fa-arrow-left"></i> Back to Templates
+        </a>
+        <a href="/" class="btn btn-outline">
+            <i class="fas fa-home"></i> Dashboard
+        </a>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 

@@ -51,7 +51,7 @@
         <div class="card-header">
             <h3 class="card-title"><i class="fas fa-wifi"></i> Network Scanner</h3>
         </div>
-        <form action="/config/scan" method="get">
+	        <form action="/config/scan" method="get" onsubmit="return startNetworkScan(event, this)">
             <div class="form-group">
                 <label class="form-label">IP Range</label>
                 <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
@@ -66,7 +66,17 @@
                     {% endfor %}
                 </datalist>
             </div>
-            <button type="submit" class="btn btn-primary" onclick="showLoading('Scanning network...')">
+	            <div class="form-group">
+	                <label class="form-label">Scan Wait Time</label>
+	                <select name="scan_wait" class="form-control">
+	                    <option value="0.15">Fast (0.15s)</option>
+	                    <option value="0.25">Normal (0.25s)</option>
+	                    <option value="0.5" selected>Slow (0.5s)</option>
+	                    <option value="1.0">Very Slow (1.0s)</option>
+	                </select>
+	                <small class="text-muted">Longer wait times find more printers on slow networks</small>
+	            </div>
+	            <button type="submit" class="btn btn-primary">
                 <i class="fas fa-search"></i> Scan for Printers
             </button>
         </form>
@@ -129,7 +139,8 @@
         <a href="/printers/{{ lab }}" class="action-card">
             <i class="fas fa-building"></i>
             <div>
-                <strong>{{ lab }}</strong>
+	                <strong>{{ labs_meta.get(lab, {}).get("lab_display_name", lab) }}</strong>
+	                <small class="text-muted d-block">Key: {{ lab }}</small>
             </div>
         </a>
         {% endfor %}

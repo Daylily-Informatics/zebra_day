@@ -28,9 +28,19 @@ def scan(
     ip_stub: str | None = typer.Option(
         None, "--ip-stub", "-i", help="IP stub to scan (e.g., 192.168.1)"
     ),
-    wait: float = typer.Option(0.25, "--wait", "-w", help="Seconds to wait per IP probe"),
+    wait: float = typer.Option(0.5, "--wait", "-w", help="Seconds to wait per IP probe"),
     lab: str = typer.Option(
         "scan-results", "--lab", "-l", help="Lab name to assign found printers"
+    ),
+    display_name: str | None = typer.Option(
+        None,
+        "--display-name",
+        help="Optional lab display name (user-friendly). Stored in config as lab_display_name.",
+    ),
+    description: str | None = typer.Option(
+        None,
+        "--description",
+        help="Optional lab description. Stored in config as lab_description.",
     ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
@@ -52,11 +62,27 @@ def scan(
             ip_stub=ip_stub,
             scan_wait=str(wait),
             lab=lab,
+            lab_description=description or "",
         )
+
+        # Apply lab metadata updates (if explicitly provided)
+        if display_name is not None or description is not None:
+            try:
+                zp.update_lab_metadata(
+                    lab,
+                    lab_display_name=display_name,
+                    lab_description=description,
+                    network_stub=ip_stub,
+                )
+            except Exception:
+                # Non-fatal; scan results are still useful.
+                pass
 
         found = []
         if hasattr(zp, "printers") and "labs" in zp.printers and lab in zp.printers["labs"]:
-            for name, info in zp.printers["labs"][lab].items():
+            lab_obj = zp.printers["labs"][lab]
+            printers_obj = lab_obj.get("printers", {}) if isinstance(lab_obj, dict) else {}
+            for name, info in printers_obj.items():
                 if isinstance(info, dict) and info.get("ip_address") not in ["dl_png"]:
                     found.append(
                         {
@@ -93,19 +119,25 @@ def scan(
 def list_printers(
     lab: str | None = typer.Option(None, "--lab", "-l", help="Filter by lab name"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+    live: bool = typer.Option(False, "--live", help="Query live status from printers"),
+    timeout: float = typer.Option(
+        2.0, "--timeout", "-t", help="Timeout per printer query (seconds)"
+    ),
 ):
-    """List configured printers."""
+    """List configured printers with optional live status."""
     try:
+        import zebra_day.cmd_mgr as zdcm
         import zebra_day.print_mgr as zdpm
 
         zp = zdpm.zpl()
 
         printers = []
         if hasattr(zp, "printers") and "labs" in zp.printers:
-            for lab_name, lab_printers in zp.printers["labs"].items():
+            for lab_name, lab_obj in zp.printers["labs"].items():
                 if lab and lab_name != lab:
                     continue
-                for name, info in lab_printers.items():
+                printers_obj = lab_obj.get("printers", {}) if isinstance(lab_obj, dict) else {}
+                for name, info in printers_obj.items():
                     if isinstance(info, dict):
                         printers.append(
                             {
@@ -117,6 +149,38 @@ def list_printers(
                             }
                         )
 
+        # Query live status if requested
+        if live and printers:
+            if not json_output:
+                console.print("[cyan]→[/cyan] Querying live status from printers...")
+            for p in printers:
+                ip = p.get("ip", "")
+                if ip and ip not in ("unknown", "dl_png"):
+                    status = zdcm.get_cached_status(ip, timeout=timeout)
+                    p["online"] = status.get("online", False)
+                    p["firmware"] = status.get("firmware")
+                    p["live_model"] = status.get("model")
+                    p["serial"] = status.get("serial")
+                    p["label_count"] = status.get("label_count")
+                    p["paused"] = status.get("paused", False)
+                    p["paper_out"] = status.get("paper_out", False)
+                    p["ribbon_out"] = status.get("ribbon_out", False)
+                    p["head_up"] = status.get("head_up", False)
+                    # Compute status string
+                    if not status.get("online"):
+                        p["status"] = "offline"
+                    elif (
+                        status.get("paper_out") or status.get("ribbon_out") or status.get("head_up")
+                    ):
+                        p["status"] = "error"
+                    elif status.get("paused"):
+                        p["status"] = "paused"
+                    else:
+                        p["status"] = "online"
+                else:
+                    p["online"] = None
+                    p["status"] = "n/a"
+
         if json_output:
             console.print(json.dumps(printers, indent=2))
             return
@@ -126,17 +190,63 @@ def list_printers(
             console.print("   Run [cyan]zday printer scan[/cyan] to discover printers")
             return
 
+        # If a lab filter is specified, show lab metadata first.
+        if lab:
+            try:
+                meta = zp.get_lab_metadata(lab)
+                console.print(
+                    f"[dim]Lab:[/dim] {meta.get('lab')}  "
+                    f"[dim]Display:[/dim] {meta.get('lab_display_name')}  "
+                    f"[dim]Stub:[/dim] {meta.get('network_stub')}"
+                )
+                if meta.get("lab_description"):
+                    console.print(f"[dim]Description:[/dim] {meta.get('lab_description')}")
+            except Exception:
+                pass
+
         table = Table(title="Configured Printers")
         table.add_column("Lab", style="cyan")
         table.add_column("Name")
         table.add_column("IP Address")
         table.add_column("Model")
-        table.add_column("Label Styles")
+        if live:
+            table.add_column("Status")
+            table.add_column("Firmware")
+            table.add_column("Labels")
+        else:
+            table.add_column("Label Styles")
+
         for p in printers:
-            styles = ", ".join(p["styles"][:2])
-            if len(p["styles"]) > 2:
-                styles += f" (+{len(p['styles']) - 2})"
-            table.add_row(p["lab"], p["name"], p["ip"], p["model"], styles)
+            if live:
+                # Status with color
+                status = p.get("status", "unknown")
+                if status == "online":
+                    status_str = "[green]● online[/green]"
+                elif status == "offline":
+                    status_str = "[red]○ offline[/red]"
+                elif status == "error":
+                    flags = []
+                    if p.get("paper_out"):
+                        flags.append("paper")
+                    if p.get("ribbon_out"):
+                        flags.append("ribbon")
+                    if p.get("head_up"):
+                        flags.append("head")
+                    status_str = f"[red]⚠ {','.join(flags)}[/red]"
+                elif status == "paused":
+                    status_str = "[yellow]⏸ paused[/yellow]"
+                else:
+                    status_str = "[dim]—[/dim]"
+
+                firmware = p.get("firmware") or "—"
+                labels = str(p.get("label_count")) if p.get("label_count") is not None else "—"
+                model = p.get("live_model") or p["model"]
+                table.add_row(p["lab"], p["name"], p["ip"], model, status_str, firmware, labels)
+            else:
+                styles = ", ".join(p["styles"][:2])
+                if len(p["styles"]) > 2:
+                    styles += f" (+{len(p['styles']) - 2})"
+                table.add_row(p["lab"], p["name"], p["ip"], p["model"], styles)
         console.print(table)
 
     except Exception as e:

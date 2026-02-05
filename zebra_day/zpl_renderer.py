@@ -152,7 +152,18 @@ def _parse_barcode_default(cmd: str) -> BarcodeSpec:
     """Parse ^BY command for barcode defaults."""
     # ^BY[module_width],[ratio],[height]
     parts = cmd.split(",")
-    module_width = int(parts[0]) if parts[0].strip() else 2
+    module_width_raw = parts[0].strip() if parts else ""
+    if not module_width_raw:
+        module_width = 2
+    else:
+        # Some templates use floats (e.g. ^BY1.5). ZPL module width is effectively
+        # an integer for our renderer (zint scale), so we round to the nearest int.
+        try:
+            module_width = int(module_width_raw)
+        except ValueError:
+            module_width = int(round(float(module_width_raw)))
+
+    module_width = max(1, module_width)
     ratio = float(parts[1]) if len(parts) > 1 and parts[1].strip() else 3.0
     height = int(parts[2]) if len(parts) > 2 and parts[2].strip() else 10
     return BarcodeSpec(module_width=module_width, ratio=ratio, height=height)

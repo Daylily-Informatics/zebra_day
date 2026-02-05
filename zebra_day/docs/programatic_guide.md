@@ -39,7 +39,11 @@ zlab.print_zpl(lab='default', printer_name='192.168.1.7', label_zpl_style='test_
 
 > As of 2.2.0, printer configuration uses YAML format and is stored in XDG-compliant locations:
 > - **Linux**: `~/.config/zebra_day/zebra-day-config.yaml`
-> - **macOS**: `~/Library/Preferences/zebra_day/zebra-day-config.yaml`
+> - **macOS**: `~/.config/zebra_day/zebra-day-config.yaml`
+>
+> Legacy note (macOS): older installs may still have config at
+> `~/Library/Preferences/zebra_day/`; zebra_day will copy that forward into
+> `~/.config/zebra_day/` the first time it loads config.
 >
 > Use `zday config path` or `zday info` to see the exact path on your system.
 >
