@@ -5,14 +5,12 @@
 #   source ./zday_activate
 #
 # It will:
-#   1. Build the ZDAY conda environment from config/zday_env.yaml if it doesn't exist
-#   2. Activate the ZDAY conda environment (or fall back to .venv)
-#   3. Install zebra_day in development mode
-#   4. Enable tab completion for the 'zday' CLI
+#   1. Create/activate a .venv Python virtual environment
+#   2. Install zebra_day in development mode
+#   3. Enable tab completion for the 'zday' CLI
 #
 # Prerequisites:
-#   - conda or mamba must be installed and available in PATH
-#   - OR a .venv directory with Python installed
+#   - Python 3.10+ must be installed and available in PATH
 
 # DO NOT use set -e when sourcing - it will exit the user's shell on any error!
 
@@ -25,17 +23,14 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
-# ========== Configuration ==========
-CONDA_ENV_NAME="ZDAY"
-
 # Find repository root by searching for pyproject.toml
 SCRIPT_DIR="$(pwd)"
 while [ ! -f "${SCRIPT_DIR}/pyproject.toml" ] && [ "${SCRIPT_DIR}" != "/" ]; do
     SCRIPT_DIR="$(dirname "${SCRIPT_DIR}")"
 done
 
-ENV_FILE="${SCRIPT_DIR}/config/zday_env.yaml"
-VENV_BIN="${SCRIPT_DIR}/.venv/bin"
+VENV_DIR="${SCRIPT_DIR}/.venv"
+VENV_BIN="${VENV_DIR}/bin"
 
 # ========== Helper Functions ==========
 log_info() {
@@ -54,95 +49,55 @@ log_error() {
     printf "${RED}✗${NC} %s\n" "$1"
 }
 
-# ========== Check Prerequisites ==========
-_ZDAY_ACTIVATE_OK=1
-CONDA_CMD=""
-if command -v mamba >/dev/null 2>&1; then
-    CONDA_CMD="mamba"
-elif command -v conda >/dev/null 2>&1; then
-    CONDA_CMD="conda"
-fi
-
-if [ -z "$CONDA_CMD" ]; then
-    printf "\n${RED}${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}\n"
-    printf "${RED}${BOLD}║  ERROR: conda/mamba not found                                ║${NC}\n"
-    printf "${RED}${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}\n\n"
-    log_error "Neither conda nor mamba is installed or available in PATH."
-    printf "\n"
-    printf "  ${BOLD}To install Miniconda, run:${NC}\n"
-    printf "    ${CYAN}bash ${SCRIPT_DIR}/scripts/install_miniconda${NC}\n"
-    printf "\n"
-    printf "  ${BOLD}Or install manually:${NC}\n"
-    printf "    ${CYAN}https://docs.conda.io/en/latest/miniconda.html${NC}\n"
-    printf "\n"
-    printf "  After installation, open a new terminal and try again:\n"
-    printf "    ${CYAN}source ./zday_activate${NC}\n"
-    printf "\n"
-    _ZDAY_ACTIVATE_OK=0
-fi
-
-# Only continue if prerequisites are met
-if [ "$_ZDAY_ACTIVATE_OK" -eq 0 ]; then
-    unset _ZDAY_ACTIVATE_OK
-else
-
 # ========== Banner ==========
 printf "\n${BOLD}${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}\n"
 printf "${BOLD}${BLUE}║          zebra_day - Environment Activation                  ║${NC}\n"
 printf "${BOLD}${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}\n\n"
 
-# Attempt conda activation first, otherwise fall back to .venv
-if [ -n "$CONDA_CMD" ] && [ -f "$ENV_FILE" ]; then
-    if $CONDA_CMD env list | grep -q "^${CONDA_ENV_NAME} "; then
-        log_success "Environment '${CONDA_ENV_NAME}' already exists"
-    else
-        log_info "Environment '${CONDA_ENV_NAME}' not found. Building from ${ENV_FILE}..."
-        log_info "This may take a few minutes..."
-        if $CONDA_CMD env create -n "$CONDA_ENV_NAME" -f "$ENV_FILE"; then
-            log_success "Environment '${CONDA_ENV_NAME}' created successfully"
-        else
-            log_warn "Failed to create conda environment (will fall back to .venv if available)"
-            _ZDAY_ACTIVATE_OK=0
-        fi
-    fi
+# ========== Setup Virtual Environment ==========
+_ZDAY_ACTIVATE_OK=1
 
-    if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
-        log_info "Activating environment '${CONDA_ENV_NAME}'..."
-        if [ -z "$CONDA_SHLVL" ]; then
-            CONDA_BASE="$($CONDA_CMD info --base 2>/dev/null)"
-            if [ -f "${CONDA_BASE}/etc/profile.d/conda.sh" ]; then
-                . "${CONDA_BASE}/etc/profile.d/conda.sh"
+if [ -x "${VENV_BIN}/python" ]; then
+    log_success "Virtual environment found: ${VENV_DIR}"
+else
+    log_info "No .venv found. Creating virtual environment..."
+    _ZDAY_PY=""
+    for _py in python3.13 python3.12 python3.11 python3.10 python3; do
+        if command -v "$_py" >/dev/null 2>&1; then
+            # Check version is >= 3.10
+            _ver=$("$_py" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+            _major=$(echo "$_ver" | cut -d. -f1)
+            _minor=$(echo "$_ver" | cut -d. -f2)
+            if [ "$_major" -ge 3 ] && [ "$_minor" -ge 10 ]; then
+                _ZDAY_PY="$_py"
+                break
             fi
         fi
-        if conda activate "$CONDA_ENV_NAME" 2>/dev/null; then
-            log_success "Activated conda environment: ${CONDA_ENV_NAME}"
+    done
+    if [ -n "$_ZDAY_PY" ]; then
+        log_info "Using $_ZDAY_PY to create virtual environment..."
+        if "$_ZDAY_PY" -m venv "${VENV_DIR}" 2>/dev/null; then
+            log_success "Created virtual environment with $_ZDAY_PY"
         else
-            log_warn "Failed to activate conda environment (will fall back to .venv if available)"
-            _ZDAY_ACTIVATE_OK=0
-        fi
-    fi
-elif [ -n "$CONDA_CMD" ]; then
-    # Conda available but no env file - try to activate existing env or fall back
-    if $CONDA_CMD env list | grep -q "^${CONDA_ENV_NAME} "; then
-        if [ -z "$CONDA_SHLVL" ]; then
-            CONDA_BASE="$($CONDA_CMD info --base 2>/dev/null)"
-            if [ -f "${CONDA_BASE}/etc/profile.d/conda.sh" ]; then
-                . "${CONDA_BASE}/etc/profile.d/conda.sh"
-            fi
-        fi
-        if conda activate "$CONDA_ENV_NAME" 2>/dev/null; then
-            log_success "Activated existing conda environment: ${CONDA_ENV_NAME}"
-        else
+            log_error "Failed to create virtual environment"
             _ZDAY_ACTIVATE_OK=0
         fi
     else
-        log_error "Conda environment '${CONDA_ENV_NAME}' not found and no env file to create it."
-        log_info "Run: ${CYAN}$CONDA_CMD env create -n ${CONDA_ENV_NAME} -f ${ENV_FILE}${NC}"
+        log_error "No Python >= 3.10 found. Please install Python 3.10+ and try again."
         _ZDAY_ACTIVATE_OK=0
     fi
-else
-    log_error "Failed to activate conda environment."
-    _ZDAY_ACTIVATE_OK=0
+    unset _ZDAY_PY _py _ver _major _minor
+fi
+
+# Activate the virtual environment
+if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
+    if [ -f "${VENV_BIN}/activate" ]; then
+        . "${VENV_BIN}/activate"
+        log_success "Activated virtual environment"
+    else
+        export PATH="${VENV_BIN}:${PATH}"
+        log_success "Added .venv to PATH"
+    fi
 fi
 
 # ========== Install Package ==========
@@ -201,9 +156,6 @@ if [ "$_ZDAY_ACTIVATE_OK" -eq 1 ]; then
     printf "\n"
     printf "  ${BOLD}Tip:${NC} Use TAB to autocomplete zday commands and subcommands\n"
     printf "\n"
-fi
-
-# Close the main if block from prerequisites check
 fi
 
 # Cleanup
