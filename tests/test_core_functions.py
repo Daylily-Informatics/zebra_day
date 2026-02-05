@@ -264,9 +264,11 @@ class TestZebraPrinterQueries:
         """Test parsing of ~HS response with errors."""
         from zebra_day.cmd_mgr import ZebraPrinter
 
-        # Simulate ~HS response with paused=1, paper_out=1
+        # Simulate ~HS response with paused=1 (index 2), paper_out=1 (index 5)
+        # Format: aaa,b,c,dddd,eee,f,g,h,iii,j,k,l
+        #   b=paper_out(1), c=pause(2), f=paper_out(5), g=head_up(6), h=ribbon_out(7)
         mock_socket = mock.MagicMock()
-        mock_socket.recv.return_value = b"0000,1,0,0000,000,1,0,0,000,0,0,0\r\n"
+        mock_socket.recv.return_value = b"0000,0,1,0000,000,1,0,0,000,0,0,0\r\n"
         mock_socket_class.return_value.__enter__ = mock.MagicMock(return_value=mock_socket)
         mock_socket_class.return_value.__exit__ = mock.MagicMock(return_value=False)
 

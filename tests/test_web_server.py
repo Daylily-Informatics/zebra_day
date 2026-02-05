@@ -35,6 +35,8 @@ def client():
             "print_method": "network",
             "arp_data": "na",
             "notes": "Test printer for unit tests",
+            "lsmc_euid": "",
+            "state": "Unknown",
         }
         zp.save_printer_json()
 
@@ -473,6 +475,22 @@ class TestAPIPatchPrinter:
         )
         assert response.status_code == 400
         assert "must be one of" in response.json()["detail"].lower()
+
+    def test_patch_printer_update_lsmc_euid(self, client):
+        """Test updating printer lsmc_euid field."""
+        response = client.patch(
+            "/api/v1/labs/default/printers/test-printer",
+            json={"lsmc_euid": "LSMC123"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["lsmc_euid"] == "LSMC123"
+
+        # Reset to empty
+        client.patch(
+            "/api/v1/labs/default/printers/test-printer",
+            json={"lsmc_euid": ""},
+        )
 
 
 class TestModernUIEndpoints:

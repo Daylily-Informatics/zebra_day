@@ -72,108 +72,118 @@
         <h3 class="card-title">Printers{% if lab %} in {{ lab_display_name | default(lab_name | default(lab)) }}{% endif %}</h3>
         <div>
             {% if live_status %}
-            <a href="/printers/{{ lab }}" class="btn btn-outline btn-sm">
-                <i class="fas fa-eye-slash"></i> Hide Live Status
+            <a href="/printers/{{ lab }}?live=0" class="btn btn-outline btn-sm" title="Disable live printer queries">
+                <i class="fas fa-heartbeat"></i> Live
             </a>
             {% else %}
-            <a href="/printers/{{ lab }}?live=1" class="btn btn-outline btn-sm">
-                <i class="fas fa-heartbeat"></i> Live Status
+            <a href="/printers/{{ lab }}?live=1" class="btn btn-outline btn-sm" title="Enable live printer queries">
+                <i class="fas fa-eye-slash"></i> Static
             </a>
             {% endif %}
+            <a href="/printers/{{ lab }}?live=1" class="btn btn-outline btn-sm" title="Refresh live status">
+                <i class="fas fa-sync"></i> Refresh
+            </a>
             <a href="/config?action=scan&lab={{ lab | default('') }}" class="btn btn-outline btn-sm">
-                <i class="fas fa-sync"></i> Rescan
+                <i class="fas fa-search"></i> Rescan Network
             </a>
         </div>
     </div>
     <div class="table-container" style="box-shadow: none;">
-        <table class="table">
+        <table class="table" style="font-size: 0.85rem;">
             <thead>
                 <tr>
-                    <th>Printer</th>
-                    <th>Location</th>
-                    <th>IP Address</th>
+                    <th>ID / Name</th>
+                    <th>Hardware</th>
+                    <th>Network</th>
                     <th>Status</th>
-                    {% if live_status %}
-                    <th>Firmware</th>
-                    <th>Labels</th>
-                    {% endif %}
+                    <th>State</th>
+                    <th>LSMC EUID</th>
                     <th>Label Styles</th>
-                    <th>Actions</th>
+                    <th style="width: 100px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for printer in printers %}
                 <tr>
                     <td>
-                        <strong>{{ printer.name }}</strong><br>
-                        <small class="text-muted">{{ printer.manufacturer | default('zebra') | title }} {{ printer.model | default('Unknown model') }}</small>
+                        <strong>{{ printer.name }}</strong>
                         {% if printer.id != printer.name %}
                         <br><small class="text-muted">ID: {{ printer.id }}</small>
                         {% endif %}
-                    </td>
-                    <td>
                         {% if printer.lab_location %}
-                        <span class="badge badge-info">{{ printer.lab_location }}</span>
-                        {% else %}
-                        <span class="text-muted">—</span>
+                        <br><span class="badge badge-info" style="font-size: 0.7rem;">{{ printer.lab_location }}</span>
                         {% endif %}
+                    </td>
+                    <td style="font-size: 0.8rem;">
+                        <span title="Manufacturer">{{ printer.manufacturer | default('zebra') | title }}</span>
+                        <span title="Model">{{ printer.model | default('—') }}</span>
+                        <br><small class="text-muted" title="Serial">SN: {{ printer.serial | default('—') }}</small>
+                        <br><small class="text-muted" title="Print Method">{{ printer.print_method | default('socket') }}</small>
                     </td>
                     <td>
                         {% if printer.ip_address != 'dl_png' %}
-                        <a href="http://{{ printer.ip_address }}" target="_blank">{{ printer.ip_address }}</a>
+                        <a href="http://{{ printer.ip_address }}" target="_blank" title="Open printer web interface">{{ printer.ip_address }}</a>
                         {% else %}
                         <span class="text-muted">{{ printer.ip_address }}</span>
                         {% endif %}
+                        {% if live_status and printer.firmware %}
+                        <br><small class="text-muted" title="Firmware">FW: {{ printer.firmware }}</small>
+                        {% endif %}
+                        {% if live_status and printer.label_count is not none %}
+                        <br><small class="text-muted" title="Labels printed">{{ printer.label_count }} labels</small>
+                        {% endif %}
                     </td>
                     <td>
+                        {# Status = Network reachability only (online/offline) #}
                         {% if printer.status == 'online' %}
-                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Online</span>
-                        {% elif printer.status == 'error' %}
+                        <span class="badge badge-success"><i class="fas fa-wifi"></i> Online</span>
+                        {% elif printer.status == 'offline' %}
+                        <span class="badge badge-error"><i class="fas fa-times-circle"></i> Offline</span>
+                        {% elif printer.status == 'na' %}
+                        <span class="badge badge-info"><i class="fas fa-minus-circle"></i> N/A</span>
+                        {% else %}
+                        <span class="badge"><i class="fas fa-question-circle"></i> Unknown</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {# State = Operational status (Ready/Paused/Error/Offline/Unknown) #}
+                        {% if printer.state == 'Ready' %}
+                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Ready</span>
+                        {% elif printer.state == 'Paused' %}
+                        <span class="badge badge-warning"><i class="fas fa-pause-circle"></i> Paused</span>
+                        {% elif printer.state == 'Error' %}
                         <span class="badge badge-error"><i class="fas fa-exclamation-triangle"></i> Error
                             {% if printer.paper_out %}(Paper){% endif %}
                             {% if printer.ribbon_out %}(Ribbon){% endif %}
                             {% if printer.head_up %}(Head){% endif %}
                         </span>
-                        {% elif printer.status == 'paused' %}
-                        <span class="badge badge-warning"><i class="fas fa-pause-circle"></i> Paused</span>
-                        {% elif printer.status == 'na' %}
-                        <span class="badge badge-info"><i class="fas fa-minus-circle"></i> N/A</span>
-                        {% elif printer.status == 'offline' %}
-                        <span class="badge badge-error"><i class="fas fa-times-circle"></i> Offline</span>
+                        {% elif printer.state == 'Offline' %}
+                        <span class="badge" style="background: var(--color-gray-600);"><i class="fas fa-power-off"></i> Offline</span>
                         {% else %}
                         <span class="badge"><i class="fas fa-question-circle"></i> Unknown</span>
                         {% endif %}
                     </td>
-                    {% if live_status %}
                     <td>
-                        {% if printer.firmware %}
-                        <small class="text-muted">{{ printer.firmware }}</small>
+                        {% if printer.lsmc_euid %}
+                        <code style="font-size: 0.8rem;">{{ printer.lsmc_euid }}</code>
                         {% else %}
                         <span class="text-muted">—</span>
                         {% endif %}
                     </td>
                     <td>
-                        {% if printer.label_count is not none %}
-                        {{ printer.label_count | default('—') }}
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    {% endif %}
-                    <td>
-                        {% for style in printer.label_zpl_styles[:3] %}
-                        <span class="badge badge-primary">{{ style }}</span>
+                        {% for style in printer.label_zpl_styles[:2] %}
+                        <span class="badge badge-primary" style="font-size: 0.7rem;">{{ style }}</span>
                         {% endfor %}
-                        {% if printer.label_zpl_styles | length > 3 %}
-                        <span class="text-muted">+{{ printer.label_zpl_styles | length - 3 }} more</span>
+                        {% if printer.label_zpl_styles | length > 2 %}
+                        <span class="text-muted" style="font-size: 0.75rem;">+{{ printer.label_zpl_styles | length - 2 }}</span>
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/printers/{{ lab }}/{{ printer.id }}" class="btn btn-sm btn-outline">
-                            <i class="fas fa-info-circle"></i> Details
+                        <a href="/printers/{{ lab }}/{{ printer.id }}" class="btn btn-sm btn-outline" title="View details">
+                            <i class="fas fa-info-circle"></i>
                         </a>
-                        <a href="/print?lab={{ lab }}&printer={{ printer.id }}" class="btn btn-sm btn-primary">
-                            <i class="fas fa-print"></i> Print
+                        <a href="/print?lab={{ lab }}&printer={{ printer.id }}" class="btn btn-sm btn-primary" title="Print label">
+                            <i class="fas fa-print"></i>
                         </a>
                     </td>
                 </tr>

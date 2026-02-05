@@ -151,6 +151,32 @@
                     <td>{{ (live_status.serial if live_status and live_status.serial else printer_info.serial) | default('Unknown') }}</td>
                 </tr>
                 <tr>
+                    <td><strong>State</strong></td>
+                    <td>
+                        {% if printer_info.state == 'Ready' %}
+                        <span class="badge badge-success"><i class="fas fa-play-circle"></i> Ready</span>
+                        {% elif printer_info.state == 'Paused' %}
+                        <span class="badge badge-warning"><i class="fas fa-pause-circle"></i> Paused</span>
+                        {% elif printer_info.state == 'Error' %}
+                        <span class="badge badge-error"><i class="fas fa-exclamation-circle"></i> Error</span>
+                        {% elif printer_info.state == 'Offline' %}
+                        <span class="badge" style="background: var(--color-gray-600);"><i class="fas fa-power-off"></i> Offline</span>
+                        {% else %}
+                        <span class="badge"><i class="fas fa-question-circle"></i> Unknown</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>LSMC EUID</strong></td>
+                    <td>
+                        {% if printer_info.lsmc_euid %}
+                        <code>{{ printer_info.lsmc_euid }}</code>
+                        {% else %}
+                        <span class="text-muted">Not set</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
                     <td><strong>IP Address</strong></td>
                     <td>
                         {% if printer_info.ip_address != 'dl_png' %}
@@ -230,6 +256,13 @@
                     {% endfor %}
                 </select>
                 <small class="text-muted">Style used when printing without specifying a template</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">LSMC EUID</label>
+                <input type="text" name="lsmc_euid" class="form-control"
+                       value="{{ printer_info.lsmc_euid | default('', true) }}"
+                       placeholder="e.g., LSMC123">
+                <small class="text-muted">Lab Sample Management Container Enterprise Unique ID (no leading zeros)</small>
             </div>
             <div class="form-group">
                 <label class="form-label">Notes</label>
@@ -312,6 +345,7 @@ document.getElementById('printer-edit-form').addEventListener('submit', async (e
         printer_name: form.printer_name.value || null,
         lab_location: form.lab_location.value || null,
         default_label_style: form.default_label_style.value || null,
+        lsmc_euid: form.lsmc_euid.value || '',
         notes: form.notes.value || ''
     };
 

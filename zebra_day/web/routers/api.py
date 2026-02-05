@@ -66,6 +66,11 @@ class PrinterInfo(BaseModel):
     )
     print_method: str
     notes: str | None = Field("", description="Optional notes")
+    lsmc_euid: str = Field("", description="Lab Sample Management Container Enterprise Unique ID")
+    state: str = Field(
+        "Unknown",
+        description="Operational state: Ready, Paused, Error, Offline, Unknown",
+    )
 
 
 class LabInfo(BaseModel):
@@ -179,6 +184,8 @@ async def get_lab(request: Request, lab: str) -> LabInfo:
                 default_label_style=info.get("default_label_style"),
                 print_method=info.get("print_method", ""),
                 notes=info.get("notes", ""),
+                lsmc_euid=info.get("lsmc_euid", ""),
+                state="Unknown",
             )
         )
 
@@ -220,6 +227,8 @@ async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
                 default_label_style=info.get("default_label_style"),
                 print_method=info.get("print_method", ""),
                 notes=info.get("notes", ""),
+                lsmc_euid=info.get("lsmc_euid", ""),
+                state="Unknown",
             )
         )
     return printers
@@ -458,6 +467,9 @@ class PrinterUpdateRequest(BaseModel):
     default_label_style: str | None = Field(
         None, description="Default label style to use when none specified"
     )
+    lsmc_euid: str | None = Field(
+        None, description="Lab Sample Management Container EUID (no leading zeros)"
+    )
 
 
 @router.patch("/labs/{lab}", response_model=LabInfo)
@@ -528,6 +540,8 @@ async def update_printer(
         printer_data["default_label_style"] = (
             update.default_label_style if update.default_label_style else None
         )
+    if update.lsmc_euid is not None:
+        printer_data["lsmc_euid"] = update.lsmc_euid
 
     # Save changes
     zp.save_printer_json(zp.printers_filename, relative=False)
@@ -544,4 +558,6 @@ async def update_printer(
         default_label_style=printer_data.get("default_label_style"),
         print_method=printer_data.get("print_method", ""),
         notes=printer_data.get("notes", ""),
+        lsmc_euid=printer_data.get("lsmc_euid", ""),
+        state="Unknown",
     )

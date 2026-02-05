@@ -196,11 +196,12 @@ class ZebraPrinter:
 
         lines = [ln.strip() for ln in response.replace("\r", "\n").split("\n") if ln.strip()]
         if lines:
-            # Parse first line
+            # Parse first line: aaa,b,c,dddd,eee,f,g,h,iii,j,k,l
+            # Where: b=paper_out(1), c=pause(2), f=paper_out(5), g=head_up(6), h=ribbon_out(7)
             parts = lines[0].split(",")
             if len(parts) >= 8:
                 try:
-                    result["paused"] = parts[1].strip() == "1"
+                    result["paused"] = parts[2].strip() == "1"  # Index 2 is pause flag
                     result["paper_out"] = parts[5].strip() == "1"
                     result["head_up"] = parts[6].strip() == "1"
                     result["ribbon_out"] = parts[7].strip() == "1"

@@ -183,13 +183,13 @@ async def modern_printers(request: Request):
 
 
 @router.get("/printers/{lab}", response_class=HTMLResponse)
-async def modern_printers_by_lab(request: Request, lab: str, live: bool = False):
+async def modern_printers_by_lab(request: Request, lab: str, live: bool = True):
     """Modern printers list for a specific lab.
 
     Args:
         request: FastAPI request object
         lab: Lab name
-        live: If True, query live status from each printer (may be slow)
+        live: If True (default), query live status from each printer (may be slow)
     """
     zp = request.app.state.zp
     templates = request.app.state.templates
@@ -214,8 +214,11 @@ async def modern_printers_by_lab(request: Request, lab: str, live: bool = False)
             "model": info.get("model", ""),
             "serial": info.get("serial", ""),
             "label_zpl_styles": info.get("label_zpl_styles", []),
+            "print_method": info.get("print_method", "socket"),
             "status": info.get("status") or ("online" if ip_addr else "unknown"),
             "notes": info.get("notes", ""),
+            "lsmc_euid": info.get("lsmc_euid", ""),
+            "state": "Unknown",  # Operational state: Ready, Paused, Error, Offline, Unknown
             # Live status fields (populated if live=True)
             "firmware": None,
             "label_count": None,
@@ -230,6 +233,7 @@ async def modern_printers_by_lab(request: Request, lab: str, live: bool = False)
             try:
                 live_status = zdcm.get_cached_status(ip_addr, timeout=2.0)
                 if live_status.get("online"):
+                    # Status = network reachability only (online/offline)
                     printer_data["status"] = "online"
                     printer_data["firmware"] = live_status.get("firmware")
                     printer_data["label_count"] = live_status.get("label_count")
@@ -242,19 +246,29 @@ async def modern_printers_by_lab(request: Request, lab: str, live: bool = False)
                         printer_data["model"] = live_status["model"]
                     if live_status.get("serial"):
                         printer_data["serial"] = live_status["serial"]
-                    # Set error status if any flags are set
-                    if (
-                        printer_data["paper_out"]
-                        or printer_data["ribbon_out"]
-                        or printer_data["head_up"]
-                    ):
-                        printer_data["status"] = "error"
-                    elif printer_data["paused"]:
-                        printer_data["status"] = "paused"
                 else:
                     printer_data["status"] = "offline"
             except Exception:
                 printer_data["status"] = "offline"
+
+        # Calculate operational state based on status and flags
+        # State = operational status (Ready/Paused/Error/Offline/Unknown)
+        if printer_data["status"] == "offline":
+            printer_data["state"] = "Offline"
+        elif printer_data["status"] == "online":
+            # Printer is reachable, now check operational state
+            if printer_data.get("paused"):
+                printer_data["state"] = "Paused"
+            elif (
+                printer_data.get("paper_out")
+                or printer_data.get("ribbon_out")
+                or printer_data.get("head_up")
+            ):
+                printer_data["state"] = "Error"
+            else:
+                printer_data["state"] = "Ready"
+        else:
+            printer_data["state"] = "Unknown"
 
         printers.append(printer_data)
 
@@ -301,7 +315,7 @@ async def modern_printer_detail(request: Request, lab: str, printer_id: str, ref
     if printer_id not in lab_printers:
         raise HTTPException(status_code=404, detail=f"Printer '{printer_id}' not found")
 
-    printer_info = lab_printers[printer_id]
+    printer_info = dict(lab_printers[printer_id])  # Copy to avoid mutating config
 
     # Query live status from printer
     live_status = None
@@ -322,6 +336,23 @@ async def modern_printer_detail(request: Request, lab: str, printer_id: str, ref
                 printer_config = f"Unable to retrieve config: {e}"
         else:
             printer_config = "Printer offline - unable to retrieve configuration"
+
+    # Calculate operational state based on live status
+    if live_status:
+        if not live_status.get("online"):
+            printer_info["state"] = "Offline"
+        elif live_status.get("paused"):
+            printer_info["state"] = "Paused"
+        elif (
+            live_status.get("paper_out")
+            or live_status.get("ribbon_out")
+            or live_status.get("head_up")
+        ):
+            printer_info["state"] = "Error"
+        else:
+            printer_info["state"] = "Ready"
+    else:
+        printer_info["state"] = "Unknown"
 
     context = get_modern_context(
         request,

@@ -166,20 +166,23 @@ def list_printers(
                     p["paper_out"] = status.get("paper_out", False)
                     p["ribbon_out"] = status.get("ribbon_out", False)
                     p["head_up"] = status.get("head_up", False)
-                    # Compute status string
+                    # Status = network reachability only (online/offline)
+                    p["status"] = "online" if status.get("online") else "offline"
+                    # State = operational status (Ready/Paused/Error/Offline/Unknown)
                     if not status.get("online"):
-                        p["status"] = "offline"
+                        p["state"] = "Offline"
+                    elif status.get("paused"):
+                        p["state"] = "Paused"
                     elif (
                         status.get("paper_out") or status.get("ribbon_out") or status.get("head_up")
                     ):
-                        p["status"] = "error"
-                    elif status.get("paused"):
-                        p["status"] = "paused"
+                        p["state"] = "Error"
                     else:
-                        p["status"] = "online"
+                        p["state"] = "Ready"
                 else:
                     p["online"] = None
                     p["status"] = "n/a"
+                    p["state"] = "Unknown"
 
         if json_output:
             console.print(json.dumps(printers, indent=2))
@@ -210,7 +213,8 @@ def list_printers(
         table.add_column("IP Address")
         table.add_column("Model")
         if live:
-            table.add_column("Status")
+            table.add_column("Status")  # Network reachability
+            table.add_column("State")  # Operational state
             table.add_column("Firmware")
             table.add_column("Labels")
         else:
@@ -218,13 +222,22 @@ def list_printers(
 
         for p in printers:
             if live:
-                # Status with color
+                # Status = network reachability (online/offline)
                 status = p.get("status", "unknown")
                 if status == "online":
                     status_str = "[green]● online[/green]"
                 elif status == "offline":
                     status_str = "[red]○ offline[/red]"
-                elif status == "error":
+                else:
+                    status_str = "[dim]—[/dim]"
+
+                # State = operational status (Ready/Paused/Error/Offline/Unknown)
+                state = p.get("state", "Unknown")
+                if state == "Ready":
+                    state_str = "[green]✓ Ready[/green]"
+                elif state == "Paused":
+                    state_str = "[yellow]⏸ Paused[/yellow]"
+                elif state == "Error":
                     flags = []
                     if p.get("paper_out"):
                         flags.append("paper")
@@ -232,16 +245,18 @@ def list_printers(
                         flags.append("ribbon")
                     if p.get("head_up"):
                         flags.append("head")
-                    status_str = f"[red]⚠ {','.join(flags)}[/red]"
-                elif status == "paused":
-                    status_str = "[yellow]⏸ paused[/yellow]"
+                    state_str = f"[red]⚠ Error ({','.join(flags)})[/red]"
+                elif state == "Offline":
+                    state_str = "[red]○ Offline[/red]"
                 else:
-                    status_str = "[dim]—[/dim]"
+                    state_str = "[dim]? Unknown[/dim]"
 
                 firmware = p.get("firmware") or "—"
                 labels = str(p.get("label_count")) if p.get("label_count") is not None else "—"
                 model = p.get("live_model") or p["model"]
-                table.add_row(p["lab"], p["name"], p["ip"], model, status_str, firmware, labels)
+                table.add_row(
+                    p["lab"], p["name"], p["ip"], model, status_str, state_str, firmware, labels
+                )
             else:
                 styles = ", ".join(p["styles"][:2])
                 if len(p["styles"]) > 2:
