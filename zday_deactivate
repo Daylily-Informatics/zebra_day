@@ -1,0 +1,67 @@
+#!/bin/sh
+# zebra_day Environment Deactivation Script
+# ==========================================
+# This script must be SOURCED, not executed:
+#   source ./zday_deactivate
+#
+# It will:
+#   1. Restore the original PATH
+#   2. Restore the original PS1 prompt
+#   3. Unset zebra_day environment variables
+#   4. Deactivate the Python virtual environment
+
+# ========== Colors ==========
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+log_success() {
+    printf "${GREEN}✓${NC} %s\n" "$1"
+}
+
+log_warn() {
+    printf "${YELLOW}⚠${NC} %s\n" "$1"
+}
+
+log_error() {
+    printf "${RED}✗${NC} %s\n" "$1"
+}
+
+# ========== Check if zday is active ==========
+if [ -z "$_ZDAY_ACTIVE" ]; then
+    log_warn "zebra_day environment is not active"
+    return 0 2>/dev/null || exit 0
+fi
+
+# ========== Deactivate ==========
+printf "\n${CYAN}Deactivating zebra_day environment...${NC}\n\n"
+
+# Restore original PS1
+if [ -n "$_ZDAY_OLD_PS1" ]; then
+    export PS1="$_ZDAY_OLD_PS1"
+    log_success "Restored original prompt"
+fi
+
+# Deactivate the virtual environment if the function exists
+if type deactivate >/dev/null 2>&1; then
+    deactivate
+    log_success "Deactivated virtual environment"
+elif [ -n "$_ZDAY_OLD_PATH" ]; then
+    # Fallback: restore original PATH
+    export PATH="$_ZDAY_OLD_PATH"
+    log_success "Restored original PATH"
+fi
+
+# Unset zebra_day environment variables
+unset _ZDAY_ACTIVE
+unset _ZDAY_OLD_PATH
+unset _ZDAY_OLD_PS1
+unset ZDAY_PROJECT_ROOT
+unset VIRTUAL_ENV
+unset VIRTUAL_ENV_DISABLE_PROMPT
+
+log_success "zebra_day environment deactivated"
+printf "\n"
+
