@@ -16,6 +16,10 @@ pip install -e ".[dev]"
 
 # Activate environment (for development)
 source zday_activate      # Sets up env, installs package, enables tab completion
+                          # Your prompt will change to: (zday) $
+
+# Deactivate environment
+source zday_deactivate    # Restores original PATH and prompt
 
 # Run Tests
 pytest -v
@@ -153,6 +157,12 @@ zday config validate               # Validate config schema
 zday config edit                   # Open config in $EDITOR
 zday config reset [--force]        # Reset config to template defaults
 
+# Environment management (development)
+zday env status                    # Show if environment is active
+zday env activate                  # Show command to activate environment
+zday env deactivate                # Show command to deactivate environment
+zday env reset                     # Show command to reset (deactivate + reactivate)
+
 # Cognito authentication (requires pip install -e ".[auth]")
 zday cognito status               # Show auth configuration
 zday cognito info                 # Setup instructions
@@ -167,6 +177,48 @@ The old commands `zday_start` and `zday_quickstart` still work but are deprecate
 | `zday_quickstart` | `zday bootstrap && zday gui start` |
 | `zday_start` | `zday gui start` |
 | `zday_start --auth cognito` | `zday gui start --auth cognito` |
+
+### Environment Activation
+
+For development, use the provided activation scripts to set up your environment:
+
+```bash
+# Activate the development environment
+source zday_activate
+
+# Your prompt changes to show the active environment:
+# (zday) $
+
+# Check environment status
+zday env status
+```
+
+The activation script:
+- Activates the Python virtual environment (`.venv`)
+- Installs zebra_day in development mode
+- Enables tab completion for the `zday` CLI
+- Sets the `(zday)` prefix in your shell prompt (cyan color)
+
+**Deactivation:**
+
+```bash
+# Deactivate and restore your original environment
+source zday_deactivate
+```
+
+**Reset (for troubleshooting):**
+
+```bash
+# If environment seems broken, reset it cleanly:
+source zday_deactivate && source zday_activate
+```
+
+**Activation Script Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--install-completion` | Force reinstall persistent tab completion |
+| `--no-completion` | Skip tab completion setup |
 
 ### Local HTTPS Setup
 
