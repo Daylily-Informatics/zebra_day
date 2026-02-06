@@ -2,6 +2,7 @@
 
 import json
 import threading
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -940,6 +941,272 @@ class TestDetectTablesAPI:
         )
         # Should get 503 (AWS error) or 501 (boto3 not installed), not 400 (bad request)
         assert response.status_code in [501, 503]
+
+
+# ---------------------------------------------------------------------------
+# Helper: create a mock DynamoBackend that passes isinstance checks
+# ---------------------------------------------------------------------------
+
+def _make_mock_dynamo_backend(
+    profile="test-profile",
+    table_name="zebra-day-config",
+    region="us-west-2",
+    s3_bucket="zebra-day-cfg-us-west-2",
+    s3_prefix="zebra-day/",
+):
+    """Return a MagicMock that satisfies isinstance(obj, DynamoBackend)."""
+    from zebra_day.backends.dynamo import DynamoBackend
+
+    mock_backend = MagicMock(spec=DynamoBackend)
+    mock_backend.profile = profile
+    mock_backend.table_name = table_name
+    mock_backend.region = region
+    mock_backend.s3_bucket = s3_bucket
+    mock_backend.s3_prefix = s3_prefix
+    mock_backend.load_config.return_value = {"schema_version": "2.0", "labs": {}}
+    mock_backend.get_status.return_value = {
+        "table_status": "ACTIVE",
+        "item_count": 5,
+        "last_backup_at": "2026-01-01T00:00:00Z",
+        "last_backup_s3_key": "zebra-day/backups/test/",
+        "backup_count": 1,
+        "config_version": 3,
+        "config_updated_at": "2026-01-01T00:00:00Z",
+        "config_updated_by": "test-user",
+    }
+    return mock_backend
+
+
+def _switch_client_to_dynamo(client, mock_backend):
+    """Swap the client's app backend to a mock DynamoBackend in-place."""
+    zp = client.app.state.zp
+    zp._backend = mock_backend
+    zp.printers = mock_backend.load_config()
+    zp.printers_filename = ""
+
+
+class TestProfilePersistence:
+    """Tests for AWS profile persistence on backend instances and status."""
+
+    def test_backend_status_shows_profile_from_instance(self, client):
+        """After swapping to DynamoDB, backend-status returns profile from instance."""
+        mock_be = _make_mock_dynamo_backend(profile="lsmc")
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/api/v1/config/backend-status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["backend_type"] == "dynamodb"
+        assert data["aws_profile"] == "lsmc"
+
+    def test_backend_status_shows_default_chain_when_no_profile(self, client):
+        """When profile is None, backend-status shows 'default credential chain'."""
+        mock_be = _make_mock_dynamo_backend(profile=None)
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/api/v1/config/backend-status")
+        data = response.json()
+        assert data["aws_profile"] == "default credential chain"
+
+    def test_backend_status_dynamo_returns_table_info(self, client):
+        """DynamoDB backend-status includes table, region, s3 details."""
+        mock_be = _make_mock_dynamo_backend(
+            profile="my-profile",
+            table_name="my-table",
+            region="eu-west-1",
+            s3_bucket="my-bucket",
+        )
+        _switch_client_to_dynamo(client, mock_be)
+
+        data = client.get("/api/v1/config/backend-status").json()
+        assert data["dynamo_table"] == "my-table"
+        assert data["aws_region"] == "eu-west-1"
+        assert data["s3_bucket"] == "my-bucket"
+        assert data["table_status"] == "ACTIVE"
+        assert data["config_version"] == 3
+
+    def test_backend_status_dynamo_error_captured(self, client):
+        """If get_status() raises, error field is populated."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.get_status.side_effect = RuntimeError("Connection refused")
+        _switch_client_to_dynamo(client, mock_be)
+
+        data = client.get("/api/v1/config/backend-status").json()
+        assert data["backend_type"] == "dynamodb"
+        assert "Connection refused" in data["error"]
+
+    def test_switch_back_to_local_clears_dynamo_info(self, client):
+        """After switching from dynamo→local, status returns N/A fields."""
+        mock_be = _make_mock_dynamo_backend(profile="lsmc")
+        _switch_client_to_dynamo(client, mock_be)
+
+        # Confirm dynamo active
+        assert client.get("/api/v1/config/backend-status").json()["backend_type"] == "dynamodb"
+
+        # Switch back to local
+        resp = client.post("/api/v1/config/switch-backend", json={"backend_type": "local"})
+        assert resp.status_code == 200
+
+        data = client.get("/api/v1/config/backend-status").json()
+        assert data["backend_type"] == "local"
+        assert "N/A" in data["aws_profile"]
+
+
+class TestConfigPageDynamoDBBackend:
+    """Tests for config page rendering when DynamoDB backend is active."""
+
+    def test_config_page_shows_dynamodb_badge(self, client):
+        """Config page shows DynamoDB badge when backend is dynamodb."""
+        mock_be = _make_mock_dynamo_backend(profile="lsmc")
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/config")
+        assert response.status_code == 200
+        assert "DynamoDB" in response.text
+
+    def test_config_page_shows_refresh_button_when_dynamodb(self, client):
+        """Refresh Backend button appears when backend is DynamoDB."""
+        mock_be = _make_mock_dynamo_backend()
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/config")
+        assert 'id="btn-refresh-backend"' in response.text
+
+    def test_config_page_shows_detect_tables_button_when_dynamodb(self, client):
+        """Detect Tables button appears when backend is DynamoDB."""
+        mock_be = _make_mock_dynamo_backend()
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/config")
+        assert 'id="btn-detect-tables"' in response.text
+
+    def test_config_page_profile_prepopulated_when_dynamodb(self, client):
+        """Profile input field is pre-populated from backend state."""
+        mock_be = _make_mock_dynamo_backend(profile="daylily-service-lsmc")
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/config")
+        assert 'value="daylily-service-lsmc"' in response.text
+
+    def test_config_page_profile_empty_when_local(self, client):
+        """Profile input field is empty when backend is local."""
+        response = client.get("/config")
+        # The switch-profile input should have value="" for local backend
+        html = response.text
+        # Find the profile input and check it's empty
+        import re
+        match = re.search(r'id="switch-profile"[^>]*value="([^"]*)"', html)
+        assert match is not None
+        assert match.group(1) == ""
+
+    def test_config_page_profile_filters_sentinel_values(self, client):
+        """Profile input does not pre-fill sentinel strings like 'default credential chain'."""
+        mock_be = _make_mock_dynamo_backend(profile=None)
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/config")
+        import re
+        match = re.search(r'id="switch-profile"[^>]*value="([^"]*)"', response.text)
+        assert match is not None
+        # Should be empty since profile is None → "default credential chain"
+        assert match.group(1) == ""
+
+
+class TestDetectTablesAPIExpanded:
+    """Expanded tests for GET /api/v1/config/detect-tables endpoint."""
+
+    def test_detect_tables_no_params(self, client):
+        """Test detect-tables endpoint works with no query parameters."""
+        response = client.get("/api/v1/config/detect-tables")
+        # Without AWS credentials, should get 503 or 501
+        assert response.status_code in [501, 503]
+
+    def test_detect_tables_region_only(self, client):
+        """Test detect-tables with only region parameter."""
+        response = client.get("/api/v1/config/detect-tables?region=eu-west-1")
+        assert response.status_code in [501, 503]
+
+    def test_detect_tables_empty_profile_ignored(self, client):
+        """Test detect-tables with empty profile uses default chain."""
+        response = client.get("/api/v1/config/detect-tables?region=us-west-2&profile=")
+        assert response.status_code in [501, 503]
+
+
+class TestSwitchBackendValidProfile:
+    """Tests for switch-backend with valid (non-default) profile names."""
+
+    def test_switch_dynamodb_named_profile_passes_validation(self, client):
+        """Valid named profile passes validation (may fail on AWS connect)."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "test-table",
+                "region": "us-west-2",
+                "s3_bucket": "test-bucket",
+                "profile": "my-lab-profile",
+            },
+        )
+        # Should NOT be 400 (validation error). Will be 501 or 503 (AWS connect).
+        assert response.status_code in (501, 503)
+
+    def test_switch_dynamodb_empty_profile_passes_validation(self, client):
+        """Empty string profile passes validation (uses default chain)."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "test-table",
+                "region": "us-west-2",
+                "s3_bucket": "test-bucket",
+                "profile": "",
+            },
+        )
+        assert response.status_code in (501, 503)
+
+    def test_switch_dynamodb_profile_default_mixed_case_rejected(self, client):
+        """Mixed case 'DeFaUlT' is also rejected."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "test-table",
+                "region": "us-west-2",
+                "s3_bucket": "test-bucket",
+                "profile": "DeFaUlT",
+            },
+        )
+        assert response.status_code == 400
+
+    def test_switch_response_includes_backend_info(self, client):
+        """Switch response always includes a 'backend' dict with expected keys."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={"backend_type": "local"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "backend" in data
+        assert "backend_type" in data["backend"]
+        assert "aws_profile" in data["backend"]
+
+
+class TestConfigRefreshDynamoDB:
+    """Tests for config/refresh when DynamoDB backend is active."""
+
+    def test_refresh_with_dynamo_backend_calls_load_config(self, client):
+        """Refresh re-reads config from backend.load_config()."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.load_config.return_value = {"schema_version": "2.0", "labs": {"refreshed": {}}}
+        _switch_client_to_dynamo(client, mock_be)
+
+        # Reset call count
+        mock_be.load_config.reset_mock()
+
+        response = client.post("/api/v1/config/refresh")
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        mock_be.load_config.assert_called_once()
 
 
 # Keep the simple assertion test for backward compatibility
