@@ -7,6 +7,7 @@ All endpoints return JSON and are prefixed with /api/v1/.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from typing import Any, Literal
 
@@ -15,6 +16,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from zebra_day import paths as xdg
+from zebra_day.logging_config import get_logger
+
+_log = get_logger(__name__)
 
 router = APIRouter()
 
@@ -561,3 +565,154 @@ async def update_printer(
         lsmc_euid=printer_data.get("lsmc_euid", ""),
         state="Unknown",
     )
+
+
+# ----- Backend / AWS Configuration Endpoints -----
+
+
+def _get_backend_info(zp) -> dict[str, Any]:
+    """Build a backend status dict from the active zpl() instance."""
+    from zebra_day.backends.dynamo import DynamoBackend
+    from zebra_day.backends.local import LocalBackend
+
+    backend = zp._backend
+    backend_type = "dynamodb" if isinstance(backend, DynamoBackend) else "local"
+
+    info: dict[str, Any] = {
+        "backend_type": backend_type,
+    }
+
+    if backend_type == "dynamodb":
+        info["aws_profile"] = os.environ.get("AWS_PROFILE") or "default credential chain"
+        info["dynamo_table"] = backend.table_name
+        info["aws_region"] = backend.region
+        info["s3_bucket"] = backend.s3_bucket or ""
+        info["s3_prefix"] = backend.s3_prefix
+        try:
+            status = backend.get_status()
+            info["table_status"] = status.get("table_status", "UNKNOWN")
+            info["item_count"] = status.get("item_count", 0)
+            info["last_backup"] = status.get("last_backup_at", "")
+            info["last_backup_s3_key"] = status.get("last_backup_s3_key", "")
+            info["backup_count"] = status.get("backup_count", 0)
+            info["config_version"] = status.get("config_version", 0)
+            info["config_updated_at"] = status.get("config_updated_at", "")
+            info["config_updated_by"] = status.get("config_updated_by", "")
+            info["error"] = None
+        except Exception as exc:
+            _log.warning("Failed to fetch DynamoDB status: %s", exc)
+            info["error"] = str(exc)
+    else:
+        na = "N/A - using local file backend"
+        info["aws_profile"] = na
+        info["dynamo_table"] = na
+        info["aws_region"] = na
+        info["s3_bucket"] = na
+        info["s3_prefix"] = na
+        info["last_backup"] = na
+        info["config_version"] = na
+        info["error"] = None
+
+    return info
+
+
+@router.get("/config/backend-status")
+async def config_backend_status(request: Request) -> dict[str, Any]:
+    """Return the current backend type and AWS configuration details."""
+    zp = request.app.state.zp
+    return _get_backend_info(zp)
+
+
+@router.post("/config/refresh")
+async def config_refresh(request: Request) -> dict[str, Any]:
+    """Reload configuration from the active backend.
+
+    For DynamoDB backend this re-reads from the table.
+    For local backend this re-reads the config file.
+    """
+    zp = request.app.state.zp
+    try:
+        zp.printers = zp._backend.load_config()
+        zp._maybe_migrate_schema()
+        return {"success": True, "message": "Configuration reloaded from backend."}
+    except Exception as exc:
+        _log.error("Config refresh failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/config/detect-tables")
+async def config_detect_tables(
+    request: Request,
+    region: str | None = None,
+) -> dict[str, Any]:
+    """Scan an AWS region for compatible zebra-day DynamoDB tables.
+
+    Parameters:
+        region: AWS region to scan. Defaults to ZEBRA_DAY_DYNAMO_REGION,
+                then AWS_DEFAULT_REGION, then us-west-2.
+    """
+    scan_region = region or os.environ.get(
+        "ZEBRA_DAY_DYNAMO_REGION",
+        os.environ.get("AWS_DEFAULT_REGION", "us-west-2"),
+    )
+
+    try:
+        import boto3
+
+        profile = os.environ.get("AWS_PROFILE") or None
+        session = boto3.Session(region_name=scan_region, profile_name=profile)
+        ddb = session.client("dynamodb")
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unable to create AWS session: {exc}",
+        )
+
+    try:
+        # List all tables (paginate)
+        all_tables: list[str] = []
+        paginator = ddb.get_paginator("list_tables")
+        for page in paginator.paginate():
+            all_tables.extend(page.get("TableNames", []))
+
+        # Filter for tables that look like zebra-day config tables
+        keywords = {"zebra", "config"}
+        matches: list[dict[str, Any]] = []
+        for tname in all_tables:
+            lower = tname.lower()
+            if lower == "zebra-day-config" or all(kw in lower for kw in keywords):
+                # Describe each match for details
+                try:
+                    desc = ddb.describe_table(TableName=tname)["Table"]
+                    matches.append({
+                        "table_name": tname,
+                        "region": scan_region,
+                        "item_count": desc.get("ItemCount", 0),
+                        "status": desc.get("TableStatus", "UNKNOWN"),
+                        "size_bytes": desc.get("TableSizeBytes", 0),
+                    })
+                except Exception as desc_exc:
+                    matches.append({
+                        "table_name": tname,
+                        "region": scan_region,
+                        "item_count": -1,
+                        "status": f"Error: {desc_exc}",
+                        "size_bytes": 0,
+                    })
+
+        return {
+            "region": scan_region,
+            "total_tables": len(all_tables),
+            "matches": matches,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to scan DynamoDB tables in {scan_region}: {exc}",
+        )

@@ -83,6 +83,80 @@
     </div>
 </div>
 
+<!-- Backend Configuration -->
+<div class="card mt-lg" id="backend-config-card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fas fa-database"></i> Backend Configuration</h3>
+        {% if backend_info and backend_info.backend_type == 'dynamodb' %}
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-outline btn-sm" onclick="refreshFromBackend()" id="btn-refresh-backend" title="Reload config from DynamoDB">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="detectTables()" id="btn-detect-tables" title="Scan for compatible DynamoDB tables">
+                <i class="fas fa-search"></i> Detect Tables
+            </button>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Backend type badge -->
+    <div class="mb-md" style="padding: 0.75rem 1rem; background: var(--color-gray-700); border-radius: var(--radius-sm);">
+        <span class="text-muted"><i class="fas fa-server"></i> Backend Type:</span>
+        {% if backend_info and backend_info.backend_type == 'dynamodb' %}
+        <span class="badge badge-info" style="margin-left: 0.5rem;"><i class="fas fa-cloud"></i> DynamoDB</span>
+        {% else %}
+        <span class="badge badge-warning" style="margin-left: 0.5rem;"><i class="fas fa-hdd"></i> Local</span>
+        {% endif %}
+    </div>
+
+    {% if backend_info and backend_info.error %}
+    <div class="mb-md" style="padding: 0.75rem 1rem; background: rgba(239,68,68,0.1); border: 1px solid var(--color-error); border-radius: var(--radius-sm); color: var(--color-error);">
+        <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> {{ backend_info.error }}
+    </div>
+    {% endif %}
+
+    <!-- AWS config fields -->
+    <div class="grid grid-2 mb-md" style="gap: 0.75rem;">
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-user-shield"></i> AWS Profile</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.aws_profile | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-table"></i> DynamoDB Table</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.dynamo_table | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-globe"></i> AWS Region</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.aws_region | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-archive"></i> S3 Backup Bucket</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.s3_bucket | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-folder"></i> S3 Prefix</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.s3_prefix | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-clock"></i> Last Backup</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.last_backup | default('N/A') }}</code>
+        </div>
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-code-branch"></i> Config Version</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.config_version | default('N/A') }}</code>
+        </div>
+        {% if backend_info and backend_info.backend_type == 'dynamodb' and backend_info.config_updated_at %}
+        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
+            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-user-edit"></i> Last Updated</div>
+            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.config_updated_at }} by {{ backend_info.config_updated_by | default('unknown') }}</code>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Detect tables results area (hidden by default) -->
+    <div id="detect-tables-results" class="d-none" style="margin-top: 1rem;"></div>
+</div>
+
 <!-- Current Config Summary -->
 <div class="card mt-lg">
     <div class="card-header">
@@ -157,3 +231,58 @@
 </div>
 {% endblock %}
 
+{% block extra_scripts %}
+<script>
+async function refreshFromBackend() {
+    const btn = document.getElementById('btn-refresh-backend');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...'; }
+    try {
+        const resp = await fetch('/api/v1/config/refresh', { method: 'POST' });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            showToast('success', 'Refreshed', data.message || 'Config reloaded from backend.');
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showToast('error', 'Refresh Failed', data.detail || 'Unknown error');
+        }
+    } catch (e) {
+        showToast('error', 'Refresh Failed', e.message || 'Network error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh'; }
+    }
+}
+
+async function detectTables() {
+    const btn = document.getElementById('btn-detect-tables');
+    const resultsDiv = document.getElementById('detect-tables-results');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...'; }
+    if (resultsDiv) { resultsDiv.classList.remove('d-none'); resultsDiv.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Scanning for DynamoDB tables...</p>'; }
+    try {
+        const resp = await fetch('/api/v1/config/detect-tables');
+        const data = await resp.json();
+        if (!resp.ok) {
+            resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (data.detail || 'Failed to scan') + '</div>';
+            return;
+        }
+        let html = '<h4 style="margin-bottom:0.5rem;"><i class="fas fa-search"></i> Tables in ' + data.region + ' (' + data.total_tables + ' total)</h4>';
+        if (data.matches.length === 0) {
+            html += '<p class="text-muted">No compatible zebra-day tables found.</p>';
+        } else {
+            html += '<div class="table-container"><table class="table"><thead><tr><th>Table Name</th><th>Region</th><th>Items</th><th>Status</th><th>Size</th></tr></thead><tbody>';
+            data.matches.forEach(function(t) {
+                const statusCls = t.status === 'ACTIVE' ? 'badge-success' : 'badge-warning';
+                const sizeKb = t.size_bytes > 0 ? (t.size_bytes / 1024).toFixed(1) + ' KB' : '0 KB';
+                html += '<tr><td><code>' + t.table_name + '</code></td><td>' + t.region + '</td><td>' + (t.item_count >= 0 ? t.item_count : 'N/A') + '</td><td><span class="badge ' + statusCls + '">' + t.status + '</span></td><td>' + sizeKb + '</td></tr>';
+            });
+            html += '</tbody></table></div>';
+        }
+        resultsDiv.innerHTML = html;
+        showToast('info', 'Scan Complete', data.matches.length + ' compatible table(s) found in ' + data.region);
+    } catch (e) {
+        if (resultsDiv) resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (e.message || 'Network error') + '</div>';
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-search"></i> Detect Tables'; }
+    }
+}
+</script>
+{% endblock %}

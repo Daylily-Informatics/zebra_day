@@ -684,6 +684,76 @@ class TestModernUINetworkScan:
         assert response.status_code == 303
 
 
+class TestBackendStatusAPI:
+    """Tests for /api/v1/config/backend-status endpoint."""
+
+    def test_backend_status_returns_local(self, client):
+        """Test backend-status returns local backend type."""
+        response = client.get("/api/v1/config/backend-status")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["backend_type"] == "local"
+        assert data["error"] is None
+
+    def test_backend_status_local_has_na_fields(self, client):
+        """Test local backend shows N/A for AWS fields."""
+        response = client.get("/api/v1/config/backend-status")
+        data = response.json()
+        assert "N/A" in data["aws_profile"]
+        assert "N/A" in data["dynamo_table"]
+        assert "N/A" in data["aws_region"]
+        assert "N/A" in data["s3_bucket"]
+
+    def test_backend_status_has_required_keys(self, client):
+        """Test response contains all required keys."""
+        response = client.get("/api/v1/config/backend-status")
+        data = response.json()
+        for key in ["backend_type", "aws_profile", "dynamo_table", "aws_region",
+                     "s3_bucket", "s3_prefix", "last_backup", "config_version", "error"]:
+            assert key in data, f"Missing key: {key}"
+
+
+class TestConfigRefreshAPI:
+    """Tests for POST /api/v1/config/refresh endpoint."""
+
+    def test_refresh_succeeds(self, client):
+        """Test config refresh returns success."""
+        response = client.post("/api/v1/config/refresh")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "reloaded" in data["message"].lower()
+
+    def test_refresh_preserves_config(self, client):
+        """Test refresh keeps config intact."""
+        before = client.get("/api/v1/config").json()
+        client.post("/api/v1/config/refresh")
+        after = client.get("/api/v1/config").json()
+        assert before.get("schema_version") == after.get("schema_version")
+
+
+class TestConfigPageBackendInfo:
+    """Tests for backend info display on config page."""
+
+    def test_config_page_shows_backend_type(self, client):
+        """Test config page includes backend type."""
+        response = client.get("/config")
+        assert response.status_code == 200
+        assert "Backend Configuration" in response.text
+
+    def test_config_page_shows_local_badge(self, client):
+        """Test config page shows Local badge when using local backend."""
+        response = client.get("/config")
+        assert "Local" in response.text
+
+    def test_config_page_no_refresh_button_for_local(self, client):
+        """Test Refresh and Detect buttons are NOT shown for local backend."""
+        response = client.get("/config")
+        # The buttons should not appear since backend is local
+        assert 'id="btn-refresh-backend"' not in response.text
+        assert 'id="btn-detect-tables"' not in response.text
+
+
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():
     """Simple test to ensure test module loads."""
