@@ -89,6 +89,7 @@ Single-table design. Partition key `PK` + sort key `SK` discriminate item types.
 |---------|---------------------------|
 | Region  | Configurable via `ZEBRA_DAY_DYNAMO_REGION` |
 | Encryption | AWS-managed (SSE default) |
+| Tags | `lsmc-cost-center`, `lsmc-project` (see §8) |
 
 ### Item Schema
 
@@ -307,6 +308,8 @@ class DynamoBackend:
         s3_bucket: str | None = None,
         s3_prefix: str = "zebra-day/",
         client_id: str | None = None,
+        cost_center: str | None = None,  # resolved from LSMC_COST_CENTER or "global"
+        project: str | None = None,      # resolved from LSMC_PROJECT or "zebra-day+{region}"
     ):
         ...
 ```
@@ -410,15 +413,19 @@ Options:
   --region TEXT        AWS region [default: from env or us-east-1]
   --s3-bucket TEXT     S3 bucket for backups [required]
   --s3-prefix TEXT     S3 key prefix [default: zebra-day/]
-  --profile TEXT       AWS profile name [default: from env]
+  --profile TEXT       AWS profile name [default: from env; never "default" explicitly]
+  --cost-center TEXT   lsmc-cost-center tag [default: from LSMC_COST_CENTER or "global"]
+  --project TEXT       lsmc-project tag [default: from LSMC_PROJECT or "zebra-day+{region}"]
 ```
 
 Actions:
 1. Create DynamoDB table with `PK` (S) + `SK` (S) key schema, on-demand billing.
-2. Wait for table to become `ACTIVE`.
-3. Create S3 bucket if it doesn't exist (same region).
-4. Write `META#table_info` item with creation metadata.
-5. Print env var export commands for the user to set.
+2. Tag the DynamoDB table with `lsmc-cost-center` and `lsmc-project`.
+3. Wait for table to become `ACTIVE`.
+4. Create S3 bucket if it doesn't exist (same region).
+5. Tag the S3 bucket with `lsmc-cost-center` and `lsmc-project`.
+6. Write `META#table_info` item with creation metadata.
+7. Print env var export commands for the user to set.
 
 #### `zday dynamo bootstrap`
 
@@ -524,8 +531,29 @@ DynamoDB Shared Config Status
 | `ZEBRA_DAY_S3_BACKUP_BUCKET` | *(none — required for dynamodb)* | S3 bucket for backups |
 | `ZEBRA_DAY_S3_BACKUP_PREFIX` | `zebra-day/` | S3 key prefix |
 | `ZEBRA_DAY_CLIENT_ID` | `{hostname}.{username}` | Client identifier for audit trail |
-| `AWS_PROFILE` | *(default profile)* | Standard AWS credential selection |
+| `LSMC_COST_CENTER` | `global` | AWS resource tag: `lsmc-cost-center` |
+| `LSMC_PROJECT` | `zebra-day+{region}` | AWS resource tag: `lsmc-project` |
+| `AWS_PROFILE` | *(from env — never explicit `"default"`)* | Standard AWS credential selection |
 | `AWS_DEFAULT_REGION` | *(none)* | Fallback region if `ZEBRA_DAY_DYNAMO_REGION` not set |
+
+### AWS Resource Tagging
+
+All AWS resources created by `zebra_day` **must** be tagged with:
+
+| Tag Key | Resolution Order | Fallback |
+|---------|-----------------|----------|
+| `lsmc-cost-center` | 1. CLI `--cost-center` flag → 2. `LSMC_COST_CENTER` env var → 3. `"global"` | `global` |
+| `lsmc-project` | 1. CLI `--project` flag → 2. `LSMC_PROJECT` env var → 3. `"zebra-day+{region}"` | `zebra-day+us-east-1` |
+
+Tags are applied to:
+- DynamoDB table (at creation via `Tags` parameter, and on existing tables via `TagResource`)
+- S3 bucket (at creation via `Tagging`, and on existing buckets via `put_bucket_tagging`)
+
+### AWS Profile Rules
+
+- `AWS_PROFILE` may be used to select credentials.
+- Code **must never** pass `profile_name="default"` explicitly to boto3 sessions or clients.
+- If no profile is specified, boto3's standard credential chain is used (env vars → instance role → config file).
 
 ### Validation at Init
 
@@ -664,6 +692,9 @@ def dynamo_backend():
 | `test_zpl_init_with_backend` | Both | `zpl(backend=...)` works |
 | `test_zpl_env_var_selection` | Both | `ZEBRA_DAY_CONFIG_BACKEND` selects correctly |
 | `test_formulate_zpl_dynamo` | `DynamoBackend` | Template rendering works without filesystem |
+| `test_resource_tagging` | `DynamoBackend` | DDB table + S3 bucket tagged with `lsmc-cost-center` and `lsmc-project` |
+| `test_tag_resolution_order` | `DynamoBackend` | CLI flag → env var → default fallback chain |
+| `test_no_explicit_default_profile` | — | boto3 never called with `profile_name="default"` |
 
 ### Test Dependencies
 
