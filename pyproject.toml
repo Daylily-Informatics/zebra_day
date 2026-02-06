@@ -42,6 +42,8 @@ dependencies = [
     "pillow>=10.0.0",
     "zint-bindings>=1.2.0",
     "httpx",
+    "boto3",
+    "awscli",
 ]
 
 [project.optional-dependencies]
