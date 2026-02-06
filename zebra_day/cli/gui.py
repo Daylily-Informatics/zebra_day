@@ -66,18 +66,29 @@ def _check_auth_dependencies() -> bool:
         return False
 
 
-def _resolve_ssl_paths(cert: str | None, key: str | None) -> tuple[str | None, str | None, bool]:
+def _resolve_ssl_paths(
+    cert: str | None, key: str | None, no_https: bool = False
+) -> tuple[str | None, str | None, bool, str]:
     """
-    Resolve SSL certificate and key paths.
+    Resolve SSL certificate and key paths with automatic generation.
 
     Priority:
     1. Explicit --cert/--key arguments
     2. SSL_CERT_PATH/SSL_KEY_PATH environment variables
     3. Default paths in ~/.config/zebra_day/certs/
+    4. Automatic generation with mkcert (if available)
+
+    Args:
+        cert: Explicit certificate path
+        key: Explicit key path
+        no_https: If True, skip all HTTPS setup
 
     Returns:
-        Tuple of (cert_path, key_path, use_https)
+        Tuple of (cert_path, key_path, use_https, status_message)
     """
+    if no_https:
+        return None, None, False, "HTTP mode (--no-https flag)"
+
     cert_path = cert
     key_path = key
 
@@ -96,9 +107,18 @@ def _resolve_ssl_paths(cert: str | None, key: str | None) -> tuple[str | None, s
     # Validate both exist
     if cert_path and key_path:
         if Path(cert_path).exists() and Path(key_path).exists():
-            return cert_path, key_path, True
+            return cert_path, key_path, True, "Using existing certificates"
 
-    return None, None, False
+    # Try automatic certificate generation
+    from zebra_day import mkcert
+
+    success, message, cert_file, key_file = mkcert.try_auto_generate_certificates()
+
+    if success and cert_file and key_file:
+        return str(cert_file), str(key_file), True, message
+
+    # Fall back to HTTP with guidance message
+    return None, None, False, message
 
 
 @gui_app.command("start")
@@ -118,10 +138,10 @@ def start(
 ):
     """Start the zebra_day web UI server.
 
-    By default, HTTPS is enabled if certificates are found in:
-    - Explicit --cert/--key arguments
-    - SSL_CERT_PATH/SSL_KEY_PATH environment variables
-    - ~/.config/zebra_day/certs/server.crt and server.key
+    By default, HTTPS is enabled. The server will:
+    1. Look for existing certificates in standard locations
+    2. Attempt to auto-generate certificates with mkcert if available
+    3. Fall back to HTTP with guidance if certificate setup fails
 
     Use --no-https to force HTTP mode.
     """
@@ -159,13 +179,8 @@ def start(
             raise typer.Exit(1)
         console.print("[green]✓[/green]  Cognito authentication enabled")
 
-    # Resolve SSL paths
-    cert_path, key_path, use_https = _resolve_ssl_paths(cert, key)
-
-    if no_https:
-        use_https = False
-        cert_path = None
-        key_path = None
+    # Resolve SSL paths with automatic generation
+    cert_path, key_path, use_https, status_message = _resolve_ssl_paths(cert, key, no_https)
 
     protocol = "https" if use_https else "http"
 
@@ -173,13 +188,14 @@ def start(
         console.print("[green]✓[/green]  HTTPS enabled")
         console.print(f"   Certificate: [dim]{cert_path}[/dim]")
         console.print(f"   Private key: [dim]{key_path}[/dim]")
+        if "auto" in status_message.lower() or "generated" in status_message.lower():
+            console.print(f"   [dim]{status_message}[/dim]")
     else:
         console.print("[yellow]⚠[/yellow]  Running in HTTP mode (insecure)")
-        console.print("   For HTTPS, generate certificates with mkcert:")
-        console.print(f"   [dim]mkdir -p {DEFAULT_CERT_DIR}[/dim]")
-        console.print(
-            f"   [dim]mkcert -cert-file {DEFAULT_CERT_FILE} -key-file {DEFAULT_KEY_FILE} localhost 127.0.0.1 ::1[/dim]"
-        )
+        # Display the status message which contains guidance
+        for line in status_message.split("\n"):
+            if line.strip():
+                console.print(f"   {line}")
 
     # Build command with SSL parameters
     ssl_args = ""
@@ -284,7 +300,7 @@ def status():
     if pid:
         log_file = _get_latest_log()
         # Check if HTTPS is likely enabled based on cert availability
-        _, _, use_https = _resolve_ssl_paths(None, None)
+        _, _, use_https, _ = _resolve_ssl_paths(None, None)
         protocol = "https" if use_https else "http"
         console.print(f"[green]●[/green]  Server is [green]running[/green] (PID {pid})")
         console.print(f"   URL: [cyan]{protocol}://0.0.0.0:8118[/cyan]")

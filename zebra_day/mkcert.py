@@ -8,6 +8,7 @@ This module provides utilities to:
 """
 
 import logging
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -23,6 +24,35 @@ KEY_FILE = CERT_DIR / "server.key"
 
 # Hostnames to include in the certificate
 DEFAULT_HOSTNAMES = ["localhost", "127.0.0.1", "::1"]
+
+
+def get_platform_install_command() -> str:
+    """Get the platform-specific mkcert installation command.
+
+    Returns:
+        Installation command string for the current platform.
+    """
+    system = platform.system()
+    if system == "Darwin":
+        return "brew install mkcert"
+    elif system == "Linux":
+        # Try to detect the distribution
+        try:
+            with open("/etc/os-release") as f:
+                os_release = f.read().lower()
+                if "ubuntu" in os_release or "debian" in os_release:
+                    return "sudo apt install mkcert"
+                elif "fedora" in os_release or "rhel" in os_release or "centos" in os_release:
+                    return "sudo dnf install mkcert"
+                elif "arch" in os_release:
+                    return "sudo pacman -S mkcert"
+        except FileNotFoundError:
+            pass
+        return "sudo apt install mkcert  # or use your distribution's package manager"
+    elif system == "Windows":
+        return "choco install mkcert  # or scoop install mkcert"
+    else:
+        return "See https://github.com/FiloSottile/mkcert#installation"
 
 
 def is_mkcert_installed() -> bool:
@@ -155,3 +185,61 @@ def get_cert_paths() -> tuple[Path | None, Path | None]:
     if certificates_exist():
         return CERT_FILE, KEY_FILE
     return None, None
+
+
+def try_auto_generate_certificates() -> tuple[bool, str, Path | None, Path | None]:
+    """Attempt to automatically generate certificates with mkcert.
+
+    This function checks if mkcert is installed and the CA is set up,
+    then attempts to generate certificates automatically.
+
+    Returns:
+        Tuple of (success, message, cert_path, key_path) where:
+        - success: True if certificates were generated or already exist
+        - message: Human-readable status/error message
+        - cert_path: Path to certificate file if successful, None otherwise
+        - key_path: Path to key file if successful, None otherwise
+    """
+    # Check if certificates already exist
+    if certificates_exist():
+        _log.info("Certificates already exist at %s", CERT_FILE)
+        return True, "Certificates already exist", CERT_FILE, KEY_FILE
+
+    # Check if mkcert is installed
+    if not is_mkcert_installed():
+        install_cmd = get_platform_install_command()
+        msg = (
+            f"mkcert is not installed. Install it with:\n"
+            f"  {install_cmd}\n"
+            f"Then run: mkcert -install"
+        )
+        _log.warning("mkcert not installed - cannot auto-generate certificates")
+        return False, msg, None, None
+
+    # Check if CA is installed
+    if not is_ca_installed():
+        msg = (
+            "mkcert is installed but the local CA is not set up.\n"
+            "Run this command (requires password):\n"
+            "  mkcert -install"
+        )
+        _log.warning("mkcert CA not installed - cannot auto-generate certificates")
+        return False, msg, None, None
+
+    # Try to generate certificates
+    _log.info("Attempting to auto-generate certificates with mkcert...")
+    success = generate_certificates()
+
+    if success:
+        msg = f"Successfully generated certificates at {CERT_FILE}"
+        _log.info(msg)
+        return True, msg, CERT_FILE, KEY_FILE
+    else:
+        msg = (
+            "Failed to generate certificates automatically.\n"
+            "Try manually with:\n"
+            f"  mkdir -p {CERT_DIR}\n"
+            f"  mkcert -cert-file {CERT_FILE} -key-file {KEY_FILE} localhost 127.0.0.1 ::1"
+        )
+        _log.error("Certificate generation failed")
+        return False, msg, None, None

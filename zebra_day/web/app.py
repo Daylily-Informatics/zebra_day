@@ -183,12 +183,15 @@ def run_server(
         ssl_certfile: Path to SSL certificate file (PEM format)
         ssl_keyfile: Path to SSL private key file (PEM format)
 
-    If ssl_certfile and ssl_keyfile are not provided, the server will:
-    1. Check SSL_CERT_PATH and SSL_KEY_PATH environment variables
-    2. Check for certificates in ~/.config/zebra_day/certs/
-    3. Fall back to HTTP with a warning if no certificates are found
+    By default, HTTPS is enabled. The server will:
+    1. Check for explicit ssl_certfile/ssl_keyfile arguments
+    2. Check SSL_CERT_PATH and SSL_KEY_PATH environment variables
+    3. Check for certificates in ~/.config/zebra_day/certs/
+    4. Attempt to auto-generate certificates with mkcert if available
+    5. Fall back to HTTP with guidance if certificate setup fails
     """
     import uvicorn
+    from zebra_day import mkcert
 
     # Store auth mode in environment for factory function
     os.environ["ZEBRA_DAY_AUTH_MODE"] = auth
@@ -225,13 +228,25 @@ def run_server(
                 _log.warning("SSL certificate not found: %s", cert_path)
             if not key_exists:
                 _log.warning("SSL private key not found: %s", key_path)
+
+    # If no valid certificates found, try auto-generation
+    if not use_ssl:
+        _log.info("No existing certificates found, attempting auto-generation...")
+        success, message, cert_file, key_file = mkcert.try_auto_generate_certificates()
+
+        if success and cert_file and key_file:
+            cert_path = str(cert_file)
+            key_path = str(key_file)
+            use_ssl = True
+            _log.info("Successfully auto-generated certificates:")
+            _log.info("  Certificate: %s", cert_path)
+            _log.info("  Private key: %s", key_path)
+        else:
+            _log.warning("Failed to auto-generate certificates")
             _log.warning("Falling back to HTTP (insecure)")
-    else:
-        _log.warning(
-            "No SSL certificates configured. Running in HTTP mode (insecure). "
-            "For HTTPS, run: mkcert -install && mkcert -cert-file ~/.config/zebra_day/certs/server.crt "
-            "-key-file ~/.config/zebra_day/certs/server.key localhost 127.0.0.1 ::1"
-        )
+            for line in message.split("\n"):
+                if line.strip():
+                    _log.warning("  %s", line.strip())
 
     # Build uvicorn config
     uvicorn_kwargs: dict[str, str | int | bool | None] = {

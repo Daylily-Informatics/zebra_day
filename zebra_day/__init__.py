@@ -213,18 +213,19 @@ def start_gui(host: str = "0.0.0.0", port: int = 8118, https: bool = True) -> No
     Args:
         host: Host to bind to (default: "0.0.0.0")
         port: Port to listen on (default: 8118)
-        https: Enable HTTPS if certificates are available (default: True)
+        https: Enable HTTPS with automatic certificate generation (default: True)
 
     Note:
-        HTTPS is enabled by default if certificates exist in:
-        - ~/.config/zebra_day/certs/server.crt and server.key (macOS/Linux)
-        - Or via SSL_CERT_PATH/SSL_KEY_PATH environment variables
+        HTTPS is enabled by default. The server will:
+        1. Look for existing certificates in standard locations
+        2. Attempt to auto-generate certificates with mkcert if available
+        3. Fall back to HTTP with guidance if certificate setup fails
 
-        Use `zday bootstrap` to auto-generate certificates with mkcert.
+        Set https=False to force HTTP mode.
 
     Example:
         >>> import zebra_day as zd
-        >>> zd.start_gui(port=8118)  # Starts server with HTTPS if certs exist
+        >>> zd.start_gui()  # Starts with HTTPS (auto-generates certs if needed)
         >>> zd.start_gui(port=8080, https=False)  # Force HTTP mode
     """
     from zebra_day.web.app import run_server
@@ -234,7 +235,7 @@ def start_gui(host: str = "0.0.0.0", port: int = 8118, https: bool = True) -> No
     ssl_keyfile = None
 
     if https:
-        # Let run_server resolve SSL paths (checks env vars and default paths)
+        # Let run_server resolve SSL paths and auto-generate if needed
         # We pass None and let it figure it out
         pass
 
