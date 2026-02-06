@@ -309,6 +309,21 @@ class TestFromEnv:
         with pytest.raises(ConfigError, match="ZEBRA_DAY_S3_BACKUP_BUCKET"):
             DynamoBackend.from_env()
 
+    def test_from_env_allow_missing_bucket(self, aws_env, monkeypatch):
+        """allow_missing_bucket=True returns backend with s3_bucket=None."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        with mock_aws():
+            backend = DynamoBackend.from_env(allow_missing_bucket=True)
+            assert backend.s3_bucket is None
+            assert backend.table_name  # other fields still resolved
+
+    def test_from_env_allow_missing_bucket_still_uses_env(self, aws_env, monkeypatch):
+        """allow_missing_bucket=True still uses the env var when present."""
+        monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "provided-bucket")
+        with mock_aws():
+            backend = DynamoBackend.from_env(allow_missing_bucket=True)
+            assert backend.s3_bucket == "provided-bucket"
+
     def test_no_explicit_default_profile(self, aws_env):
         with mock_aws():
             backend = DynamoBackend(

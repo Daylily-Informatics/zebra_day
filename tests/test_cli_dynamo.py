@@ -379,3 +379,142 @@ class TestDynamoDestroy:
             assert result.exit_code == 0, result.output
             assert "Table deleted" in result.output
             assert "Backups preserved" in result.output
+
+
+
+# ---------------------------------------------------------------------------
+# Interactive S3 bucket prompt
+# ---------------------------------------------------------------------------
+
+
+class TestInteractiveS3Prompt:
+    """Tests for the interactive prompt when ZEBRA_DAY_S3_BACKUP_BUCKET is missing."""
+
+    def test_status_prompts_for_bucket_interactively(self, aws_env, monkeypatch):
+        """When bucket env var is missing and stdin is a TTY, prompt the user."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        # Mock _is_interactive to return True so the prompt path is taken
+        monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: True)
+        with mock_aws():
+            _provision_resources()
+            # Provide bucket name via CliRunner input
+            result = runner.invoke(
+                app, ["dynamo", "status"], input="test-backup-bucket\n"
+            )
+            assert result.exit_code == 0, result.output
+            assert "test-zebra-config" in result.output
+
+    def test_status_json_no_prompt_fails(self, aws_env, monkeypatch):
+        """--json mode must not prompt; should fail with clear error."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: True)
+        with mock_aws():
+            _provision_resources()
+            result = runner.invoke(app, ["dynamo", "status", "--json"])
+            assert result.exit_code == 1
+            assert "ZEBRA_DAY_S3_BACKUP_BUCKET" in result.output
+
+    def test_status_non_interactive_fails(self, aws_env, monkeypatch):
+        """Non-interactive (CI) context must fail without prompting."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: False)
+        result = runner.invoke(app, ["dynamo", "status"])
+        assert result.exit_code == 1
+        assert "ZEBRA_DAY_S3_BACKUP_BUCKET" in result.output
+
+    def test_backup_prompts_for_bucket(self, aws_env, monkeypatch):
+        """Backup command also prompts when bucket is missing."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: True)
+        with mock_aws():
+            backend = _provision_resources()
+            backend.save_config({"labs": {}})
+            result = runner.invoke(
+                app, ["dynamo", "backup"], input="test-backup-bucket\n"
+            )
+            assert result.exit_code == 0, result.output
+            assert "Backup written" in result.output
+
+    def test_init_prompts_for_bucket(self, aws_env, monkeypatch):
+        """Init command also prompts when bucket is missing."""
+        monkeypatch.delenv("ZEBRA_DAY_S3_BACKUP_BUCKET", raising=False)
+        monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: True)
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--region", "us-east-1",
+                ],
+                input="test-backup-bucket\n",
+            )
+            assert result.exit_code == 0, result.output
+            assert "test-backup-bucket" in result.output
+
+
+# ---------------------------------------------------------------------------
+# --create-s3-if-missing flag
+# ---------------------------------------------------------------------------
+
+
+class TestCreateS3IfMissing:
+    """Tests for the --create-s3-if-missing flag on various commands."""
+
+    def test_status_create_s3_if_missing(self, aws_env, monkeypatch):
+        """--create-s3-if-missing auto-creates the S3 bucket."""
+        with mock_aws():
+            _provision_resources()
+            # Delete the bucket so it doesn't exist
+            import boto3
+            s3 = boto3.client("s3", region_name="us-east-1")
+            # Empty and delete the bucket
+            try:
+                objs = s3.list_objects_v2(Bucket="test-backup-bucket")
+                for obj in objs.get("Contents", []):
+                    s3.delete_object(Bucket="test-backup-bucket", Key=obj["Key"])
+                s3.delete_bucket(Bucket="test-backup-bucket")
+            except Exception:
+                pass
+
+            # Use a new bucket name via env
+            monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "new-auto-bucket")
+            result = runner.invoke(
+                app, ["dynamo", "status", "--create-s3-if-missing"]
+            )
+            assert result.exit_code == 0, result.output
+            # Bucket should have been created
+            assert "created" in result.output.lower() or "test-zebra-config" in result.output
+
+    def test_backup_create_s3_if_missing(self, aws_env, monkeypatch):
+        """--create-s3-if-missing on backup creates bucket before backing up."""
+        with mock_aws():
+            backend = _provision_resources()
+            backend.save_config({"labs": {}})
+
+            # Point to a new bucket that doesn't exist
+            monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "auto-backup-bucket")
+            result = runner.invoke(
+                app, ["dynamo", "backup", "--create-s3-if-missing"]
+            )
+            assert result.exit_code == 0, result.output
+            assert "Backup written" in result.output
+
+    def test_bootstrap_create_s3_if_missing(self, aws_env, monkeypatch, tmp_path):
+        """--create-s3-if-missing on bootstrap creates bucket."""
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text("labs: {}\n")
+        with mock_aws():
+            _provision_resources()
+            monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "auto-bootstrap-bucket")
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "bootstrap",
+                    "--config-file", str(cfg),
+                    "--no-include-package",
+                    "--create-s3-if-missing",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "created" in result.output.lower() or "Config uploaded" in result.output
