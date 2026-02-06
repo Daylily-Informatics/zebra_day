@@ -90,12 +90,12 @@ Rather than print a physical label, produce a `png`... this is most helpful when
 
 ## Data Structures
 
-### Printer Configuration (v2.0.0 Schema, YAML Format)
+### Printer Configuration (v2.2.0 Schema, YAML Format)
 This is the file which describes the printer fleet. It may be manually edited or edited via the GUI.
 
 ```yaml
 # zebra-day-config.yaml
-schema_version: "2.0.0"
+schema_version: "2.2.0"
 
 labs:
   default:
@@ -118,7 +118,13 @@ labs:
         print_method: socket
         arp_data: ""
         notes: Primary sample printer
+        lsmc_euid: ""  # Lab Sample Management Container Enterprise Unique ID
 ```
+
+**Schema v2.2.0 Changes:**
+- Added `lsmc_euid` field at printer level for Lab Sample Management Container integration
+- Added `state` field to API responses (Ready, Paused, Error, Offline, Unknown)
+- Separated `status` (network reachability) from `state` (operational status)
 
 **Schema v2.0.0 Changes:**
 - `labs` now contains nested `printers` object (not flat printer entries)

@@ -140,7 +140,8 @@ zday gui restart
 
 # Printer management
 zday printer scan [--ip-stub IP]   # Scan network for printers
-zday printer list [--lab LAB]      # List configured printers
+zday printer list [--lab LAB]      # List configured printers (static config)
+zday printer list --live           # Query live status from printers (Status + State)
 zday printer test PRINTER_NAME     # Send test print
 
 # Template management
@@ -660,6 +661,25 @@ The modern UI offers:
 - Improved template editor with live PNG preview
 - Better mobile responsiveness
 - Configuration editing with backup management
+- Live printer status monitoring with **Status** and **State** fields
+
+#### Printer Status vs State (v2.2.0+)
+
+The printer list (both CLI and Web UI) displays two distinct fields for printer health:
+
+| Field | Purpose | Values |
+|-------|---------|--------|
+| **Status** | Network reachability ("Can I reach it?") | `Online`, `Offline`, `N/A`, `Unknown` |
+| **State** | Operational status ("Can it print right now?") | `Ready`, `Paused`, `Error`, `Offline`, `Unknown` |
+
+**Status** indicates whether the printer responds to network queries (ZPL `~HI` command).
+
+**State** indicates the printer's operational condition based on the `~HS` (Host Status) response:
+- `Ready` — Online and ready to print
+- `Paused` — Printer is paused (front panel or software pause)
+- `Error` — Has errors (paper out, ribbon out, print head up)
+- `Offline` — Cannot reach the printer
+- `Unknown` — State cannot be determined
 
 ### Print via HTTP API
 

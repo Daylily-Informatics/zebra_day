@@ -1,8 +1,8 @@
 # MODERNIZE.md - zebra_day Modernization Status
 
-> **Status**: ALL PHASES COMPLETE as of 2.0.0
+> **Status**: ALL PHASES COMPLETE as of 2.0.0, extended in 2.2.0
 
-This document tracked the modernization of zebra_day from 0.5.0 to 2.0.0.
+This document tracks the modernization of zebra_day from 0.5.0 to 2.2.0.
 
 ---
 
@@ -60,6 +60,17 @@ This document tracked the modernization of zebra_day from 0.5.0 to 2.0.0.
 ### Bonus: Local ZPL Rendering
 - [x] Replaced external Labelary API with local renderer
 - [x] Implemented zebra_day/zpl_renderer.py using Pillow + zint-bindings
+
+### Phase 7 - v2.2.0 Enhancements
+- [x] Added `lsmc_euid` field (Lab Sample Management Container Enterprise Unique ID)
+- [x] Separated Status (network reachability) from State (operational status)
+- [x] Live printer status querying enabled by default
+- [x] Added printer State field: Ready, Paused, Error, Offline, Unknown
+- [x] Fixed `~HS` response parsing (pause flag at index 2)
+- [x] Updated CLI `zday printer list --live` to show Status and State columns
+- [x] Updated Web UI printers table with separate Status and State columns
+- [x] Added 60-second caching for printer status queries
+- [x] 152+ tests passing
 
 ---
 

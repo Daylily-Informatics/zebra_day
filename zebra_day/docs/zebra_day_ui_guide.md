@@ -16,6 +16,23 @@ zebra_day 2.0.0+ features a modern, responsive web interface with HTTPS support:
 
 > **Note:** Use `http://` instead of `https://` if running without certificates (`--no-https`).
 
+### Printer Status vs State (v2.2.0+)
+
+The Printers page displays two distinct health indicators for each printer:
+
+| Field | Purpose | Values |
+|-------|---------|--------|
+| **Status** | Network reachability | `Online` (green), `Offline` (red), `N/A`, `Unknown` |
+| **State** | Operational status | `Ready` (green), `Paused` (yellow), `Error` (red with details), `Offline`, `Unknown` |
+
+- **Status** answers: "Can I reach this printer on the network?"
+- **State** answers: "Is this printer ready to print right now?"
+
+The **State** column shows additional details when errors are detected:
+- `Error (Paper)` — Paper out
+- `Error (Ribbon)` — Ribbon out
+- `Error (Head)` — Print head is up
+
 ---
 
 ## UI Documentation
