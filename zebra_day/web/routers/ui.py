@@ -522,6 +522,11 @@ async def modern_config(request: Request):
     # Get the config file path that was loaded
     config_file_path = getattr(zp, "printers_filename", "Unknown")
 
+    # Build backend info for the template
+    from zebra_day.web.routers.api import _get_backend_info
+
+    backend_info = _get_backend_info(zp)
+
     context = get_modern_context(
         request,
         active_page="config",
@@ -530,6 +535,7 @@ async def modern_config(request: Request):
         ip_root=ip_root,
         config_summary=config_summary,
         config_file_path=config_file_path,
+        backend_info=backend_info,
     )
     return templates.TemplateResponse("modern/config.html", context)
 
