@@ -2,6 +2,8 @@
 Tests for the zebra_day CLI commands.
 """
 
+from unittest.mock import MagicMock, patch
+
 from typer.testing import CliRunner
 
 from zebra_day.cli import _get_version, app
@@ -152,3 +154,102 @@ class TestCLIConfig:
         result = runner.invoke(app, ["config", "validate"])
         assert result.exit_code == 0
         assert "valid" in result.output.lower()
+
+
+def _make_mock_zpl(found_printers=None):
+    """Create a mock zpl instance with a fake probe method.
+
+    ``found_printers`` is a list of dicts with keys ip, model, serial.
+    The mock ``probe_zebra_printers_add_to_printers_json`` will invoke the
+    ``progress_callback`` (if provided) with realistic events.
+    """
+    found_printers = found_printers or []
+    mock_zp = MagicMock()
+    mock_zp.printers = {"labs": {}}
+
+    def _fake_probe(ip_stub="192.168.1", progress_callback=None, **kwargs):
+        lab = kwargs.get("lab", "default")
+        mock_zp.printers["labs"].setdefault(lab, {"printers": {}})
+        for idx, p in enumerate(found_printers):
+            ip = p.get("ip", f"{ip_stub}.{idx + 1}")
+            if progress_callback:
+                progress_callback({"kind": "checking", "ip": ip, "checked": idx, "total": 255})
+            mock_zp.printers["labs"][lab]["printers"][ip] = {
+                "ip_address": ip,
+                "model": p.get("model", "Unknown"),
+                "serial": p.get("serial", "Unknown"),
+            }
+            if progress_callback:
+                progress_callback({"kind": "found", "ip": ip, "model": p.get("model", "Unknown"), "serial": p.get("serial", "Unknown")})
+                progress_callback({"kind": "checked", "ip": ip, "checked": idx + 1, "total": 255, "open": True})
+        if progress_callback:
+            progress_callback({"kind": "done", "cancelled": False, "checked": len(found_printers), "total": 255})
+
+    mock_zp.probe_zebra_printers_add_to_printers_json = _fake_probe
+    return mock_zp
+
+
+class TestCLIBootstrap:
+    """Tests for the bootstrap command scan output."""
+
+    def test_bootstrap_skip_scan(self):
+        """--skip-scan suppresses the scan entirely."""
+        result = runner.invoke(app, ["bootstrap", "--skip-scan"])
+        assert result.exit_code == 0
+        assert "Skipping printer scan" in result.output
+        assert "Probing" not in result.output
+
+    @patch("zebra_day.print_mgr.zpl")
+    def test_bootstrap_verbose_scan_shows_progress(self, mock_zpl_cls):
+        """Default scan (no --silent-scan) prints per-IP progress and found printers."""
+        mock_zpl_cls.return_value = _make_mock_zpl(
+            found_printers=[
+                {"ip": "10.0.0.42", "model": "ZD620", "serial": "SN123"},
+            ]
+        )
+        result = runner.invoke(
+            app,
+            ["bootstrap", "--ip-stub", "10.0.0"],
+        )
+        assert result.exit_code == 0, result.output
+        # Should contain the found-printer line
+        assert "10.0.0.42" in result.output
+        assert "ZD620" in result.output
+        assert "SN123" in result.output
+        # Should contain the "Scanned" summary from the done callback
+        assert "Scanned" in result.output
+
+    @patch("zebra_day.print_mgr.zpl")
+    def test_bootstrap_silent_scan_hides_progress(self, mock_zpl_cls):
+        """--silent-scan suppresses per-IP output but still shows summary."""
+        mock_zpl_cls.return_value = _make_mock_zpl(
+            found_printers=[
+                {"ip": "10.0.0.42", "model": "ZD620", "serial": "SN123"},
+            ]
+        )
+        result = runner.invoke(
+            app,
+            ["bootstrap", "--ip-stub", "10.0.0", "--silent-scan"],
+        )
+        assert result.exit_code == 0, result.output
+        # Per-IP progress should NOT appear
+        assert "Probing" not in result.output
+        assert "ZD620" not in result.output
+        # Summary should still appear
+        assert "Scan complete" in result.output
+
+    @patch("zebra_day.print_mgr.zpl")
+    def test_bootstrap_json_hides_scan_progress(self, mock_zpl_cls):
+        """--json output never includes scan progress lines."""
+        mock_zpl_cls.return_value = _make_mock_zpl(
+            found_printers=[
+                {"ip": "10.0.0.42", "model": "ZD620", "serial": "SN123"},
+            ]
+        )
+        result = runner.invoke(
+            app,
+            ["bootstrap", "--ip-stub", "10.0.0", "--json"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "Probing" not in result.output
+        assert "printers_found" in result.output

@@ -170,6 +170,9 @@ def bootstrap(
         None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"
     ),
     skip_scan: bool = typer.Option(False, "--skip-scan", "-s", help="Skip printer network scan"),
+    silent_scan: bool = typer.Option(
+        False, "--silent-scan", help="Suppress per-IP scan output (show summary only)"
+    ),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
     """Initialize configuration, scan for printers, and setup first-time environment.
@@ -178,6 +181,10 @@ def bootstrap(
     1. Create XDG configuration directories
     2. Initialize printer configuration
     3. Scan the network for Zebra printers (unless --skip-scan)
+
+    By default the scan prints each IP as it is probed and details for every
+    printer discovered.  Use --silent-scan to suppress per-IP output and only
+    show the final summary.
     """
     import json as json_mod
 
@@ -208,13 +215,46 @@ def bootstrap(
 
         if not json_output:
             console.print(f"\n[cyan]→[/cyan] Scanning network for Zebra printers ({ip_stub}.*)...")
-            console.print("[dim]  This may take a few minutes...[/dim]")
+            if silent_scan:
+                console.print("[dim]  This may take a few minutes...[/dim]")
+
+        # Build progress callback for verbose (non-silent) scan output
+        verbose_scan = not json_output and not silent_scan
+
+        def _scan_progress(event: dict) -> None:
+            if not verbose_scan:
+                return
+            kind = event.get("kind")
+            if kind == "checking":
+                checked = event.get("checked", 0)
+                total = event.get("total", 255)
+                ip_addr = event.get("ip", "")
+                console.print(
+                    f"  [dim][{checked + 1}/{total}][/dim] Probing {ip_addr}...",
+                    end="\r",
+                )
+            elif kind == "found":
+                ip_addr = event.get("ip", "")
+                model = event.get("model", "Unknown")
+                serial = event.get("serial", "Unknown")
+                console.print(
+                    f"  [green]★[/green] Found printer at [bold]{ip_addr}[/bold]"
+                    f"  model=[cyan]{model}[/cyan]  serial=[dim]{serial}[/dim]"
+                )
+            elif kind == "done":
+                checked = event.get("checked", 0)
+                total = event.get("total", 255)
+                # Clear the last \r line
+                console.print(f"  [dim]Scanned {checked}/{total} addresses[/dim]    ")
 
         try:
             import zebra_day.print_mgr as zdpm
 
             zp = zdpm.zpl()
-            zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub)
+            zp.probe_zebra_printers_add_to_printers_json(
+                ip_stub=ip_stub,
+                progress_callback=_scan_progress,
+            )
 
             if hasattr(zp, "printers") and "labs" in zp.printers:
                 for lab in zp.printers["labs"]:
