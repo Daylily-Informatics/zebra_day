@@ -204,7 +204,7 @@
                 </div>
                 <div class="form-group" style="margin-bottom: 0.75rem;">
                     <label for="switch-profile" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">AWS Profile <small class="text-muted">(optional)</small></label>
-                    <input id="switch-profile" type="text" value="" placeholder="Leave empty for default credential chain" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                    <input id="switch-profile" type="text" value="{{ backend_info.aws_profile if backend_info and backend_info.backend_type == 'dynamodb' and backend_info.aws_profile not in ('default credential chain', 'N/A', 'N/A - using local file backend') else '' }}" placeholder="Leave empty for default credential chain" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
                 </div>
             </div>
 
