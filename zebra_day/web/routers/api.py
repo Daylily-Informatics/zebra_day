@@ -716,3 +716,189 @@ async def config_detect_tables(
             status_code=503,
             detail=f"Failed to scan DynamoDB tables in {scan_region}: {exc}",
         )
+
+
+class CheckS3BucketRequest(BaseModel):
+    """Request model for checking S3 bucket existence."""
+
+    bucket: str = Field(description="S3 bucket name to check")
+    region: str = Field(default="us-west-2", description="AWS region")
+    profile: str = Field(default="", description="AWS profile name (optional)")
+
+
+class CreateS3BucketRequest(BaseModel):
+    """Request model for creating an S3 bucket with tags."""
+
+    bucket: str = Field(description="S3 bucket name to create")
+    region: str = Field(default="us-west-2", description="AWS region")
+    profile: str = Field(default="", description="AWS profile name (optional)")
+    cost_center: str = Field(default="", description="lsmc-cost-center tag value")
+    project: str = Field(default="", description="lsmc-project tag value")
+
+
+@router.post("/config/check-s3-bucket")
+async def config_check_s3_bucket(body: CheckS3BucketRequest) -> dict[str, Any]:
+    """Check whether an S3 bucket exists and is accessible."""
+    if not body.bucket:
+        raise HTTPException(status_code=400, detail="bucket is required.")
+    profile = body.profile.strip() or None
+    if profile and profile.lower() == "default":
+        raise HTTPException(
+            status_code=400,
+            detail="AWS profile 'default' is not allowed. Use a named profile.",
+        )
+    try:
+        import boto3
+
+        session_kwargs: dict[str, Any] = {"region_name": body.region}
+        if profile:
+            session_kwargs["profile_name"] = profile
+        s3 = boto3.Session(**session_kwargs).client("s3")
+        s3.head_bucket(Bucket=body.bucket)
+        return {"exists": True, "bucket": body.bucket}
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
+        )
+    except Exception:
+        return {"exists": False, "bucket": body.bucket}
+
+
+@router.post("/config/create-s3-bucket")
+async def config_create_s3_bucket(body: CreateS3BucketRequest) -> dict[str, Any]:
+    """Create an S3 bucket with lsmc cost-center and project tags."""
+    if not body.bucket:
+        raise HTTPException(status_code=400, detail="bucket is required.")
+    profile = body.profile.strip() or None
+    if profile and profile.lower() == "default":
+        raise HTTPException(
+            status_code=400,
+            detail="AWS profile 'default' is not allowed. Use a named profile.",
+        )
+    try:
+        from zebra_day.backends.dynamo import DynamoBackend
+
+        backend = DynamoBackend(
+            table_name="zebra-day-config",
+            region=body.region,
+            s3_bucket=body.bucket,
+            profile=profile,
+            cost_center=body.cost_center or None,
+            project=body.project or None,
+        )
+        backend.create_s3_bucket()
+        return {
+            "success": True,
+            "bucket": body.bucket,
+            "region": body.region,
+            "tags": {
+                "lsmc-cost-center": backend.cost_center,
+                "lsmc-project": backend.project,
+            },
+        }
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to create S3 bucket '{body.bucket}': {exc}",
+        )
+
+
+class SwitchBackendRequest(BaseModel):
+    """Request model for switching the active config backend."""
+
+    backend_type: Literal["local", "dynamodb"]
+    table_name: str = Field(default="zebra-day-config", description="DynamoDB table name")
+    region: str = Field(default="us-west-2", description="AWS region")
+    s3_bucket: str = Field(default="", description="S3 backup bucket (required for dynamodb)")
+    s3_prefix: str = Field(default="zebra-day/", description="S3 key prefix")
+    profile: str = Field(default="", description="AWS profile name (optional)")
+
+
+@router.post("/config/switch-backend")
+async def config_switch_backend(
+    request: Request,
+    body: SwitchBackendRequest,
+) -> dict[str, Any]:
+    """Switch the running server's config backend.
+
+    **Session-only**: This affects the running process. To persist, set the
+    corresponding environment variables before restarting the server.
+    """
+    zp = request.app.state.zp
+
+    if body.backend_type == "dynamodb":
+        # Reject profile="default" explicitly
+        if body.profile.strip().lower() == "default":
+            raise HTTPException(
+                status_code=400,
+                detail="AWS profile 'default' is not allowed. Please create and use a named profile (e.g., 'zebra-dev', 'lab-profile').",
+            )
+
+        # Validate required fields
+        if not body.s3_bucket:
+            raise HTTPException(
+                status_code=400,
+                detail="s3_bucket is required when switching to DynamoDB backend.",
+            )
+
+        try:
+            from zebra_day.backends.dynamo import DynamoBackend
+
+            profile = body.profile.strip() or None
+            new_backend = DynamoBackend(
+                table_name=body.table_name,
+                region=body.region,
+                s3_bucket=body.s3_bucket,
+                s3_prefix=body.s3_prefix,
+                profile=profile,
+            )
+
+            # Validate connection by describing the table
+            new_backend._ddb_client.describe_table(TableName=body.table_name)
+
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Cannot connect to DynamoDB table '{body.table_name}' "
+                f"in {body.region}: {exc}",
+            )
+
+    else:
+        # Switch to local backend
+        from zebra_day.backends.local import LocalBackend
+
+        new_backend = LocalBackend()
+
+    # Swap the backend on the live zpl instance
+    try:
+        zp._backend = new_backend
+        zp.printers = new_backend.load_config()
+        if hasattr(new_backend, "config_path_str"):
+            zp.printers_filename = new_backend.config_path_str
+        else:
+            zp.printers_filename = ""
+        zp._maybe_migrate_schema()
+    except Exception as exc:
+        _log.error("Backend switch failed during config reload: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Backend switch failed during config reload: {exc}",
+        )
+
+    _log.info("Backend switched to %s", body.backend_type)
+    return {
+        "success": True,
+        "message": f"Backend switched to {body.backend_type}. This is session-only.",
+        "backend": _get_backend_info(zp),
+    }
