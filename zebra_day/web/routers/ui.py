@@ -71,19 +71,12 @@ def _is_dynamo_backend(zp) -> bool:
     return isinstance(getattr(zp, "_backend", None), DynamoBackend)
 
 
-def get_templates_by_location(zp) -> dict[str, list[str]]:
-    """Get templates categorized by location.
+def _local_templates_by_location(zp) -> dict[str, list[str]]:
+    """Scan the local filesystem for user and package templates.
 
-    For **local** backend, returns ``{"user": [...], "package": [...], "dynamodb": []}``.
-    For **DynamoDB** backend, returns ``{"user": [], "package": [], "dynamodb": [...]}``.
+    Always reads from disk regardless of the active backend.
+    Returns ``{"user": [...], "package": [...]}``.
     """
-    if _is_dynamo_backend(zp):
-        return {
-            "user": [],
-            "package": [],
-            "dynamodb": sorted(zp.list_template_names()),
-        }
-
     user_dir = xdg.get_label_styles_dir()
     pkg_dir = zp._package_label_styles_dir()
 
@@ -98,11 +91,47 @@ def get_templates_by_location(zp) -> dict[str, list[str]]:
     if pkg_dir.exists():
         for f in sorted(pkg_dir.iterdir()):
             if f.is_file() and f.suffix == ".zpl":
-                # Skip if already in user (user overrides package)
                 if f.stem not in user_templates:
                     package_templates.append(f.stem)
 
-    return {"user": user_templates, "package": package_templates, "dynamodb": []}
+    return {"user": user_templates, "package": package_templates}
+
+
+def get_templates_by_location(zp) -> dict[str, list[str]]:
+    """Get templates categorized by location.
+
+    For **local** backend returns::
+
+        {"user": [...], "package": [...], "dynamodb": [],
+         "local_user": [], "local_package": []}
+
+    For **DynamoDB** backend returns::
+
+        {"user": [], "package": [], "dynamodb": [...],
+         "local_user": [...], "local_package": [...]}
+
+    The ``local_user`` / ``local_package`` keys always reflect what is on
+    disk, so the import-to-DynamoDB UI can list them even when DynamoDB is
+    the active backend.
+    """
+    local = _local_templates_by_location(zp)
+
+    if _is_dynamo_backend(zp):
+        return {
+            "user": [],
+            "package": [],
+            "dynamodb": sorted(zp.list_template_names()),
+            "local_user": local["user"],
+            "local_package": local["package"],
+        }
+
+    return {
+        "user": local["user"],
+        "package": local["package"],
+        "dynamodb": [],
+        "local_user": [],
+        "local_package": [],
+    }
 
 
 def get_labs_meta(zp) -> dict[str, dict[str, str]]:
@@ -436,6 +465,9 @@ async def modern_templates(request: Request):
         user_templates=templates_by_loc["user"],
         package_templates=templates_by_loc["package"],
         dynamodb_templates=templates_by_loc.get("dynamodb", []),
+        local_user_templates=templates_by_loc.get("local_user", []),
+        local_package_templates=templates_by_loc.get("local_package", []),
+        is_dynamo_backend=_is_dynamo_backend(zp),
     )
     return templates.TemplateResponse("modern/templates.html", context)
 

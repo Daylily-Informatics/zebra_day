@@ -151,6 +151,23 @@ class TemplateDeleteResponse(BaseModel):
     message: str
 
 
+class TemplateImportRequest(BaseModel):
+    """Request model for importing local templates into DynamoDB."""
+
+    templates: list[str] = Field(
+        ..., description="List of template stem names to import"
+    )
+
+
+class TemplateImportResponse(BaseModel):
+    """Response model for template import results."""
+
+    success: bool
+    imported: list[str] = Field(default_factory=list, description="Successfully imported templates")
+    skipped: list[str] = Field(default_factory=list, description="Templates that already exist in DynamoDB")
+    errors: list[str] = Field(default_factory=list, description="Templates that failed to import")
+
+
 # ----- Endpoints -----
 
 
@@ -295,6 +312,76 @@ async def delete_template(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+@router.post("/templates/import-to-dynamo", response_model=TemplateImportResponse)
+async def import_templates_to_dynamo(
+    request: Request, data: TemplateImportRequest
+) -> TemplateImportResponse:
+    """Import selected local (user/package) templates into DynamoDB.
+
+    Reads template content from the local filesystem and saves each one to
+    the active DynamoDB backend via ``save_template()``.  Only available when
+    the active backend is DynamoDB.
+    """
+    from pathlib import Path
+
+    from zebra_day.backends.dynamo import DynamoBackend
+
+    zp = request.app.state.zp
+    backend = getattr(zp, "_backend", None)
+
+    if not isinstance(backend, DynamoBackend):
+        raise HTTPException(
+            status_code=400,
+            detail="Import is only available when the DynamoDB backend is active.",
+        )
+
+    if not data.templates:
+        raise HTTPException(status_code=400, detail="No templates specified.")
+
+    # Collect local template dirs (user first, then package)
+    user_dir = xdg.get_label_styles_dir()
+    pkg_dir = zp._package_label_styles_dir()
+
+    def _find_local(stem: str) -> Path | None:
+        """Resolve a template stem to a local .zpl file."""
+        for d in (user_dir, pkg_dir):
+            candidate = d / f"{stem}.zpl"
+            if candidate.is_file():
+                return candidate
+        return None
+
+    imported: list[str] = []
+    skipped: list[str] = []
+    errors: list[str] = []
+
+    # Check which templates already exist in DynamoDB
+    existing = set(backend.list_templates())
+
+    for stem in data.templates:
+        if stem in existing:
+            skipped.append(stem)
+            continue
+
+        path = _find_local(stem)
+        if path is None:
+            errors.append(f"{stem}: not found on local filesystem")
+            continue
+
+        try:
+            content = path.read_text()
+            backend.save_template(stem, content)
+            imported.append(stem)
+        except Exception as exc:
+            errors.append(f"{stem}: {exc}")
+
+    return TemplateImportResponse(
+        success=len(errors) == 0,
+        imported=imported,
+        skipped=skipped,
+        errors=errors,
+    )
 
 
 @router.post("/print", response_model=PrintResponse)

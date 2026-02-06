@@ -1209,6 +1209,119 @@ class TestConfigRefreshDynamoDB:
         mock_be.load_config.assert_called_once()
 
 
+class TestImportTemplatesToDynamo:
+    """Tests for POST /api/v1/templates/import-to-dynamo endpoint."""
+
+    def test_import_rejected_when_local_backend(self, client):
+        """Import endpoint returns 400 when backend is local."""
+        response = client.post(
+            "/api/v1/templates/import-to-dynamo",
+            json={"templates": ["tube_2inX1in"]},
+        )
+        assert response.status_code == 400
+        assert "DynamoDB" in response.json()["detail"]
+
+    def test_import_empty_list_rejected(self, client):
+        """Import endpoint returns 400 when template list is empty."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = []
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.post(
+            "/api/v1/templates/import-to-dynamo",
+            json={"templates": []},
+        )
+        assert response.status_code == 400
+
+    def test_import_success(self, client, tmp_path):
+        """Templates found on disk are imported to DynamoDB."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = []  # no existing templates
+        _switch_client_to_dynamo(client, mock_be)
+
+        # Create a local template on disk in the package dir
+        zp = client.app.state.zp
+        pkg_dir = zp._package_label_styles_dir()
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        tpl_file = pkg_dir / "test_import_tpl.zpl"
+        tpl_file.write_text("^XA^FO10,10^A0N,30,30^FD{uid_barcode}^FS^XZ")
+
+        try:
+            response = client.post(
+                "/api/v1/templates/import-to-dynamo",
+                json={"templates": ["test_import_tpl"]},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "test_import_tpl" in data["imported"]
+            mock_be.save_template.assert_called_once()
+        finally:
+            tpl_file.unlink(missing_ok=True)
+
+    def test_import_skips_existing(self, client):
+        """Templates already in DynamoDB are skipped."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = ["already_here"]
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.post(
+            "/api/v1/templates/import-to-dynamo",
+            json={"templates": ["already_here"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "already_here" in data["skipped"]
+        assert len(data["imported"]) == 0
+        mock_be.save_template.assert_not_called()
+
+    def test_import_not_found_on_disk(self, client):
+        """Templates not found on disk appear in errors list."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = []
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.post(
+            "/api/v1/templates/import-to-dynamo",
+            json={"templates": ["nonexistent_template_xyz"]},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is False
+        assert any("nonexistent_template_xyz" in e for e in data["errors"])
+
+
+class TestTemplatesPageImportSection:
+    """Tests for import-to-DynamoDB section on the templates page."""
+
+    def test_import_section_visible_when_dynamo_with_local_templates(self, client):
+        """Import section appears when DynamoDB active and local templates exist."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = []
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/templates")
+        assert response.status_code == 200
+        assert "Import Local Templates to DynamoDB" in response.text
+        assert "import-select-all" in response.text
+
+    def test_import_section_hidden_when_local_backend(self, client):
+        """Import section does NOT appear when backend is local."""
+        response = client.get("/templates")
+        assert response.status_code == 200
+        assert "Import Local Templates to DynamoDB" not in response.text
+
+    def test_import_section_shows_package_templates(self, client):
+        """Import section lists local package templates with badge."""
+        mock_be = _make_mock_dynamo_backend()
+        mock_be.list_templates.return_value = []
+        _switch_client_to_dynamo(client, mock_be)
+
+        response = client.get("/templates")
+        # Package templates should appear in the import section with 'package' badge
+        assert "import-cb" in response.text
+
+
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():
     """Simple test to ensure test module loads."""

@@ -150,6 +150,67 @@
 </div>
 {% endif %}
 
+{% if is_dynamo_backend and (local_user_templates or local_package_templates) %}
+<!-- Import Local Templates to DynamoDB -->
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-upload text-info"></i> Import Local Templates to DynamoDB
+        </h3>
+    </div>
+    <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
+        <i class="fas fa-info-circle"></i>
+        Select local templates to copy into DynamoDB. Templates already in DynamoDB will be skipped.
+    </p>
+    <div style="padding: var(--spacing-md);">
+        <div style="margin-bottom: var(--spacing-sm);">
+            <label style="cursor:pointer; margin-right:var(--spacing-md);">
+                <input type="checkbox" id="import-select-all" onchange="toggleImportAll(this.checked)">
+                <strong>Select All</strong>
+            </label>
+            <button class="btn btn-sm btn-primary" id="import-btn" onclick="importSelectedTemplates()" disabled>
+                <i class="fas fa-cloud-upload-alt"></i> Import Selected to DynamoDB
+            </button>
+            <span id="import-status" style="margin-left:var(--spacing-sm);"></span>
+        </div>
+        <div class="table-container" style="box-shadow: none;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>Template Name</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for template in local_user_templates %}
+                    <tr>
+                        <td><input type="checkbox" class="import-cb" value="{{ template }}" onchange="updateImportBtn()"></td>
+                        <td>
+                            <i class="fas fa-user text-success"></i>
+                            {{ template }}
+                        </td>
+                        <td><span class="badge badge-success">user</span></td>
+                    </tr>
+                    {% endfor %}
+                    {% for template in local_package_templates %}
+                    <tr>
+                        <td><input type="checkbox" class="import-cb" value="{{ template }}" onchange="updateImportBtn()"></td>
+                        <td>
+                            <i class="fas fa-box text-info"></i>
+                            {{ template }}
+                        </td>
+                        <td><span class="badge badge-info">package</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div id="import-results" style="padding: 0 var(--spacing-md) var(--spacing-md);"></div>
+</div>
+{% endif %}
+
 <!-- Format Keys Reference -->
 <div class="card mt-lg">
     <div class="card-header">
@@ -169,3 +230,73 @@
 </div>
 {% endblock %}
 
+{% block extra_scripts %}
+{% if is_dynamo_backend %}
+<script>
+function toggleImportAll(checked) {
+    document.querySelectorAll('.import-cb').forEach(cb => { cb.checked = checked; });
+    updateImportBtn();
+}
+
+function updateImportBtn() {
+    const checked = document.querySelectorAll('.import-cb:checked');
+    const btn = document.getElementById('import-btn');
+    btn.disabled = checked.length === 0;
+    btn.innerHTML = checked.length
+        ? '<i class="fas fa-cloud-upload-alt"></i> Import ' + checked.length + ' to DynamoDB'
+        : '<i class="fas fa-cloud-upload-alt"></i> Import Selected to DynamoDB';
+    const all = document.querySelectorAll('.import-cb');
+    const selectAll = document.getElementById('import-select-all');
+    if (selectAll) selectAll.checked = all.length > 0 && checked.length === all.length;
+}
+
+async function importSelectedTemplates() {
+    const checked = Array.from(document.querySelectorAll('.import-cb:checked'));
+    const names = checked.map(cb => cb.value);
+    if (names.length === 0) return;
+
+    const btn = document.getElementById('import-btn');
+    const resultsDiv = document.getElementById('import-results');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+
+    try {
+        const resp = await fetch('/api/v1/templates/import-to-dynamo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({templates: names})
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            showToast('error', 'Import Failed', data.detail || 'Unknown error');
+            return;
+        }
+
+        let html = '';
+        if (data.imported.length) {
+            html += '<div style="padding:0.5rem 0.75rem;background:rgba(34,197,94,0.1);border:1px solid var(--color-success);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-check-circle text-success"></i> <strong>Imported:</strong> ' + data.imported.join(', ') + '</div>';
+        }
+        if (data.skipped.length) {
+            html += '<div style="padding:0.5rem 0.75rem;background:rgba(245,158,11,0.1);border:1px solid var(--color-warning);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-forward text-warning"></i> <strong>Skipped (already in DynamoDB):</strong> ' + data.skipped.join(', ') + '</div>';
+        }
+        if (data.errors.length) {
+            html += '<div style="padding:0.5rem 0.75rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-exclamation-triangle text-error"></i> <strong>Errors:</strong> ' + data.errors.join('; ') + '</div>';
+        }
+        if (resultsDiv) resultsDiv.innerHTML = html;
+
+        if (data.imported.length) {
+            showToast('success', 'Import Complete', data.imported.length + ' template(s) imported to DynamoDB.');
+            setTimeout(() => window.location.reload(), 1500);
+        } else if (data.skipped.length && !data.errors.length) {
+            showToast('info', 'Nothing to Import', 'All selected templates already exist in DynamoDB.');
+        }
+    } catch (e) {
+        showToast('error', 'Import Failed', e.message || 'Network error');
+    } finally {
+        btn.disabled = false;
+        updateImportBtn();
+    }
+}
+</script>
+{% endif %}
+{% endblock %}
