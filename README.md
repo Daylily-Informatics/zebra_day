@@ -411,6 +411,9 @@ Use `zday info` to see the exact paths on your system.
 
 
 ## Hardware Config
+### AWS Headsup
+- New functionality, best engaged for now via the GUI, allows for a shared dynamodb config resource so multiple clients can query it and share the same config across varios points of code execution.
+
 ### Quick
 * Connect all zebra printers to the same network as the machine you'll be running `zebra_day` is connected to. Load labels, power on printers , confirm status lights are green, etc.
 
