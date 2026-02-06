@@ -716,3 +716,91 @@ async def config_detect_tables(
             status_code=503,
             detail=f"Failed to scan DynamoDB tables in {scan_region}: {exc}",
         )
+
+
+class SwitchBackendRequest(BaseModel):
+    """Request model for switching the active config backend."""
+
+    backend_type: Literal["local", "dynamodb"]
+    table_name: str = Field(default="zebra-day-config", description="DynamoDB table name")
+    region: str = Field(default="us-east-1", description="AWS region")
+    s3_bucket: str = Field(default="", description="S3 backup bucket (required for dynamodb)")
+    s3_prefix: str = Field(default="zebra-day/", description="S3 key prefix")
+    profile: str = Field(default="", description="AWS profile name (optional)")
+
+
+@router.post("/config/switch-backend")
+async def config_switch_backend(
+    request: Request,
+    body: SwitchBackendRequest,
+) -> dict[str, Any]:
+    """Switch the running server's config backend.
+
+    **Session-only**: This affects the running process. To persist, set the
+    corresponding environment variables before restarting the server.
+    """
+    zp = request.app.state.zp
+
+    if body.backend_type == "dynamodb":
+        # Validate required fields
+        if not body.s3_bucket:
+            raise HTTPException(
+                status_code=400,
+                detail="s3_bucket is required when switching to DynamoDB backend.",
+            )
+
+        try:
+            from zebra_day.backends.dynamo import DynamoBackend
+
+            profile = body.profile.strip() or None
+            new_backend = DynamoBackend(
+                table_name=body.table_name,
+                region=body.region,
+                s3_bucket=body.s3_bucket,
+                s3_prefix=body.s3_prefix,
+                profile=profile,
+            )
+
+            # Validate connection by describing the table
+            new_backend._ddb_client.describe_table(TableName=body.table_name)
+
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Cannot connect to DynamoDB table '{body.table_name}' "
+                f"in {body.region}: {exc}",
+            )
+
+    else:
+        # Switch to local backend
+        from zebra_day.backends.local import LocalBackend
+
+        new_backend = LocalBackend()
+
+    # Swap the backend on the live zpl instance
+    try:
+        zp._backend = new_backend
+        zp.printers = new_backend.load_config()
+        if hasattr(new_backend, "config_path_str"):
+            zp.printers_filename = new_backend.config_path_str
+        else:
+            zp.printers_filename = ""
+        zp._maybe_migrate_schema()
+    except Exception as exc:
+        _log.error("Backend switch failed during config reload: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Backend switch failed during config reload: {exc}",
+        )
+
+    _log.info("Backend switched to %s", body.backend_type)
+    return {
+        "success": True,
+        "message": f"Backend switched to {body.backend_type}. This is session-only.",
+        "backend": _get_backend_info(zp),
+    }

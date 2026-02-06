@@ -753,6 +753,70 @@ class TestConfigPageBackendInfo:
         assert 'id="btn-refresh-backend"' not in response.text
         assert 'id="btn-detect-tables"' not in response.text
 
+    def test_config_page_shows_switch_backend_form(self, client):
+        """Test config page contains the switch backend form."""
+        response = client.get("/config")
+        assert 'id="switch-backend-form"' in response.text
+        assert 'id="switch-backend-type"' in response.text
+        assert 'id="btn-switch-backend"' in response.text
+
+
+class TestSwitchBackendAPI:
+    """Tests for POST /api/v1/config/switch-backend endpoint."""
+
+    def test_switch_to_local_succeeds(self, client):
+        """Test switching to local backend succeeds."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={"backend_type": "local"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "local" in data["message"]
+        assert data["backend"]["backend_type"] == "local"
+
+    def test_switch_to_local_preserves_config(self, client):
+        """Test switching to local keeps config intact."""
+        before = client.get("/api/v1/config").json()
+        client.post(
+            "/api/v1/config/switch-backend",
+            json={"backend_type": "local"},
+        )
+        after = client.get("/api/v1/config").json()
+        assert before.get("schema_version") == after.get("schema_version")
+
+    def test_switch_to_dynamodb_missing_bucket(self, client):
+        """Test switching to dynamodb without s3_bucket returns 400."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={"backend_type": "dynamodb", "table_name": "test-table", "s3_bucket": ""},
+        )
+        assert response.status_code == 400
+        assert "s3_bucket" in response.json()["detail"].lower()
+
+    def test_switch_to_dynamodb_connection_error(self, client):
+        """Test switching to dynamodb with unreachable table returns 503 or 501."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "nonexistent-table",
+                "region": "us-east-1",
+                "s3_bucket": "test-bucket",
+            },
+        )
+        # Either 503 (connection error) or 501 (boto3 not installed)
+        assert response.status_code in (501, 503)
+
+    def test_switch_invalid_backend_type(self, client):
+        """Test switching to invalid backend type returns 422."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={"backend_type": "invalid"},
+        )
+        assert response.status_code == 422
+
 
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():

@@ -155,6 +155,58 @@
 
     <!-- Detect tables results area (hidden by default) -->
     <div id="detect-tables-results" class="d-none" style="margin-top: 1rem;"></div>
+
+    <!-- Switch Backend -->
+    <div style="margin-top: 1.5rem; border-top: 1px solid var(--color-gray-600); padding-top: 1rem;">
+        <h4 style="margin-bottom: 0.75rem; cursor: pointer;" onclick="document.getElementById('switch-backend-form').classList.toggle('d-none')">
+            <i class="fas fa-exchange-alt"></i> Switch Backend
+            <small class="text-muted" style="font-weight: 400; font-size: 0.75rem; margin-left: 0.5rem;">click to expand</small>
+        </h4>
+
+        <div id="switch-backend-form" class="d-none">
+            <!-- Session-only warning -->
+            <div style="padding: 0.6rem 0.9rem; margin-bottom: 1rem; background: rgba(245,158,11,0.1); border: 1px solid var(--color-warning); border-radius: var(--radius-sm); color: var(--color-warning); font-size: 0.85rem;">
+                <i class="fas fa-exclamation-triangle"></i> <strong>Session-only</strong>: Switching backend affects only this running server. To persist, set environment variables before restarting.
+            </div>
+
+            <div class="form-group mb-md">
+                <label for="switch-backend-type" style="font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Backend Type</label>
+                <select id="switch-backend-type" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;" onchange="toggleDynamoFields()">
+                    <option value="local" {% if not backend_info or backend_info.backend_type != 'dynamodb' %}selected{% endif %}>Local (filesystem)</option>
+                    <option value="dynamodb" {% if backend_info and backend_info.backend_type == 'dynamodb' %}selected{% endif %}>DynamoDB (AWS)</option>
+                </select>
+            </div>
+
+            <div id="dynamo-fields" class="{% if not backend_info or backend_info.backend_type != 'dynamodb' %}d-none{% endif %}">
+                <div class="grid grid-2" style="gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="form-group">
+                        <label for="switch-table" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">Table Name</label>
+                        <input id="switch-table" type="text" value="{{ backend_info.dynamo_table if backend_info and backend_info.backend_type == 'dynamodb' else 'zebra-day-config' }}" placeholder="zebra-day-config" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                    </div>
+                    <div class="form-group">
+                        <label for="switch-region" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">Region</label>
+                        <input id="switch-region" type="text" value="{{ backend_info.aws_region if backend_info and backend_info.backend_type == 'dynamodb' else 'us-east-1' }}" placeholder="us-east-1" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                    </div>
+                    <div class="form-group">
+                        <label for="switch-s3-bucket" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Bucket <span style="color: var(--color-error);">*</span></label>
+                        <input id="switch-s3-bucket" type="text" value="{{ backend_info.s3_bucket if backend_info and backend_info.backend_type == 'dynamodb' else '' }}" placeholder="my-zebra-backups" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                    </div>
+                    <div class="form-group">
+                        <label for="switch-s3-prefix" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Prefix</label>
+                        <input id="switch-s3-prefix" type="text" value="{{ backend_info.s3_prefix if backend_info and backend_info.backend_type == 'dynamodb' else 'zebra-day/' }}" placeholder="zebra-day/" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label for="switch-profile" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">AWS Profile <small class="text-muted">(optional)</small></label>
+                    <input id="switch-profile" type="text" value="" placeholder="Leave empty for default credential chain" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="switchBackend()" id="btn-switch-backend">
+                <i class="fas fa-plug"></i> Connect
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- Current Config Summary -->
@@ -282,6 +334,54 @@ async function detectTables() {
         if (resultsDiv) resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (e.message || 'Network error') + '</div>';
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-search"></i> Detect Tables'; }
+    }
+}
+
+function toggleDynamoFields() {
+    const sel = document.getElementById('switch-backend-type');
+    const fields = document.getElementById('dynamo-fields');
+    if (sel && fields) {
+        if (sel.value === 'dynamodb') { fields.classList.remove('d-none'); }
+        else { fields.classList.add('d-none'); }
+    }
+}
+
+async function switchBackend() {
+    const btn = document.getElementById('btn-switch-backend');
+    const backendType = document.getElementById('switch-backend-type').value;
+    const payload = { backend_type: backendType };
+    if (backendType === 'dynamodb') {
+        payload.table_name = document.getElementById('switch-table').value.trim() || 'zebra-day-config';
+        payload.region = document.getElementById('switch-region').value.trim() || 'us-east-1';
+        payload.s3_bucket = document.getElementById('switch-s3-bucket').value.trim();
+        payload.s3_prefix = document.getElementById('switch-s3-prefix').value.trim() || 'zebra-day/';
+        payload.profile = document.getElementById('switch-profile').value.trim();
+        if (!payload.s3_bucket) {
+            showToast('error', 'Validation Error', 'S3 Bucket is required for DynamoDB backend.');
+            return;
+        }
+    }
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...'; }
+    showLoading('Switching backend...');
+    try {
+        const resp = await fetch('/api/v1/config/switch-backend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        hideLoading();
+        if (resp.ok && data.success) {
+            showToast('success', 'Backend Switched', data.message || 'Backend switched successfully.');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast('error', 'Switch Failed', data.detail || 'Unknown error');
+        }
+    } catch (e) {
+        hideLoading();
+        showToast('error', 'Switch Failed', e.message || 'Network error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Connect'; }
     }
 }
 </script>
