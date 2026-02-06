@@ -817,6 +817,116 @@ class TestSwitchBackendAPI:
         )
         assert response.status_code == 422
 
+    def test_switch_to_dynamodb_profile_default_rejected(self, client):
+        """Test switching to dynamodb with profile='default' returns 400."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "test-table",
+                "region": "us-west-2",
+                "s3_bucket": "test-bucket",
+                "profile": "default",
+            },
+        )
+        assert response.status_code == 400
+        assert "default" in response.json()["detail"].lower()
+
+    def test_switch_to_dynamodb_profile_DEFAULT_rejected(self, client):
+        """Test switching to dynamodb with profile='DEFAULT' (uppercase) returns 400."""
+        response = client.post(
+            "/api/v1/config/switch-backend",
+            json={
+                "backend_type": "dynamodb",
+                "table_name": "test-table",
+                "region": "us-west-2",
+                "s3_bucket": "test-bucket",
+                "profile": "DEFAULT",
+            },
+        )
+        assert response.status_code == 400
+
+
+class TestCheckS3BucketAPI:
+    """Tests for POST /api/v1/config/check-s3-bucket endpoint."""
+
+    def test_check_s3_bucket_missing_name(self, client):
+        """Test check-s3-bucket with empty bucket name returns 400."""
+        response = client.post(
+            "/api/v1/config/check-s3-bucket",
+            json={"bucket": "", "region": "us-west-2"},
+        )
+        assert response.status_code == 400
+
+    def test_check_s3_bucket_nonexistent(self, client):
+        """Test check-s3-bucket returns exists=false for nonexistent bucket."""
+        response = client.post(
+            "/api/v1/config/check-s3-bucket",
+            json={"bucket": "totally-nonexistent-bucket-xyz-99", "region": "us-west-2"},
+        )
+        # Either 501 (no boto3) or 200 with exists=false
+        if response.status_code == 200:
+            assert response.json()["exists"] is False
+        else:
+            assert response.status_code == 501
+
+    def test_check_s3_bucket_rejects_default_profile(self, client):
+        """Test check-s3-bucket rejects profile='default'."""
+        response = client.post(
+            "/api/v1/config/check-s3-bucket",
+            json={"bucket": "test-bucket", "region": "us-west-2", "profile": "default"},
+        )
+        assert response.status_code == 400
+        assert "default" in response.json()["detail"].lower()
+
+
+class TestCreateS3BucketAPI:
+    """Tests for POST /api/v1/config/create-s3-bucket endpoint."""
+
+    def test_create_s3_bucket_missing_name(self, client):
+        """Test create-s3-bucket with empty bucket name returns 400."""
+        response = client.post(
+            "/api/v1/config/create-s3-bucket",
+            json={"bucket": "", "region": "us-west-2"},
+        )
+        assert response.status_code == 400
+
+    def test_create_s3_bucket_rejects_default_profile(self, client):
+        """Test create-s3-bucket rejects profile='default'."""
+        response = client.post(
+            "/api/v1/config/create-s3-bucket",
+            json={"bucket": "test-bucket", "region": "us-west-2", "profile": "Default"},
+        )
+        assert response.status_code == 400
+
+    def test_create_s3_bucket_returns_error_without_aws(self, client):
+        """Test create-s3-bucket returns 501 or 503 without real AWS."""
+        response = client.post(
+            "/api/v1/config/create-s3-bucket",
+            json={"bucket": "my-test-bucket-xyz", "region": "us-west-2"},
+        )
+        # 501 (no boto3) or 503 (AWS error)
+        assert response.status_code in (501, 503)
+
+
+class TestConfigPageS3Controls:
+    """Tests for S3-related controls in the config page HTML."""
+
+    def test_config_page_has_create_bucket_button(self, client):
+        """Test config page contains the Create Bucket button element."""
+        response = client.get("/config")
+        assert 'id="btn-create-s3-bucket"' in response.text
+
+    def test_config_page_has_s3_bucket_status(self, client):
+        """Test config page contains the S3 bucket status element."""
+        response = client.get("/config")
+        assert 'id="s3-bucket-status"' in response.text
+
+    def test_config_page_region_defaults_to_us_west_2(self, client):
+        """Test config page region field defaults to us-west-2."""
+        response = client.get("/config")
+        assert "us-west-2" in response.text
+
 
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():

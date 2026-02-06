@@ -185,11 +185,17 @@
                     </div>
                     <div class="form-group">
                         <label for="switch-region" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">Region</label>
-                        <input id="switch-region" type="text" value="{{ backend_info.aws_region if backend_info and backend_info.backend_type == 'dynamodb' else 'us-east-1' }}" placeholder="us-east-1" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                        <input id="switch-region" type="text" value="{{ backend_info.aws_region if backend_info and backend_info.backend_type == 'dynamodb' else 'us-west-2' }}" placeholder="us-west-2" onchange="updateS3BucketName()" onblur="updateS3BucketName()" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
                     </div>
                     <div class="form-group">
                         <label for="switch-s3-bucket" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Bucket <span style="color: var(--color-error);">*</span></label>
-                        <input id="switch-s3-bucket" type="text" value="{{ backend_info.s3_bucket if backend_info and backend_info.backend_type == 'dynamodb' else '' }}" placeholder="my-zebra-backups" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input id="switch-s3-bucket" type="text" value="{{ backend_info.s3_bucket if backend_info and backend_info.backend_type == 'dynamodb' else '' }}" placeholder="zebra-day-cfg-us-west-2" onblur="checkS3BucketExists()" style="flex: 1; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
+                            <button id="btn-create-s3-bucket" class="btn btn-outline btn-sm d-none" onclick="createS3Bucket()" style="white-space: nowrap;" title="Create this S3 bucket in AWS">
+                                <i class="fas fa-plus-circle"></i> Create Bucket
+                            </button>
+                        </div>
+                        <small id="s3-bucket-status" class="text-muted" style="display: none; margin-top: 0.2rem;"></small>
                     </div>
                     <div class="form-group">
                         <label for="switch-s3-prefix" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Prefix</label>
@@ -341,8 +347,104 @@ function toggleDynamoFields() {
     const sel = document.getElementById('switch-backend-type');
     const fields = document.getElementById('dynamo-fields');
     if (sel && fields) {
-        if (sel.value === 'dynamodb') { fields.classList.remove('d-none'); }
-        else { fields.classList.add('d-none'); }
+        if (sel.value === 'dynamodb') {
+            fields.classList.remove('d-none');
+            updateS3BucketName();
+        } else {
+            fields.classList.add('d-none');
+        }
+    }
+}
+
+function updateS3BucketName() {
+    const bucketEl = document.getElementById('switch-s3-bucket');
+    const regionEl = document.getElementById('switch-region');
+    if (!bucketEl || !regionEl) return;
+    const region = regionEl.value.trim() || 'us-west-2';
+    // Only auto-fill if empty or already matches the auto-generated pattern
+    const current = bucketEl.value.trim();
+    if (!current || /^zebra-day-cfg-[a-z0-9-]+$/.test(current)) {
+        bucketEl.value = 'zebra-day-cfg-' + region;
+    }
+    // Reset bucket status when region changes
+    const statusEl = document.getElementById('s3-bucket-status');
+    const createBtn = document.getElementById('btn-create-s3-bucket');
+    if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
+    if (createBtn) { createBtn.classList.add('d-none'); }
+}
+
+async function checkS3BucketExists() {
+    const bucketEl = document.getElementById('switch-s3-bucket');
+    const regionEl = document.getElementById('switch-region');
+    const profileEl = document.getElementById('switch-profile');
+    const statusEl = document.getElementById('s3-bucket-status');
+    const createBtn = document.getElementById('btn-create-s3-bucket');
+    if (!bucketEl || !statusEl || !createBtn) return;
+    const bucket = bucketEl.value.trim();
+    if (!bucket) { statusEl.style.display = 'none'; createBtn.classList.add('d-none'); return; }
+    const region = regionEl ? regionEl.value.trim() || 'us-west-2' : 'us-west-2';
+    const profile = profileEl ? profileEl.value.trim() : '';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Checking bucket...';
+    statusEl.style.color = 'var(--color-gray-400)';
+    try {
+        const resp = await fetch('/api/v1/config/check-s3-bucket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bucket: bucket, region: region, profile: profile }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.exists) {
+            statusEl.textContent = '✓ Bucket exists';
+            statusEl.style.color = 'var(--color-success)';
+            createBtn.classList.add('d-none');
+        } else if (resp.ok && !data.exists) {
+            statusEl.textContent = '⚠ Bucket does not exist';
+            statusEl.style.color = 'var(--color-warning)';
+            createBtn.classList.remove('d-none');
+        } else {
+            statusEl.textContent = data.detail || 'Could not check bucket';
+            statusEl.style.color = 'var(--color-error)';
+            createBtn.classList.add('d-none');
+        }
+    } catch (e) {
+        statusEl.textContent = 'Error checking bucket: ' + (e.message || 'network error');
+        statusEl.style.color = 'var(--color-error)';
+        createBtn.classList.add('d-none');
+    }
+}
+
+async function createS3Bucket() {
+    const bucketEl = document.getElementById('switch-s3-bucket');
+    const regionEl = document.getElementById('switch-region');
+    const profileEl = document.getElementById('switch-profile');
+    const createBtn = document.getElementById('btn-create-s3-bucket');
+    const statusEl = document.getElementById('s3-bucket-status');
+    if (!bucketEl || !createBtn) return;
+    const bucket = bucketEl.value.trim();
+    const region = regionEl ? regionEl.value.trim() || 'us-west-2' : 'us-west-2';
+    const profile = profileEl ? profileEl.value.trim() : '';
+    createBtn.disabled = true;
+    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+    try {
+        const resp = await fetch('/api/v1/config/create-s3-bucket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bucket: bucket, region: region, profile: profile }),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.success) {
+            showToast('success', 'Bucket Created', 'S3 bucket "' + bucket + '" created with lsmc tags.');
+            createBtn.classList.add('d-none');
+            if (statusEl) { statusEl.textContent = '✓ Bucket exists'; statusEl.style.color = 'var(--color-success)'; }
+        } else {
+            showToast('error', 'Create Failed', data.detail || 'Unknown error');
+        }
+    } catch (e) {
+        showToast('error', 'Create Failed', e.message || 'Network error');
+    } finally {
+        createBtn.disabled = false;
+        createBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Bucket';
     }
 }
 
@@ -352,12 +454,16 @@ async function switchBackend() {
     const payload = { backend_type: backendType };
     if (backendType === 'dynamodb') {
         payload.table_name = document.getElementById('switch-table').value.trim() || 'zebra-day-config';
-        payload.region = document.getElementById('switch-region').value.trim() || 'us-east-1';
+        payload.region = document.getElementById('switch-region').value.trim() || 'us-west-2';
         payload.s3_bucket = document.getElementById('switch-s3-bucket').value.trim();
         payload.s3_prefix = document.getElementById('switch-s3-prefix').value.trim() || 'zebra-day/';
         payload.profile = document.getElementById('switch-profile').value.trim();
         if (!payload.s3_bucket) {
             showToast('error', 'Validation Error', 'S3 Bucket is required for DynamoDB backend.');
+            return;
+        }
+        if (payload.profile.toLowerCase() === 'default') {
+            showToast('error', 'Validation Error', "AWS profile 'default' is not allowed. Please create and use a named profile (e.g., 'zebra-dev', 'lab-profile').");
             return;
         }
     }
