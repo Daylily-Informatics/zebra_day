@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 zebra_day/etc/tmp_printers*
+.augment/
 
 # Distribution / packaging
 .Python
