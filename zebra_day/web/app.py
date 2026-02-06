@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from zebra_day import paths as xdg
+from zebra_day import __version__, paths as xdg
 from zebra_day.logging_config import get_logger
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
@@ -65,9 +65,12 @@ def create_app(
     app = FastAPI(
         title="Zebra Day",
         description="Zebra printer fleet management and label printing",
-        version="0.5.0",
+        version=__version__,
         debug=debug,
     )
+
+    # Expose version to templates via app.state
+    app.state.version = __version__
 
     # Add request logging middleware
     app.add_middleware(RequestLoggingMiddleware)

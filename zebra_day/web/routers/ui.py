@@ -58,7 +58,7 @@ def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dic
         "request": request,
         "active_page": active_page,
         "local_ip": request.app.state.local_ip,
-        "version": getattr(request.app.state, "version", "0.7.0"),
+        "version": getattr(request.app.state, "version", "unknown"),
         "cache_bust": str(int(time.time())),
         **kwargs,
     }
