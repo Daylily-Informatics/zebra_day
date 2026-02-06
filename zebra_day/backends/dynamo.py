@@ -51,6 +51,7 @@ class DynamoBackend:
         if profile and profile.lower() == "default":
             profile = None
 
+        self.profile = profile
         self.table_name = table_name
         self.region = region or "us-east-1"
         self.s3_bucket = s3_bucket

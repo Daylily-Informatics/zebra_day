@@ -583,7 +583,7 @@ def _get_backend_info(zp) -> dict[str, Any]:
     }
 
     if backend_type == "dynamodb":
-        info["aws_profile"] = os.environ.get("AWS_PROFILE") or "default credential chain"
+        info["aws_profile"] = getattr(backend, "profile", None) or os.environ.get("AWS_PROFILE") or "default credential chain"
         info["dynamo_table"] = backend.table_name
         info["aws_region"] = backend.region
         info["s3_bucket"] = backend.s3_bucket or ""
