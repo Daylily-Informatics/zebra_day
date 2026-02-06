@@ -80,6 +80,18 @@ class ZPLRenderError(ZebraDayError):
         super().__init__(f"ZPL render error: {message}")
 
 
+class VersionConflictError(ZebraDayError):
+    """Raised when an optimistic-lock version conflict occurs in DynamoDB."""
+
+    def __init__(self, item_key: str, expected_version: int):
+        self.item_key = item_key
+        self.expected_version = expected_version
+        super().__init__(
+            f"Version conflict on '{item_key}': expected version {expected_version}. "
+            "Another client updated the item. Retry with a fresh read."
+        )
+
+
 class NetworkScanError(ZebraDayError):
     """Raised when network scanning for printers fails."""
 
