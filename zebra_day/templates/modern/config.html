@@ -313,10 +313,24 @@ async function refreshFromBackend() {
 async function detectTables() {
     const btn = document.getElementById('btn-detect-tables');
     const resultsDiv = document.getElementById('detect-tables-results');
+    const regionEl = document.getElementById('switch-region');
+    const profileEl = document.getElementById('switch-profile');
+
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...'; }
     if (resultsDiv) { resultsDiv.classList.remove('d-none'); resultsDiv.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Scanning for DynamoDB tables...</p>'; }
+
+    // Build query params with region and profile from the form
+    const params = new URLSearchParams();
+    if (regionEl && regionEl.value.trim()) {
+        params.append('region', regionEl.value.trim());
+    }
+    if (profileEl && profileEl.value.trim()) {
+        params.append('profile', profileEl.value.trim());
+    }
+
     try {
-        const resp = await fetch('/api/v1/config/detect-tables');
+        const url = '/api/v1/config/detect-tables' + (params.toString() ? '?' + params.toString() : '');
+        const resp = await fetch(url);
         const data = await resp.json();
         if (!resp.ok) {
             resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (data.detail || 'Failed to scan') + '</div>';

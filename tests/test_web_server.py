@@ -928,6 +928,20 @@ class TestConfigPageS3Controls:
         assert "us-west-2" in response.text
 
 
+class TestDetectTablesAPI:
+    """Tests for GET /api/v1/config/detect-tables endpoint."""
+
+    def test_detect_tables_accepts_profile_param(self, client):
+        """Test detect-tables endpoint accepts profile query parameter."""
+        # This will fail with boto3 error (no credentials), but we're testing
+        # that the endpoint accepts the parameter without 400 error
+        response = client.get(
+            "/api/v1/config/detect-tables?region=us-west-2&profile=test-profile"
+        )
+        # Should get 503 (AWS error) or 501 (boto3 not installed), not 400 (bad request)
+        assert response.status_code in [501, 503]
+
+
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():
     """Simple test to ensure test module loads."""

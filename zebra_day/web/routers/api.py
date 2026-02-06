@@ -644,12 +644,14 @@ async def config_refresh(request: Request) -> dict[str, Any]:
 async def config_detect_tables(
     request: Request,
     region: str | None = None,
+    profile: str | None = None,
 ) -> dict[str, Any]:
     """Scan an AWS region for compatible zebra-day DynamoDB tables.
 
     Parameters:
         region: AWS region to scan. Defaults to ZEBRA_DAY_DYNAMO_REGION,
                 then AWS_DEFAULT_REGION, then us-west-2.
+        profile: AWS profile name to use. Defaults to AWS_PROFILE env var.
     """
     scan_region = region or os.environ.get(
         "ZEBRA_DAY_DYNAMO_REGION",
@@ -659,8 +661,12 @@ async def config_detect_tables(
     try:
         import boto3
 
-        profile = os.environ.get("AWS_PROFILE") or None
-        session = boto3.Session(region_name=scan_region, profile_name=profile)
+        # Use provided profile, fall back to env var, then None (default chain)
+        profile_name = profile or os.environ.get("AWS_PROFILE") or None
+        session_kwargs = {"region_name": scan_region}
+        if profile_name:
+            session_kwargs["profile_name"] = profile_name
+        session = boto3.Session(**session_kwargs)
         ddb = session.client("dynamodb")
     except ImportError:
         raise HTTPException(
