@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ZebraDayDynamoDBAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:DescribeTable",
+        "dynamodb:CreateTable",
+        "dynamodb:TagResource"
+      ],
+      "Resource": "arn:aws:dynamodb:us-west-2:108782052779:table/zebra-day-config"
+    },
+    {
+      "Sid": "ZebraDayDynamoDBListTables",
+      "Effect": "Allow",
+      "Action": "dynamodb:ListTables",
+      "Resource": "*"
+    },
+    {
+      "Sid": "ZebraDayS3BackupAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket",
+        "s3:HeadBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::zebra-day-cfg-*",
+        "arn:aws:s3:::zebra-day-cfg-*/zebra-day/*"
+      ]
+    },
+    {
+      "Sid": "ZebraDayS3BucketCreation",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:PutBucketTagging"
+      ],
+      "Resource": "arn:aws:s3:::zebra-day-cfg-*"
+    }
+  ]
+}
+
