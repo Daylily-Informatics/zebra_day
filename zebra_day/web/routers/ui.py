@@ -64,12 +64,26 @@ def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dic
     }
 
 
-def get_templates_by_location(zp) -> dict[str, list[str]]:
-    """Get templates categorized by location: user vs package.
+def _is_dynamo_backend(zp) -> bool:
+    """Return True if the active backend is DynamoDB."""
+    from zebra_day.backends.dynamo import DynamoBackend
 
-    Returns dict with keys 'user' and 'package', each containing sorted lists
-    of template names (stems).
+    return isinstance(getattr(zp, "_backend", None), DynamoBackend)
+
+
+def get_templates_by_location(zp) -> dict[str, list[str]]:
+    """Get templates categorized by location.
+
+    For **local** backend, returns ``{"user": [...], "package": [...], "dynamodb": []}``.
+    For **DynamoDB** backend, returns ``{"user": [], "package": [], "dynamodb": [...]}``.
     """
+    if _is_dynamo_backend(zp):
+        return {
+            "user": [],
+            "package": [],
+            "dynamodb": sorted(zp.list_template_names()),
+        }
+
     user_dir = xdg.get_label_styles_dir()
     pkg_dir = zp._package_label_styles_dir()
 
@@ -88,7 +102,7 @@ def get_templates_by_location(zp) -> dict[str, list[str]]:
                 if f.stem not in user_templates:
                     package_templates.append(f.stem)
 
-    return {"user": user_templates, "package": package_templates}
+    return {"user": user_templates, "package": package_templates, "dynamodb": []}
 
 
 def get_labs_meta(zp) -> dict[str, dict[str, str]]:
@@ -121,7 +135,11 @@ def get_stats(zp, pkg_path: Path) -> dict:
     # Count printers via nested 'printers' key (v2 schema)
     total_printers = sum(len(lab_data.get("printers", {})) for lab_data in labs.values())
     templates_by_loc = get_templates_by_location(zp)
-    total_templates = len(templates_by_loc["user"]) + len(templates_by_loc["package"])
+    total_templates = (
+        len(templates_by_loc["user"])
+        + len(templates_by_loc["package"])
+        + len(templates_by_loc.get("dynamodb", []))
+    )
 
     # Count backup files
     bkup_dir = pkg_path / "etc" / "old_printer_config"
@@ -396,6 +414,7 @@ async def modern_print_request(
         labs_dict=json.dumps(labs_dict),
         user_templates=templates_by_loc["user"],
         package_templates=templates_by_loc["package"],
+        dynamodb_templates=templates_by_loc.get("dynamodb", []),
         selected_lab=lab,
         selected_printer=printer,
         selected_template=template,
@@ -416,6 +435,7 @@ async def modern_templates(request: Request):
         active_page="templates",
         user_templates=templates_by_loc["user"],
         package_templates=templates_by_loc["package"],
+        dynamodb_templates=templates_by_loc.get("dynamodb", []),
     )
     return templates.TemplateResponse("modern/templates.html", context)
 
@@ -428,24 +448,30 @@ async def modern_template_edit(
 ):
     """Modern template editor.
 
-    Loads template via resolve_template_path() (XDG-first resolution).
+    Loads template content via the active backend (local or DynamoDB).
     The 'dtype' parameter is deprecated and ignored.
     """
     zp = request.app.state.zp
     templates = request.app.state.templates
 
-    # Normalize: strip .zpl if present (resolve_template_path handles it)
+    # Normalize: strip .zpl if present
     template_name = filename.replace(".zpl", "")
 
     try:
-        filepath = zp.resolve_template_path(template_name)
-        content = filepath.read_text()
-    except FileNotFoundError as e:
+        content = zp.get_template_content(template_name)
+    except Exception as e:
         raise HTTPException(status_code=404, detail=f"Template '{template_name}' not found") from e
 
     # Determine source location for display
-    user_dir = xdg.get_label_styles_dir()
-    source_location = "user" if filepath.is_relative_to(user_dir) else "package"
+    if _is_dynamo_backend(zp):
+        source_location = "dynamodb"
+    else:
+        try:
+            filepath = zp.resolve_template_path(template_name)
+            user_dir = xdg.get_label_styles_dir()
+            source_location = "user" if filepath.is_relative_to(user_dir) else "package"
+        except (FileNotFoundError, NotImplementedError):
+            source_location = "package"
 
     labs_dict = zp.printers.get("labs", {})
 
@@ -470,7 +496,7 @@ async def modern_template_preview(
 ):
     """Generate a PNG preview of a ZPL template.
 
-    Resolves template via XDG-first resolution and redirects to the generated PNG.
+    Loads template content via the active backend and renders to PNG.
     The 'dtype' parameter is deprecated and ignored.
     """
     zp = request.app.state.zp
@@ -480,9 +506,8 @@ async def modern_template_preview(
     template_name = filename.replace(".zpl", "")
 
     try:
-        filepath = zp.resolve_template_path(template_name)
-        zpl_content = filepath.read_text()
-    except FileNotFoundError as e:
+        zpl_content = zp.get_template_content(template_name)
+    except Exception as e:
         raise HTTPException(status_code=404, detail=f"Template '{template_name}' not found") from e
 
     try:
