@@ -79,8 +79,16 @@ class DynamoBackend:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_env(cls) -> "DynamoBackend":
-        """Create a DynamoBackend from environment variables."""
+    def from_env(cls, *, allow_missing_bucket: bool = False) -> "DynamoBackend":
+        """Create a DynamoBackend from environment variables.
+
+        Args:
+            allow_missing_bucket: When *True*, a missing
+                ``ZEBRA_DAY_S3_BACKUP_BUCKET`` env var will **not** raise
+                :class:`ConfigError`.  The returned backend will have
+                ``s3_bucket=None``.  Callers (typically CLI commands) can then
+                prompt the user interactively or apply their own fallback logic.
+        """
         table = os.environ.get("ZEBRA_DAY_DYNAMO_TABLE", "zebra-day-config")
         region = os.environ.get(
             "ZEBRA_DAY_DYNAMO_REGION",
@@ -94,7 +102,7 @@ class DynamoBackend:
         )
         profile = os.environ.get("AWS_PROFILE") or None
 
-        if not s3_bucket:
+        if not s3_bucket and not allow_missing_bucket:
             raise ConfigError(
                 "ZEBRA_DAY_S3_BACKUP_BUCKET is required when using DynamoDB backend. "
                 "Set it to the S3 bucket name for config backups."
@@ -103,7 +111,7 @@ class DynamoBackend:
         return cls(
             table_name=table,
             region=region,
-            s3_bucket=s3_bucket,
+            s3_bucket=s3_bucket or None,
             s3_prefix=s3_prefix,
             client_id=client_id,
             profile=profile,

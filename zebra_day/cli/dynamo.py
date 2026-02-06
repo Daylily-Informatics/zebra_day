@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as json_mod
 import os
+import sys
 from pathlib import Path
 
 import typer
@@ -14,6 +15,94 @@ from zebra_day.exceptions import ConfigError
 
 dynamo_app = typer.Typer(help="DynamoDB shared configuration management")
 console = Console()
+
+
+def _is_interactive() -> bool:
+    """Return True when stdin is a TTY (interactive terminal session)."""
+    try:
+        return sys.stdin.isatty()
+    except Exception:
+        return False
+
+
+def _prompt_s3_bucket() -> str:
+    """Interactively prompt the user for an S3 bucket name.
+
+    Raises ``typer.Exit(1)`` if the user provides an empty value.
+    """
+    bucket = typer.prompt("S3 bucket name for backups").strip()
+    if not bucket:
+        console.print("[red]✗[/red] No S3 bucket name provided.")
+        raise typer.Exit(1)
+    return bucket
+
+
+def _ensure_s3_bucket(backend, *, create_if_missing: bool = False) -> None:
+    """Check if the S3 bucket exists; optionally create it.
+
+    Args:
+        backend: A ``DynamoBackend`` instance with ``s3_bucket`` set.
+        create_if_missing: When *True* and the bucket does not exist,
+            create it and apply standard tags.
+    """
+    if not backend.s3_bucket:
+        return
+    try:
+        backend._s3.head_bucket(Bucket=backend.s3_bucket)
+    except Exception:
+        if create_if_missing:
+            console.print(
+                f"[cyan]→[/cyan] Bucket '{backend.s3_bucket}' not found — creating..."
+            )
+            backend.create_s3_bucket()
+            console.print(
+                f"[green]✓[/green] S3 bucket '{backend.s3_bucket}' created "
+                f"(tags: lsmc-cost-center={backend.cost_center}, "
+                f"lsmc-project={backend.project})"
+            )
+        else:
+            console.print(
+                f"[yellow]⚠[/yellow] S3 bucket '{backend.s3_bucket}' does not exist. "
+                "Use --create-s3-if-missing to auto-create."
+            )
+
+
+def _get_backend_from_env(
+    *,
+    json_output: bool = False,
+    create_s3_if_missing: bool = False,
+):
+    """Create a ``DynamoBackend`` from env vars with interactive prompt fallback.
+
+    If ``ZEBRA_DAY_S3_BACKUP_BUCKET`` is not set and the session is
+    interactive (TTY, not ``--json``), the user is prompted for a bucket
+    name.  Non-interactive sessions fail with a clear error.
+
+    After backend creation, if *create_s3_if_missing* is True the bucket
+    is auto-created when it does not exist in AWS.
+    """
+    from zebra_day.backends.dynamo import DynamoBackend
+
+    backend = DynamoBackend.from_env(allow_missing_bucket=True)
+
+    if not backend.s3_bucket:
+        if not json_output and _is_interactive():
+            console.print(
+                "[yellow]⚠[/yellow] ZEBRA_DAY_S3_BACKUP_BUCKET is not set."
+            )
+            bucket = _prompt_s3_bucket()
+            backend.s3_bucket = bucket
+        else:
+            console.print(
+                "[red]✗[/red] ZEBRA_DAY_S3_BACKUP_BUCKET is required when using "
+                "DynamoDB backend. Set it to the S3 bucket name for config backups."
+            )
+            raise typer.Exit(1)
+
+    if create_s3_if_missing:
+        _ensure_s3_bucket(backend, create_if_missing=True)
+
+    return backend
 
 
 def _load_s3_config_file(path: str) -> dict:
@@ -45,10 +134,15 @@ def _get_backend(
     cost_center: str | None = None,
     project: str | None = None,
     s3_config_file: str | None = None,
+    create_s3_if_missing: bool = False,
 ):
     """Create a DynamoBackend from explicit args merged with env var defaults.
 
-    Priority for S3 bucket: ``--s3-bucket`` > ``--s3-config-file`` > env var.
+    Priority for S3 bucket:
+    ``--s3-bucket`` > ``--s3-config-file`` > env var > interactive prompt.
+
+    If *create_s3_if_missing* is True, the bucket is auto-created when it
+    does not yet exist in AWS.
     """
     from zebra_day.backends.dynamo import DynamoBackend
 
@@ -65,14 +159,25 @@ def _get_backend(
     elif file_cfg.get("region"):
         kwargs["region"] = file_cfg["region"]
 
-    # S3 bucket resolution: flag > config file > env var
-    resolved_bucket = s3_bucket or file_cfg.get("s3_bucket") or os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET")
+    # S3 bucket resolution: flag > config file > env var > interactive prompt
+    resolved_bucket = (
+        s3_bucket
+        or file_cfg.get("s3_bucket")
+        or os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET")
+    )
     if not resolved_bucket:
-        console.print(
-            "[red]✗[/red] S3 bucket required. Use --s3-bucket, --s3-config-file, "
-            "or set ZEBRA_DAY_S3_BACKUP_BUCKET."
-        )
-        raise typer.Exit(1)
+        if _is_interactive():
+            console.print(
+                "[yellow]⚠[/yellow] S3 bucket not specified via flag, config file, "
+                "or ZEBRA_DAY_S3_BACKUP_BUCKET env var."
+            )
+            resolved_bucket = _prompt_s3_bucket()
+        else:
+            console.print(
+                "[red]✗[/red] S3 bucket required. Use --s3-bucket, --s3-config-file, "
+                "or set ZEBRA_DAY_S3_BACKUP_BUCKET."
+            )
+            raise typer.Exit(1)
     kwargs["s3_bucket"] = resolved_bucket
 
     # S3 prefix: flag > config file > default
@@ -87,7 +192,12 @@ def _get_backend(
     if project:
         kwargs["project"] = project
 
-    return DynamoBackend(**kwargs)
+    backend = DynamoBackend(**kwargs)
+
+    if create_s3_if_missing:
+        _ensure_s3_bucket(backend, create_if_missing=True)
+
+    return backend
 
 
 # -----------------------------------------------------------------
@@ -206,12 +316,16 @@ def init_cmd(
 @dynamo_app.command("status")
 def status_cmd(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+    create_s3_if_missing: bool = typer.Option(
+        False, "--create-s3-if-missing", help="Auto-create S3 bucket if it doesn't exist"
+    ),
 ):
     """Show DynamoDB table and S3 backup status."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env(
+            json_output=json_output,
+            create_s3_if_missing=create_s3_if_missing,
+        )
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
@@ -269,13 +383,15 @@ def bootstrap_cmd(
     include_package: bool = typer.Option(
         True, "--include-package/--no-include-package", help="Include package-shipped templates"
     ),
+    create_s3_if_missing: bool = typer.Option(
+        False, "--create-s3-if-missing", help="Auto-create S3 bucket if it doesn't exist"
+    ),
 ):
     """Push local config and templates to DynamoDB."""
-    from zebra_day.backends.dynamo import DynamoBackend
     from zebra_day import paths as xdg
 
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
@@ -349,10 +465,8 @@ def export_cmd(
     ),
 ):
     """Pull DynamoDB config and templates to local files."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
@@ -394,12 +508,14 @@ def export_cmd(
 # -----------------------------------------------------------------
 
 @dynamo_app.command("backup")
-def backup_cmd():
+def backup_cmd(
+    create_s3_if_missing: bool = typer.Option(
+        False, "--create-s3-if-missing", help="Auto-create S3 bucket if it doesn't exist"
+    ),
+):
     """Trigger an immediate S3 backup snapshot."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
@@ -430,10 +546,8 @@ def restore_cmd(
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Restore DynamoDB from an S3 backup."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
@@ -491,14 +605,12 @@ def destroy_cmd(
     yes: bool = typer.Option(False, "--yes", "-y", help="Required safety gate"),
 ):
     """Delete DynamoDB table (preserves S3 backups)."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
     if not yes:
         console.print("[red]✗[/red] --yes flag required for safety")
         raise typer.Exit(1)
 
     try:
-        backend = DynamoBackend.from_env()
+        backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         console.print(f"[red]✗[/red] {exc}")
         raise typer.Exit(1)
