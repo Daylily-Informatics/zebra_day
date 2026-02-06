@@ -398,3 +398,65 @@ class TestZplIntegration:
 
             backend = get_backend()
             assert isinstance(backend, DB)
+
+
+# ---------------------------------------------------------------------------
+# AWS Permission Checks
+# ---------------------------------------------------------------------------
+
+class TestCheckAWSPermissions:
+    def test_all_checks_pass_with_resources(self, dynamo_backend):
+        result = dynamo_backend.check_aws_permissions()
+        assert result["all_ok"] is True
+        assert result["identity"]["account"]
+        assert result["identity"]["arn"]
+        actions = [c["action"] for c in result["checks"]]
+        assert "sts:GetCallerIdentity" in actions
+        assert "dynamodb:ListTables" in actions
+        assert "dynamodb:DescribeTable" in actions
+        assert "s3:HeadBucket" in actions
+        assert "s3:ListBuckets" in actions
+        assert all(c["ok"] for c in result["checks"])
+
+    def test_table_not_found_still_passes(self, aws_env):
+        """DescribeTable returning 404 is fine — table will be created."""
+        with mock_aws():
+            backend = DynamoBackend(
+                table_name="nonexistent-table",
+                region="us-east-1",
+                s3_bucket="check-bucket",
+            )
+            # Create bucket but not table
+            backend.create_s3_bucket()
+            result = backend.check_aws_permissions()
+            assert result["all_ok"] is True
+            desc_check = [c for c in result["checks"] if c["action"] == "dynamodb:DescribeTable"][0]
+            assert desc_check["ok"] is True
+            assert "will be created" in desc_check["detail"]
+
+    def test_bucket_not_found_still_passes(self, aws_env):
+        """HeadBucket returning 404 is fine — bucket will be created."""
+        with mock_aws():
+            backend = DynamoBackend(
+                table_name="check-table",
+                region="us-east-1",
+                s3_bucket="nonexistent-bucket-xyz-12345",
+            )
+            result = backend.check_aws_permissions()
+            assert result["all_ok"] is True
+            head_check = [c for c in result["checks"] if c["action"] == "s3:HeadBucket"][0]
+            assert head_check["ok"] is True
+            assert "will be created" in head_check["detail"]
+
+    def test_no_bucket_skips_s3_checks(self, aws_env):
+        """If s3_bucket is None, S3 checks are skipped."""
+        with mock_aws():
+            backend = DynamoBackend(
+                table_name="check-table",
+                region="us-east-1",
+                s3_bucket=None,
+            )
+            result = backend.check_aws_permissions()
+            actions = [c["action"] for c in result["checks"]]
+            assert "s3:HeadBucket" not in actions
+            assert "s3:ListBuckets" not in actions
