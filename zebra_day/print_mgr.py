@@ -28,6 +28,7 @@ from typing import Literal
 import yaml
 
 from zebra_day import paths as xdg
+from zebra_day.backends import ConfigBackend, get_backend
 from zebra_day.logging_config import get_logger
 
 _log = get_logger(__name__)
@@ -101,221 +102,104 @@ class zpl:
     zd_pm = zd.zpl()
     """
 
-    def __init__(self, config_path: str | None = None):
+    def __init__(
+        self,
+        config_path: str | None = None,
+        backend: ConfigBackend | None = None,
+    ):
         """
         Initialize the class.
 
         Args:
             config_path: Path to printer config file (YAML or JSON). If not specified,
                 uses XDG config path with YAML preference and JSON fallback.
+            backend: Optional explicit ConfigBackend instance. When provided,
+                ``config_path`` is ignored and all I/O flows through this backend.
         """
         # Ensure user label styles directory exists (unified template workflow)
-        # Legacy drafts may still exist under label_styles/tmps, but new saves
-        # should target label_styles/ by default.
         xdg.get_label_styles_dir()
 
-        # Config file search order:
-        # 1. Explicit path provided
-        # 2. XDG YAML config
-        # 3. XDG legacy JSON config (auto-migrates to YAML)
-        # 4. Package template (copies to XDG YAML)
-        yaml_config = xdg.get_config_file_path()
-        json_config = xdg.get_legacy_json_config_path()
-        pkg_template = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
-
-        if config_path:
-            cfg_path = Path(config_path)
-            if cfg_path.exists():
-                self._load_config_file(cfg_path)
-            else:
-                self._create_config_from_template(cfg_path)
-        elif yaml_config.exists():
-            self._load_config_file(yaml_config)
-        elif json_config.exists():
-            # Migrate JSON to YAML
-            self._migrate_json_to_yaml(json_config, yaml_config)
-        elif pkg_template.exists():
-            # Create config from template
-            self._create_config_from_template(yaml_config)
+        # Create or accept a storage backend
+        if backend is not None:
+            self._backend = backend
         else:
-            # Fallback: create minimal config
-            self._create_minimal_config(yaml_config)
+            self._backend = get_backend(config_path=config_path)
 
-    def _load_config_file(self, config_path: Path) -> None:
-        """Load configuration from a YAML or JSON file.
+        # Load config through the backend
+        self.printers = self._backend.load_config()
 
-        Args:
-            config_path: Path to the config file
+        # Backward-compat: expose the resolved file path for callers that
+        # still reference ``self.printers_filename``.
+        if hasattr(self._backend, "config_path_str"):
+            self.printers_filename = self._backend.config_path_str
+        else:
+            self.printers_filename = ""
+
+        # Business-logic schema migration (not a storage concern)
+        self._maybe_migrate_schema()
+
+    def _maybe_migrate_schema(self) -> None:
+        """Run schema migration v2.0.0 → v2.1.0 if needed.
+
+        This is business logic (not storage-specific) and runs after
+        loading config from any backend.
         """
-        _log.debug("Loading config from: %s", config_path)
-        self.printers_filename = str(config_path)
-
-        with open(config_path) as f:
-            content = f.read()
-
-        # Detect format and parse
-        if config_path.suffix in (".yaml", ".yml"):
-            self.printers = yaml.safe_load(content) or {}
-        else:
-            self.printers = json.loads(content)
-
-        # Ensure schema version exists
-        if "schema_version" not in self.printers:
-            self.printers["schema_version"] = "2.0.0"
-        if "labs" not in self.printers:
-            self.printers["labs"] = {}
-
-        # Schema migration: v2.0.0 -> v2.1.0 (lab-level metadata required)
         schema_version = str(self.printers.get("schema_version", "2.0.0"))
-        if schema_version == "2.0.0":
-            upgraded_any = False
-            labs = self.printers.get("labs", {})
+        if schema_version != "2.0.0":
+            return
 
-            if isinstance(labs, dict):
-                for lab_key, lab_data in labs.items():
-                    if not isinstance(lab_data, dict):
-                        continue
+        upgraded_any = False
+        labs = self.printers.get("labs", {})
 
-                    lab_name = lab_data.get("lab_name", lab_key)
+        if isinstance(labs, dict):
+            for lab_key, lab_data in labs.items():
+                if not isinstance(lab_data, dict):
+                    continue
 
-                    if "lab_display_name" not in lab_data:
-                        lab_data["lab_display_name"] = lab_name
-                        upgraded_any = True
-                    if "lab_description" not in lab_data:
-                        lab_data["lab_description"] = ""
-                        upgraded_any = True
-                    if "network_stub" not in lab_data:
-                        lab_data["network_stub"] = ""
-                        upgraded_any = True
+                lab_name = lab_data.get("lab_name", lab_key)
 
-                    # Ensure v2 structure
-                    lab_data.setdefault("available_locations", [])
-                    lab_data.setdefault("printers", {})
+                if "lab_display_name" not in lab_data:
+                    lab_data["lab_display_name"] = lab_name
+                    upgraded_any = True
+                if "lab_description" not in lab_data:
+                    lab_data["lab_description"] = ""
+                    upgraded_any = True
+                if "network_stub" not in lab_data:
+                    lab_data["network_stub"] = ""
+                    upgraded_any = True
 
-            # Only bump/save when we actually performed the upgrade.
-            if upgraded_any:
-                self.printers["schema_version"] = "2.1.0"
-                _log.warning("Config upgraded from v2.0.0 to v2.1.0")
+                lab_data.setdefault("available_locations", [])
+                lab_data.setdefault("printers", {})
 
-                # Persist upgrade for YAML configs.
-                if config_path.suffix in (".yaml", ".yml"):
-                    try:
-                        self.save_printer_config(str(config_path))
-                    except Exception:
-                        _log.exception("Failed to save upgraded config to: %s", config_path)
-
-    def _migrate_json_to_yaml(self, json_path: Path, yaml_path: Path) -> None:
-        """Migrate a JSON config file to YAML format.
-
-        The JSON file is preserved as a backup.
-
-        Args:
-            json_path: Path to the existing JSON config
-            yaml_path: Path where the YAML config will be created
-        """
-        _log.info("Migrating config from JSON to YAML: %s -> %s", json_path, yaml_path)
-
-        # Load JSON config
-        with open(json_path) as f:
-            config = json.load(f)
-
-        # Save as YAML
-        yaml_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(yaml_path, "w") as f:
-            f.write("# zebra_day Configuration File\n")
-            f.write("# Migrated from JSON format\n\n")
-            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-
-        # Backup the JSON file
-        backup_dir = xdg.get_config_backups_dir()
-        backup_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_migrated_from.json"
-        shutil.copy2(json_path, backup_dir / backup_name)
-        _log.info("JSON backup saved to: %s", backup_dir / backup_name)
-
-        # Load the new YAML config
-        self._load_config_file(yaml_path)
-
-    def _create_config_from_template(self, target_path: Path) -> None:
-        """Create a new config file from the template.
-
-        Args:
-            target_path: Path where the config will be created
-        """
-        template_path = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
-        _log.info("Creating config from template: %s", target_path)
-
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(template_path, target_path)
-
-        self._load_config_file(target_path)
-
-    def _create_minimal_config(self, target_path: Path) -> None:
-        """Create a minimal empty config file.
-
-        Args:
-            target_path: Path where the config will be created
-        """
-        _log.info("Creating minimal config: %s", target_path)
-
-        minimal_config = {
-            "schema_version": "2.1.0",
-            "labs": {
-                "default": {
-                    "lab_name": "Default",
-                    "lab_display_name": "Default",
-                    "lab_description": "",
-                    "network_stub": "",
-                    "available_locations": [],
-                    "printers": {},
-                }
-            },
-        }
-
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(target_path, "w") as f:
-            f.write("# zebra_day Configuration File\n\n")
-            yaml.dump(minimal_config, f, default_flow_style=False, sort_keys=False)
-
-        self._load_config_file(target_path)
+        if upgraded_any:
+            self.printers["schema_version"] = "2.1.0"
+            _log.warning("Config upgraded from v2.0.0 to v2.1.0")
+            try:
+                self.save_printer_config()
+            except Exception:
+                _log.exception("Failed to save upgraded config")
 
     def save_printer_config(self, config_path: str | None = None) -> None:
-        """Save the current printer configuration to YAML file.
+        """Save the current printer configuration via the active backend.
 
-        Creates a backup of the previous config in the backups directory.
+        Creates a backup of the previous config in the backups directory
+        (LocalBackend) or triggers an S3 snapshot (DynamoBackend).
 
         Args:
-            config_path: Optional path to save to. If not specified, uses current config path.
+            config_path: Optional path override (local backend only).
         """
+        # If an explicit path is given and the backend supports it, redirect.
         if config_path:
-            target_path = Path(config_path)
-        elif hasattr(self, "printers_filename"):
-            target_path = Path(self.printers_filename)
-        else:
-            target_path = xdg.get_config_file_path()
+            from zebra_day.backends.local import LocalBackend
 
-        # Ensure target is YAML
-        if target_path.suffix not in (".yaml", ".yml"):
-            target_path = target_path.with_suffix(".yaml")
+            if isinstance(self._backend, LocalBackend):
+                self._backend._config_path = Path(config_path)
 
-        # Create backup if file exists
-        if target_path.exists():
-            backup_dir = xdg.get_config_backups_dir()
-            rec_date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            backup_path = backup_dir / f"{rec_date}_config_backup.yaml"
-            try:
-                shutil.copy2(target_path, backup_path)
-                _log.debug("Backup created: %s", backup_path)
-            except OSError as e:
-                _log.warning("Failed to create backup: %s", e)
+        self._backend.save_config(self.printers)
 
-        # Save config as YAML
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(target_path, "w") as f:
-            f.write("# zebra_day Configuration File\n\n")
-            yaml.dump(self.printers, f, default_flow_style=False, sort_keys=False)
-
-        self.printers_filename = str(target_path)
-        _log.debug("Config saved to: %s", target_path)
+        # Keep backward-compat attribute up-to-date
+        if hasattr(self._backend, "config_path_str"):
+            self.printers_filename = self._backend.config_path_str
 
     def probe_zebra_printers_add_to_printers_json(
         self,
@@ -605,7 +489,7 @@ class zpl:
         """Load a config file (JSON or YAML).
 
         .. deprecated:: 2.2.0
-            Use :meth:`_load_config_file` instead.
+            Reload by re-creating the ``zpl()`` instance instead.
 
         Args:
             json_file: Path to config file
@@ -619,20 +503,34 @@ class zpl:
         if not config_path.exists():
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
-        self._load_config_file(config_path)
+        # Re-create backend for the new path and reload
+        from zebra_day.backends.local import LocalBackend
+
+        self._backend = LocalBackend(config_path=str(config_path))
+        self.printers = self._backend.load_config()
+        self.printers_filename = self._backend.config_path_str
+        self._maybe_migrate_schema()
 
     def create_new_printers_json_with_single_test_printer(self, fn: str | None = None) -> None:
         """Create a new config from the template.
 
         .. deprecated:: 2.2.0
-            Use :meth:`_create_config_from_template` instead.
+            Use bootstrap or init workflow instead.
         """
         if fn is None:
             target_path = xdg.get_config_file_path()
         else:
             target_path = Path(fn)
 
-        self._create_config_from_template(target_path)
+        template_path = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(template_path, target_path)
+
+        from zebra_day.backends.local import LocalBackend
+
+        self._backend = LocalBackend(config_path=str(target_path))
+        self.printers = self._backend.load_config()
+        self.printers_filename = self._backend.config_path_str
 
     def clear_printers_json(self, config_file: str | None = None) -> None:
         """Reset config to empty minimal v2.1.0 structure.
@@ -640,22 +538,24 @@ class zpl:
         Args:
             config_file: Path to the config file (ignored, uses XDG path)
         """
-        target_path = xdg.get_config_file_path()
-
-        # Write empty config with v2 schema
         empty_config = {"schema_version": "2.1.0", "labs": {}}
-        target_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(target_path, "w") as f:
-            f.write("# zebra_day Configuration File\n\n")
-            yaml.dump(empty_config, f, default_flow_style=False, sort_keys=False)
-
-        self.printers_filename = str(target_path)
         self.printers = empty_config
+        self._backend.save_config(self.printers)
+        if hasattr(self._backend, "config_path_str"):
+            self.printers_filename = self._backend.config_path_str
 
     def replace_printer_json_from_template(self) -> None:
         """Replace the active printer config with the default template."""
         target_path = xdg.get_config_file_path()
-        self._create_config_from_template(target_path)
+        template_path = Path(str(files("zebra_day"))) / "etc" / "zebra-day-config-template.yaml"
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(template_path, target_path)
+
+        from zebra_day.backends.local import LocalBackend
+
+        self._backend = LocalBackend(config_path=str(target_path))
+        self.printers = self._backend.load_config()
+        self.printers_filename = self._backend.config_path_str
 
     def get_valid_label_styles_for_lab(self, lab=None):
         """
@@ -764,9 +664,7 @@ class zpl:
           just differntiates one.
         """
 
-        template_path = self.resolve_template_path(str(label_zpl_style), include_legacy_drafts=True)
-        with open(template_path) as file:
-            content = file.read()
+        content = self.get_template_content(str(label_zpl_style))
         zpl_string = content.format(
             uid_barcode=uid_barcode,
             alt_a=alt_a,
@@ -813,66 +711,25 @@ class zpl:
     def resolve_template_path(self, template: str, *, include_legacy_drafts: bool = False) -> Path:
         """Resolve a template name to an on-disk .zpl path.
 
-        Resolution order (stable):
-        1) User config dir (XDG): ~/.config/zebra_day/label_styles/
-        2) Package etc dir: zebra_day/etc/label_styles/
-
-        Legacy drafts (if enabled):
-        - ~/.config/zebra_day/label_styles/tmps/
-        - zebra_day/etc/label_styles/tmps/
+        Delegates to the active backend.  Only meaningful for ``LocalBackend``;
+        non-local backends raise ``NotImplementedError``.
         """
-
-        stem = self._normalize_template_stem(template)
-        filename = f"{stem}.zpl"
-
-        user_path = xdg.get_label_styles_dir() / filename
-        if user_path.exists():
-            return user_path
-
-        pkg_dir = self._package_label_styles_dir()
-        pkg_path = pkg_dir / filename
-        if pkg_path.exists():
-            return pkg_path
-
-        if include_legacy_drafts:
-            user_draft = xdg.get_label_drafts_dir() / filename
-            if user_draft.exists():
-                return user_draft
-
-            pkg_draft = pkg_dir / "tmps" / filename
-            if pkg_draft.exists():
-                return pkg_draft
-
-        raise FileNotFoundError(f"Template '{stem}' not found")
+        if hasattr(self._backend, "resolve_template_path"):
+            return self._backend.resolve_template_path(
+                template, include_legacy_drafts=include_legacy_drafts
+            )
+        raise NotImplementedError(
+            "resolve_template_path() is only available with the local backend. "
+            "Use get_template_content() instead."
+        )
 
     def get_template_content(self, template: str, *, include_legacy_drafts: bool = True) -> str:
-        """Load template file contents as text."""
-
-        path = self.resolve_template_path(template, include_legacy_drafts=include_legacy_drafts)
-        return path.read_text()
+        """Load template contents as text via the active backend."""
+        return self._backend.get_template(template)
 
     def list_template_names(self, *, include_legacy_drafts: bool = False) -> list[str]:
-        """List template names (stems) available to callers."""
-
-        names: set[str] = set()
-
-        def _add_from_dir(d: Path) -> None:
-            if not d.exists():
-                return
-            for f in d.iterdir():
-                if f.is_file() and f.suffix == ".zpl":
-                    names.add(f.stem)
-
-        # Stable templates
-        _add_from_dir(xdg.get_label_styles_dir())
-        _add_from_dir(self._package_label_styles_dir())
-
-        # Legacy drafts (optional)
-        if include_legacy_drafts:
-            _add_from_dir(xdg.get_label_drafts_dir())
-            _add_from_dir(self._package_label_styles_dir() / "tmps")
-
-        return sorted(names)
+        """List template names (stems) via the active backend."""
+        return self._backend.list_templates()
 
     def save_template(
         self,
