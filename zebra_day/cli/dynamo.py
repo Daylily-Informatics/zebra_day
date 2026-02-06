@@ -16,6 +16,26 @@ dynamo_app = typer.Typer(help="DynamoDB shared configuration management")
 console = Console()
 
 
+def _load_s3_config_file(path: str) -> dict:
+    """Load an S3 config file (JSON only, per project config rules).
+
+    Expected keys: ``s3_bucket``, optionally ``s3_prefix``, ``region``.
+    """
+    p = Path(path)
+    if not p.exists():
+        console.print(f"[red]✗[/red] S3 config file not found: {path}")
+        raise typer.Exit(1)
+    try:
+        data = json_mod.loads(p.read_text())
+    except Exception as exc:
+        console.print(f"[red]✗[/red] Failed to parse S3 config file: {exc}")
+        raise typer.Exit(1)
+    if not isinstance(data, dict):
+        console.print("[red]✗[/red] S3 config file must contain a JSON object")
+        raise typer.Exit(1)
+    return data
+
+
 def _get_backend(
     table_name: str | None = None,
     region: str | None = None,
@@ -24,35 +44,48 @@ def _get_backend(
     profile: str | None = None,
     cost_center: str | None = None,
     project: str | None = None,
+    s3_config_file: str | None = None,
 ):
-    """Create a DynamoBackend from explicit args merged with env var defaults."""
+    """Create a DynamoBackend from explicit args merged with env var defaults.
+
+    Priority for S3 bucket: ``--s3-bucket`` > ``--s3-config-file`` > env var.
+    """
     from zebra_day.backends.dynamo import DynamoBackend
+
+    # Load s3-config-file values as baseline (lowest priority for explicit flags)
+    file_cfg: dict = {}
+    if s3_config_file:
+        file_cfg = _load_s3_config_file(s3_config_file)
 
     kwargs: dict = {}
     if table_name:
         kwargs["table_name"] = table_name
     if region:
         kwargs["region"] = region
-    if s3_bucket:
-        kwargs["s3_bucket"] = s3_bucket
-    if s3_prefix:
-        kwargs["s3_prefix"] = s3_prefix
+    elif file_cfg.get("region"):
+        kwargs["region"] = file_cfg["region"]
+
+    # S3 bucket resolution: flag > config file > env var
+    resolved_bucket = s3_bucket or file_cfg.get("s3_bucket") or os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET")
+    if not resolved_bucket:
+        console.print(
+            "[red]✗[/red] S3 bucket required. Use --s3-bucket, --s3-config-file, "
+            "or set ZEBRA_DAY_S3_BACKUP_BUCKET."
+        )
+        raise typer.Exit(1)
+    kwargs["s3_bucket"] = resolved_bucket
+
+    # S3 prefix: flag > config file > default
+    resolved_prefix = s3_prefix or file_cfg.get("s3_prefix")
+    if resolved_prefix:
+        kwargs["s3_prefix"] = resolved_prefix
+
     if profile:
         kwargs["profile"] = profile
     if cost_center:
         kwargs["cost_center"] = cost_center
     if project:
         kwargs["project"] = project
-
-    # If no s3_bucket via flag, require env var
-    if not s3_bucket and not os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET"):
-        console.print(
-            "[red]✗[/red] S3 bucket required. Set ZEBRA_DAY_S3_BACKUP_BUCKET or use --s3-bucket."
-        )
-        raise typer.Exit(1)
-
-    if not s3_bucket:
-        kwargs["s3_bucket"] = os.environ["ZEBRA_DAY_S3_BACKUP_BUCKET"]
 
     return DynamoBackend(**kwargs)
 
@@ -70,10 +103,13 @@ def init_cmd(
         None, "--region", "-r", help="AWS region [default: env or us-east-1]"
     ),
     s3_bucket: str = typer.Option(
-        None, "--s3-bucket", "-b", help="S3 bucket for backups (required)"
+        None, "--s3-bucket", "-b", help="S3 bucket for backups"
     ),
     s3_prefix: str = typer.Option(
         "zebra-day/", "--s3-prefix", help="S3 key prefix"
+    ),
+    s3_config_file: str = typer.Option(
+        None, "--s3-config-file", help="JSON file with S3 bucket config (keys: s3_bucket, s3_prefix, region)"
     ),
     profile: str = typer.Option(
         None, "--profile", "-p", help="AWS profile name"
@@ -83,6 +119,9 @@ def init_cmd(
     ),
     project: str = typer.Option(
         None, "--project", help="lsmc-project tag [default: env or 'zebra-day+{region}']"
+    ),
+    skip_checks: bool = typer.Option(
+        False, "--skip-checks", help="Skip AWS permission pre-flight checks"
     ),
 ):
     """Create DynamoDB table and S3 bucket for shared configuration."""
@@ -94,9 +133,36 @@ def init_cmd(
         profile=profile,
         cost_center=cost_center,
         project=project,
+        s3_config_file=s3_config_file,
     )
 
     console.print("\n[bold cyan]DynamoDB Shared Config Init[/bold cyan]\n")
+
+    # --- AWS permission pre-flight checks ---
+    if not skip_checks:
+        console.print("[cyan]→[/cyan] Checking AWS permissions...")
+        perm_result = backend.check_aws_permissions()
+
+        # Show identity
+        ident = perm_result.get("identity", {})
+        if ident.get("arn"):
+            console.print(f"  Identity: [dim]{ident['arn']}[/dim]")
+            console.print(f"  Account:  [dim]{ident['account']}[/dim]")
+        elif ident.get("error"):
+            console.print(f"  [red]✗ Credentials failed:[/red] {ident['error']}")
+
+        # Show each check
+        for chk in perm_result.get("checks", []):
+            icon = "[green]✓[/green]" if chk["ok"] else "[red]✗[/red]"
+            console.print(f"  {icon} {chk['action']}: {chk['detail']}")
+
+        if not perm_result["all_ok"]:
+            console.print(
+                "\n[red]✗ Permission checks failed.[/red] "
+                "Fix the issues above or use --skip-checks to bypass."
+            )
+            raise typer.Exit(1)
+        console.print("[green]✓[/green] All permission checks passed\n")
 
     # Create table
     console.print(f"[cyan]→[/cyan] Creating DynamoDB table '{backend.table_name}'...")
@@ -110,13 +176,13 @@ def init_cmd(
             console.print(f"[red]✗[/red] Failed to create table: {exc}")
             raise typer.Exit(1)
 
-    # Create S3 bucket
-    console.print(f"[cyan]→[/cyan] Creating S3 bucket '{backend.s3_bucket}'...")
+    # Create S3 bucket (creates if not exists, applies tags)
+    console.print(f"[cyan]→[/cyan] Ensuring S3 bucket '{backend.s3_bucket}' exists...")
     try:
         backend.create_s3_bucket()
         console.print(f"[green]✓[/green] S3 bucket '{backend.s3_bucket}' ready")
     except Exception as exc:
-        console.print(f"[red]✗[/red] Failed to create bucket: {exc}")
+        console.print(f"[red]✗[/red] Failed to create/access bucket: {exc}")
         raise typer.Exit(1)
 
     # Write META

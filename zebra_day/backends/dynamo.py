@@ -110,6 +110,117 @@ class DynamoBackend:
         )
 
     # ------------------------------------------------------------------
+    # AWS permission pre-flight checks
+    # ------------------------------------------------------------------
+
+    def check_aws_permissions(self) -> dict[str, Any]:
+        """Verify AWS credentials and permissions before resource creation.
+
+        Returns a dict with:
+          - identity: STS caller identity info (or error)
+          - checks: list of {action, ok, detail} dicts
+          - all_ok: bool — True if all checks passed
+        """
+        import botocore.exceptions
+
+        result: dict[str, Any] = {"identity": {}, "checks": [], "all_ok": True}
+
+        # 1. STS identity check — do credentials work at all?
+        try:
+            sts = self._ddb_resource.meta.client.meta.events
+            # Use the session to create an STS client
+            session_kwargs: dict[str, Any] = {"region_name": self.region}
+            import boto3 as _b3
+
+            sts_client = _b3.Session(**session_kwargs).client("sts")
+            identity = sts_client.get_caller_identity()
+            result["identity"] = {
+                "account": identity.get("Account", "?"),
+                "arn": identity.get("Arn", "?"),
+                "user_id": identity.get("UserId", "?"),
+            }
+            result["checks"].append(
+                {"action": "sts:GetCallerIdentity", "ok": True, "detail": identity.get("Arn", "")}
+            )
+        except Exception as exc:
+            result["identity"] = {"error": str(exc)}
+            result["checks"].append(
+                {"action": "sts:GetCallerIdentity", "ok": False, "detail": str(exc)}
+            )
+            result["all_ok"] = False
+            return result  # No point continuing if creds don't work
+
+        # 2. DynamoDB — try ListTables (minimal read permission)
+        try:
+            self._ddb_client.list_tables(Limit=1)
+            result["checks"].append(
+                {"action": "dynamodb:ListTables", "ok": True, "detail": "accessible"}
+            )
+        except botocore.exceptions.ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            result["checks"].append(
+                {"action": "dynamodb:ListTables", "ok": False, "detail": f"{code}: {exc}"}
+            )
+            result["all_ok"] = False
+
+        # 3. DynamoDB — try DescribeTable (may not exist yet; 404 is fine)
+        try:
+            self._ddb_client.describe_table(TableName=self.table_name)
+            result["checks"].append(
+                {"action": "dynamodb:DescribeTable", "ok": True, "detail": "table exists"}
+            )
+        except botocore.exceptions.ClientError as exc:
+            code = exc.response["Error"]["Code"]
+            if code == "ResourceNotFoundException":
+                result["checks"].append(
+                    {"action": "dynamodb:DescribeTable", "ok": True, "detail": "table not found (will be created)"}
+                )
+            else:
+                result["checks"].append(
+                    {"action": "dynamodb:DescribeTable", "ok": False, "detail": f"{code}: {exc}"}
+                )
+                result["all_ok"] = False
+
+        # 4. S3 — try HeadBucket (may not exist yet; 404 is fine)
+        if self.s3_bucket:
+            try:
+                self._s3.head_bucket(Bucket=self.s3_bucket)
+                result["checks"].append(
+                    {"action": "s3:HeadBucket", "ok": True, "detail": "bucket exists"}
+                )
+            except botocore.exceptions.ClientError as exc:
+                code = exc.response["Error"]["Code"]
+                if code in ("404", "NoSuchBucket"):
+                    result["checks"].append(
+                        {"action": "s3:HeadBucket", "ok": True, "detail": "bucket not found (will be created)"}
+                    )
+                elif code == "403":
+                    result["checks"].append(
+                        {"action": "s3:HeadBucket", "ok": False, "detail": "access denied — check S3 permissions"}
+                    )
+                    result["all_ok"] = False
+                else:
+                    result["checks"].append(
+                        {"action": "s3:HeadBucket", "ok": False, "detail": f"{code}: {exc}"}
+                    )
+                    result["all_ok"] = False
+
+            # 5. S3 — try ListBuckets (verifies broad S3 access)
+            try:
+                self._s3.list_buckets()
+                result["checks"].append(
+                    {"action": "s3:ListBuckets", "ok": True, "detail": "accessible"}
+                )
+            except botocore.exceptions.ClientError as exc:
+                code = exc.response["Error"]["Code"]
+                result["checks"].append(
+                    {"action": "s3:ListBuckets", "ok": False, "detail": f"{code}: {exc}"}
+                )
+                result["all_ok"] = False
+
+        return result
+
+    # ------------------------------------------------------------------
     # Resource provisioning
     # ------------------------------------------------------------------
 

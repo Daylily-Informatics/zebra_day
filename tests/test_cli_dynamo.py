@@ -87,6 +87,97 @@ class TestDynamoInit:
             assert result.exit_code == 1
             assert "S3 bucket required" in result.output
 
+    def test_init_with_s3_config_file(self, aws_env, tmp_path):
+        cfg = tmp_path / "s3cfg.json"
+        cfg.write_text(json.dumps({"s3_bucket": "file-bucket", "s3_prefix": "zd/"}))
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--region", "us-east-1",
+                    "--s3-config-file", str(cfg),
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "file-bucket" in result.output
+
+    def test_init_s3_bucket_flag_overrides_config_file(self, aws_env, tmp_path):
+        cfg = tmp_path / "s3cfg.json"
+        cfg.write_text(json.dumps({"s3_bucket": "file-bucket"}))
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--region", "us-east-1",
+                    "--s3-bucket", "flag-bucket",
+                    "--s3-config-file", str(cfg),
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "flag-bucket" in result.output
+
+    def test_init_bad_s3_config_file(self, aws_env, tmp_path):
+        cfg = tmp_path / "bad.json"
+        cfg.write_text("NOT JSON")
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--region", "us-east-1",
+                    "--s3-config-file", str(cfg),
+                ],
+            )
+            assert result.exit_code == 1
+
+    def test_init_nonexistent_s3_config_file(self, aws_env):
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--region", "us-east-1",
+                    "--s3-config-file", "/tmp/no-such-file-12345.json",
+                ],
+            )
+            assert result.exit_code == 1
+            assert "not found" in result.output
+
+    def test_init_shows_permission_checks(self, aws_env):
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--s3-bucket", "test-backup-bucket",
+                    "--region", "us-east-1",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "permission checks passed" in result.output.lower() or "Checking AWS" in result.output
+
+    def test_init_skip_checks(self, aws_env):
+        with mock_aws():
+            result = runner.invoke(
+                app,
+                [
+                    "dynamo", "init",
+                    "--table-name", "test-zebra-config",
+                    "--s3-bucket", "test-backup-bucket",
+                    "--region", "us-east-1",
+                    "--skip-checks",
+                ],
+            )
+            assert result.exit_code == 0, result.output
+            assert "Checking AWS" not in result.output
+
 
 # ---------------------------------------------------------------------------
 # status
