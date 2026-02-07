@@ -727,6 +727,12 @@ async def modern_config_scan(
     lab: str = "scan-results",
 ):
     """Scan network for printers."""
+    if ip_stub.endswith("."):
+        raise HTTPException(
+            status_code=400,
+            detail=f"ip_stub must not end with a trailing dot: '{ip_stub}'. "
+            f"Use '{ip_stub.rstrip('.')}' instead.",
+        )
     zp = request.app.state.zp
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait, lab=lab)
     time.sleep(2.2)
@@ -741,6 +747,12 @@ async def modern_config_scan_stream(
     lab: str = "scan-results",
 ):
     """Stream network scan progress via Server-Sent Events (SSE)."""
+    if ip_stub.endswith("."):
+        raise HTTPException(
+            status_code=400,
+            detail=f"ip_stub must not end with a trailing dot: '{ip_stub}'. "
+            f"Use '{ip_stub.rstrip('.')}' instead.",
+        )
     zp = request.app.state.zp
     scan_jobs = _get_scan_jobs(request.app)
 

@@ -50,6 +50,13 @@ def scan(
         local_ip = _get_local_ip()
         ip_stub = ".".join(local_ip.split(".")[:-1])
 
+    if ip_stub.endswith("."):
+        console.print(
+            f"[red]✗[/red] ip-stub must not end with a trailing dot: '{ip_stub}'. "
+            f"Use '{ip_stub.rstrip('.')}' instead."
+        )
+        raise typer.Exit(1)
+
     if not json_output:
         console.print(f"[cyan]→[/cyan] Scanning {ip_stub}.* for Zebra printers...")
         console.print("[dim]  This may take a few minutes...[/dim]")

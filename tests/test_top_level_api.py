@@ -325,3 +325,26 @@ class TestExportsInAll:
         for func_name in expected_functions:
             assert func_name in zd.__all__, f"{func_name} not in __all__"
             assert hasattr(zd, func_name), f"{func_name} not accessible on module"
+
+
+class TestScanIpStubTrailingDot:
+    """Tests for trailing-dot ip_stub rejection in the top-level scan() API."""
+
+    def setup_method(self):
+        import zebra_day
+
+        zebra_day._reset_zpl()
+
+    def test_scan_rejects_trailing_dot(self):
+        """scan() raises ValueError before calling the core method."""
+        import zebra_day as zd
+
+        with pytest.raises(ValueError, match="trailing dot"):
+            zd.scan(ip_stub="192.168.1.")
+
+    def test_scan_rejects_trailing_dot_different_prefix(self):
+        """scan() rejects any trailing-dot ip_stub."""
+        import zebra_day as zd
+
+        with pytest.raises(ValueError, match="trailing dot"):
+            zd.scan(ip_stub="10.0.0.")
