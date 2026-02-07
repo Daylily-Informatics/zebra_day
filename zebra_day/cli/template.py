@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import typer
+from cli_core_yo import output
 from rich.console import Console
 from rich.table import Table
 
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 template_app = typer.Typer(help="ZPL template management commands")
-console = Console()
+console = Console()  # retained for Rich Table rendering
 
 
 def _get_zp():
@@ -79,11 +80,11 @@ def list_templates(
                 )
 
     if json_output:
-        console.print(json.dumps(templates, indent=2))
+        output.emit_json(templates)
         return
 
     if not templates:
-        console.print("[yellow]⚠[/yellow] No templates found")
+        output.warning("No templates found")
         return
 
     table = Table(title="ZPL Templates")
@@ -111,10 +112,10 @@ def preview(
     """Generate a PNG preview of a ZPL template."""
     template_path = _find_template(template_name)
     if not template_path:
-        console.print(f"[red]✗[/red] Template not found: {template_name}")
+        output.error(f"Template not found: {template_name}")
         raise typer.Exit(1)
 
-    console.print(f"[cyan]→[/cyan] Generating preview for {template_name}...")
+    output.action(f"Generating preview for {template_name}...")
 
     try:
         import zebra_day.print_mgr as zdpm
@@ -131,10 +132,10 @@ def preview(
             output_path = Path(output)
 
         zp.generate_label_png(zpl_content, str(output_path), False)
-        console.print(f"[green]✓[/green] Preview generated: {output_path}")
+        output.success(f"Preview generated: {output_path}")
 
     except Exception as e:
-        console.print(f"[red]✗[/red] Preview error: {e}")
+        output.error(f"Preview error: {e}")
         raise typer.Exit(1) from None
 
 
@@ -146,18 +147,18 @@ def edit(
     """Open a ZPL template in an editor."""
     template_path = _find_template(template_name)
     if not template_path:
-        console.print(f"[red]✗[/red] Template not found: {template_name}")
+        output.error(f"Template not found: {template_name}")
         raise typer.Exit(1)
 
     # Determine editor
     if not editor:
         editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
 
-    console.print(f"[cyan]→[/cyan] Opening {template_path} with {editor}...")
+    output.action(f"Opening {template_path} with {editor}...")
     try:
         subprocess.run([editor, str(template_path)])
     except Exception as e:
-        console.print(f"[red]✗[/red] Error opening editor: {e}")
+        output.error(f"Error opening editor: {e}")
         raise typer.Exit(1) from None
 
 
@@ -168,11 +169,11 @@ def show(
     """Display the contents of a ZPL template."""
     template_path = _find_template(template_name)
     if not template_path:
-        console.print(f"[red]✗[/red] Template not found: {template_name}")
+        output.error(f"Template not found: {template_name}")
         raise typer.Exit(1)
 
-    console.print(f"[dim]# {template_path}[/dim]\n")
-    console.print(template_path.read_text())
+    output.detail(f"# {template_path}")
+    output.print_text(template_path.read_text())
 
 
 @template_app.command("save")
@@ -198,13 +199,13 @@ def save(
     content_path = Path(content_source)
     if content_path.exists() and content_path.is_file():
         zpl_content = content_path.read_text()
-        console.print(f"[dim]Reading ZPL from: {content_path}[/dim]")
+        output.detail(f"Reading ZPL from: {content_path}")
     else:
         zpl_content = content_source
 
     # Validate location
     if location not in ("user", "package"):
-        console.print(f"[red]✗[/red] Invalid location: {location} (must be 'user' or 'package')")
+        output.error(f"Invalid location: {location} (must be 'user' or 'package')")
         raise typer.Exit(1)
 
     try:
@@ -215,13 +216,13 @@ def save(
             overwrite=force,
             backup=not no_backup,
         )
-        console.print(f"[green]✓[/green] Template saved: {path}")
+        output.success(f"Template saved: {path}")
     except FileExistsError as e:
-        console.print(f"[red]✗[/red] {e}")
-        console.print("[yellow]→[/yellow] Use --force to overwrite")
+        output.error(str(e))
+        output.action("Use --force to overwrite")
         raise typer.Exit(1) from None
     except (ValueError, PermissionError) as e:
-        console.print(f"[red]✗[/red] {e}")
+        output.error(str(e))
         raise typer.Exit(1) from None
 
 
@@ -240,7 +241,7 @@ def delete(
     """
     # Validate location
     if location not in ("user", "package"):
-        console.print(f"[red]✗[/red] Invalid location: {location} (must be 'user' or 'package')")
+        output.error(f"Invalid location: {location} (must be 'user' or 'package')")
         raise typer.Exit(1)
 
     if not force:
@@ -251,12 +252,12 @@ def delete(
     zp = _get_zp()
     try:
         zp.delete_template(name, location=location)  # type: ignore[arg-type]
-        console.print(f"[green]✓[/green] Template '{name}' deleted from {location}")
+        output.success(f"Template '{name}' deleted from {location}")
     except FileNotFoundError as e:
-        console.print(f"[red]✗[/red] {e}")
+        output.error(str(e))
         raise typer.Exit(1) from None
     except PermissionError as e:
-        console.print(f"[red]✗[/red] {e}")
+        output.error(str(e))
         raise typer.Exit(1) from None
 
 

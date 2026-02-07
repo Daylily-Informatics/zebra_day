@@ -10,6 +10,7 @@ import os
 from typing import TYPE_CHECKING
 
 import typer
+from cli_core_yo import output
 from rich.console import Console
 from rich.table import Table
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
     from cli_core_yo.spec import CliSpec
 
-console = Console()
+console = Console()  # retained for Rich Table rendering
 
 
 def _is_cognito_available() -> bool:
@@ -82,49 +83,49 @@ def _create_fallback_app() -> typer.Typer:
 
         # Summary
         if pool_id and client_id:
-            console.print("\n[green]✓[/green] Cognito is configured")
-            console.print("  Start server with: [cyan]zday gui start --auth cognito[/cyan]")
+            output.success("Cognito is configured")
+            output.detail("Start server with: zday gui start --auth cognito")
         else:
-            console.print("\n[yellow]⚠[/yellow] Cognito is not fully configured")
-            console.print(
-                "  Set environment variables or install daylily-cognito for full management"
+            output.warning("Cognito is not fully configured")
+            output.detail(
+                "Set environment variables or install daylily-cognito for full management"
             )
 
     @app.command("info")
     def info():
         """Display information about Cognito setup requirements."""
-        console.print("\n[bold]Cognito Authentication Setup[/bold]\n")
-        console.print("To enable Cognito authentication for zebra_day:\n")
+        output.heading("Cognito Authentication Setup")
+        output.print_text("To enable Cognito authentication for zebra_day:\n")
 
-        console.print("[bold]1. Install auth dependencies:[/bold]")
-        console.print('   [cyan]pip install -e ".[auth]"[/cyan]\n')
+        output.print_text("1. Install auth dependencies:")
+        output.detail('pip install -e ".[auth]"')
 
-        console.print("[bold]2. Set environment variables:[/bold]")
-        console.print("   [cyan]export COGNITO_USER_POOL_ID=your-pool-id[/cyan]")
-        console.print("   [cyan]export COGNITO_APP_CLIENT_ID=your-client-id[/cyan]")
-        console.print("   [cyan]export COGNITO_REGION=us-west-2[/cyan]  # optional\n")
+        output.print_text("\n2. Set environment variables:")
+        output.detail("export COGNITO_USER_POOL_ID=your-pool-id")
+        output.detail("export COGNITO_APP_CLIENT_ID=your-client-id")
+        output.detail("export COGNITO_REGION=us-west-2  # optional")
 
-        console.print("[bold]3. Start server with authentication:[/bold]")
-        console.print("   [cyan]zday gui start --auth cognito[/cyan]\n")
+        output.print_text("\n3. Start server with authentication:")
+        output.detail("zday gui start --auth cognito")
 
         if not _is_cognito_available():
-            console.print(
-                "[dim]For full Cognito management (create, teardown), install daylily-cognito:[/dim]"
+            output.detail(
+                "For full Cognito management (create, teardown), install daylily-cognito:"
             )
-            console.print("[dim]  pip install daylily-cognito[/dim]")
+            output.detail("  pip install daylily-cognito")
 
     @app.command("create")
     def create():
         """Create/configure a Cognito user pool (requires daylily-cognito)."""
-        console.print("[yellow]⚠[/yellow] This command requires daylily-cognito")
-        console.print('  Install with: [cyan]pip install -e ".[auth]"[/cyan]')
+        output.warning("This command requires daylily-cognito")
+        output.detail('Install with: pip install -e ".[auth]"')
         raise typer.Exit(1)
 
     @app.command("teardown")
     def teardown():
         """Remove Cognito configuration (requires daylily-cognito)."""
-        console.print("[yellow]⚠[/yellow] This command requires daylily-cognito")
-        console.print('  Install with: [cyan]pip install -e ".[auth]"[/cyan]')
+        output.warning("This command requires daylily-cognito")
+        output.detail('Install with: pip install -e ".[auth]"')
         raise typer.Exit(1)
 
     return app

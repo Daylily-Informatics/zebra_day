@@ -7,6 +7,7 @@ import socket
 from typing import TYPE_CHECKING
 
 import typer
+from cli_core_yo import output
 from rich.console import Console
 from rich.table import Table
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 printer_app = typer.Typer(help="Printer fleet management commands")
-console = Console()
+console = Console()  # retained for Rich Table rendering
 
 
 def _get_local_ip() -> str:
@@ -58,15 +59,15 @@ def scan(
         ip_stub = ".".join(local_ip.split(".")[:-1])
 
     if ip_stub.endswith("."):
-        console.print(
-            f"[red]✗[/red] ip-stub must not end with a trailing dot: '{ip_stub}'. "
+        output.error(
+            f"ip-stub must not end with a trailing dot: '{ip_stub}'. "
             f"Use '{ip_stub.rstrip('.')}' instead."
         )
         raise typer.Exit(1)
 
     if not json_output:
-        console.print(f"[cyan]→[/cyan] Scanning {ip_stub}.* for Zebra printers...")
-        console.print("[dim]  This may take a few minutes...[/dim]")
+        output.action(f"Scanning {ip_stub}.* for Zebra printers...")
+        output.detail("This may take a few minutes...")
 
     try:
         import zebra_day.print_mgr as zdpm
@@ -108,9 +109,9 @@ def scan(
                     )
 
         if json_output:
-            console.print(json.dumps(found, indent=2))
+            output.emit_json(found)
         else:
-            console.print(f"\n[green]✓[/green] Found {len(found)} printer(s)")
+            output.success(f"Found {len(found)} printer(s)")
             if found:
                 table = Table()
                 table.add_column("Name", style="cyan")
@@ -123,9 +124,9 @@ def scan(
 
     except Exception as e:
         if json_output:
-            console.print(json.dumps({"error": str(e)}))
+            output.emit_json({"error": str(e)})
         else:
-            console.print(f"[red]✗[/red] Scan error: {e}")
+            output.error(f"Scan error: {e}")
         raise typer.Exit(1) from None
 
 
@@ -166,7 +167,7 @@ def list_printers(
         # Query live status if requested
         if live and printers:
             if not json_output:
-                console.print("[cyan]→[/cyan] Querying live status from printers...")
+                output.action("Querying live status from printers...")
             for p in printers:
                 ip = p.get("ip", "")
                 if ip and ip not in ("unknown", "dl_png"):
@@ -199,25 +200,25 @@ def list_printers(
                     p["state"] = "Unknown"
 
         if json_output:
-            console.print(json.dumps(printers, indent=2))
+            output.emit_json(printers)
             return
 
         if not printers:
-            console.print("[yellow]⚠[/yellow] No printers configured")
-            console.print("   Run [cyan]zday printer scan[/cyan] to discover printers")
+            output.warning("No printers configured")
+            output.detail("Run 'zday printer scan' to discover printers")
             return
 
         # If a lab filter is specified, show lab metadata first.
         if lab:
             try:
                 meta = zp.get_lab_metadata(lab)
-                console.print(
-                    f"[dim]Lab:[/dim] {meta.get('lab')}  "
-                    f"[dim]Display:[/dim] {meta.get('lab_display_name')}  "
-                    f"[dim]Stub:[/dim] {meta.get('network_stub')}"
+                output.detail(
+                    f"Lab: {meta.get('lab')}  "
+                    f"Display: {meta.get('lab_display_name')}  "
+                    f"Stub: {meta.get('network_stub')}"
                 )
                 if meta.get("lab_description"):
-                    console.print(f"[dim]Description:[/dim] {meta.get('lab_description')}")
+                    output.detail(f"Description: {meta.get('lab_description')}")
             except Exception:
                 pass
 
@@ -280,9 +281,9 @@ def list_printers(
 
     except Exception as e:
         if json_output:
-            console.print(json.dumps({"error": str(e)}))
+            output.emit_json({"error": str(e)})
         else:
-            console.print(f"[red]✗[/red] Error: {e}")
+            output.error(f"Error: {e}")
         raise typer.Exit(1) from None
 
 
@@ -298,7 +299,7 @@ def test_print(
 
         zp = zdpm.zpl()
 
-        console.print(f"[cyan]→[/cyan] Sending test print to {printer_name}...")
+        output.action(f"Sending test print to {printer_name}...")
         zp.print_zpl(
             lab=lab,
             printer_name=printer_name,
@@ -307,10 +308,10 @@ def test_print(
             alt_b="zebra_day CLI",
             label_zpl_style=label_style,
         )
-        console.print("[green]✓[/green] Test print sent successfully")
+        output.success("Test print sent successfully")
 
     except Exception as e:
-        console.print(f"[red]✗[/red] Print error: {e}")
+        output.error(f"Print error: {e}")
         raise typer.Exit(1) from None
 
 

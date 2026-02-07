@@ -7,15 +7,13 @@ import socket
 from typing import TYPE_CHECKING, Any
 
 import typer
-from rich.console import Console
+from cli_core_yo import output
 
 from zebra_day import paths as xdg
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
     from cli_core_yo.spec import CliSpec
-
-console = Console()
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
@@ -78,31 +76,30 @@ def _status_callback(
             pass
 
     if json_output:
-        console.print(json_mod.dumps(status_data, indent=2))
+        output.emit_json(status_data)
         return
 
     # Human-readable output
-    console.print("\n[bold]Service Status[/bold]")
+    output.heading("Service Status")
     if status_data["gui_server"]["running"]:
-        console.print(
-            f"  [green]●[/green] GUI Server: [green]Running[/green]"
+        output.success(
+            f"GUI Server: Running"
             f" (PID {status_data['gui_server']['pid']})"
         )
-        console.print(f"    URL: [cyan]{status_data['gui_server']['url']}[/cyan]")
+        output.detail(f"URL: {status_data['gui_server']['url']}")
     else:
-        console.print("  [dim]○[/dim] GUI Server: [dim]Not running[/dim]")
+        output.detail("GUI Server: Not running")
 
-    console.print("\n[bold]Printer Fleet[/bold]")
+    output.heading("Printer Fleet")
     if status_data["config"]["exists"]:
-        console.print("  [green]●[/green] Config: [green]Loaded[/green]")
-        console.print(f"    Printers: {status_data['printers']['configured']}")
-        console.print(
-            f"    Labs: {', '.join(status_data['printers']['labs']) or 'none'}"
+        output.success("Config: Loaded")
+        output.detail(f"Printers: {status_data['printers']['configured']}")
+        output.detail(
+            f"Labs: {', '.join(status_data['printers']['labs']) or 'none'}"
         )
     else:
-        console.print("  [yellow]○[/yellow] Config: [yellow]Not found[/yellow]")
-        console.print("    Run [cyan]zday bootstrap[/cyan] to initialize")
-    console.print()
+        output.warning("Config: Not found")
+        output.detail("Run 'zday bootstrap' to initialize")
 
 
 def _bootstrap_callback(
@@ -136,13 +133,13 @@ def _bootstrap_callback(
     labs: list[str] = []
 
     if not json_output:
-        console.print("\n[bold cyan]zebra_day Bootstrap[/bold cyan]\n")
-        console.print("[green]✓[/green] Config directory: " + config_dir)
-        console.print("[green]✓[/green] Data directory: " + data_dir)
+        output.heading("zebra_day Bootstrap")
+        output.success("Config directory: " + config_dir)
+        output.success("Data directory: " + data_dir)
 
     if skip_scan:
         if not json_output:
-            console.print("[dim]Skipping printer scan (--skip-scan)[/dim]")
+            output.detail("Skipping printer scan (--skip-scan)")
     else:
         # Determine IP stub
         if not ip_stub:
@@ -156,18 +153,18 @@ def _bootstrap_callback(
                 ip_stub = "192.168.1"
 
         if ip_stub.endswith("."):
-            console.print(
-                f"[red]✗[/red] ip-stub must not end with a trailing dot: '{ip_stub}'. "
+            output.error(
+                f"ip-stub must not end with a trailing dot: '{ip_stub}'. "
                 f"Use '{ip_stub.rstrip('.')}' instead."
             )
             raise typer.Exit(1)
 
         if not json_output:
-            console.print(
-                f"\n[cyan]→[/cyan] Scanning network for Zebra printers ({ip_stub}.*)..."
+            output.action(
+                f"Scanning network for Zebra printers ({ip_stub}.*)..."
             )
             if silent_scan:
-                console.print("[dim]  This may take a few minutes...[/dim]")
+                output.detail("This may take a few minutes...")
 
         # Build progress callback for verbose (non-silent) scan output
         verbose_scan = not json_output and not silent_scan
@@ -180,25 +177,21 @@ def _bootstrap_callback(
                 checked = event.get("checked", 0)
                 total = event.get("total", 255)
                 ip_addr = event.get("ip", "")
-                console.print(
-                    f"  [dim][{checked + 1}/{total}][/dim] Probing {ip_addr}...",
-                    end="\r",
+                output.print_text(
+                    f"  [{checked + 1}/{total}] Probing {ip_addr}..."
                 )
             elif kind == "found":
                 ip_addr = event.get("ip", "")
                 model = event.get("model", "Unknown")
                 serial = event.get("serial", "Unknown")
-                console.print(
-                    f"  [green]★[/green] Found printer at [bold]{ip_addr}[/bold]"
-                    f"  model=[cyan]{model}[/cyan]  serial=[dim]{serial}[/dim]"
+                output.success(
+                    f"Found printer at {ip_addr}"
+                    f"  model={model}  serial={serial}"
                 )
             elif kind == "done":
                 checked = event.get("checked", 0)
                 total = event.get("total", 255)
-                # Clear the last \r line
-                console.print(
-                    f"  [dim]Scanned {checked}/{total} addresses[/dim]    "
-                )
+                output.detail(f"Scanned {checked}/{total} addresses")
 
         try:
             import zebra_day.print_mgr as zdpm
@@ -216,63 +209,59 @@ def _bootstrap_callback(
                     labs.append(lab)
 
             if not json_output:
-                console.print(
-                    f"[green]✓[/green] Scan complete: {printers_found} printer(s) found"
+                output.success(
+                    f"Scan complete: {printers_found} printer(s) found"
                 )
                 if labs:
-                    console.print(f"    Labs: {', '.join(labs)}")
+                    output.detail(f"Labs: {', '.join(labs)}")
         except Exception as e:
             if not json_output:
-                console.print(f"[yellow]⚠[/yellow] Scan error: {e}")
+                output.warning(f"Scan error: {e}")
 
     # Generate HTTPS certificates if mkcert is available
     certs_generated = False
     cert_path_str = None
 
     if not json_output:
-        console.print("\n[cyan]→[/cyan] Checking HTTPS certificates...")
+        output.action("Checking HTTPS certificates...")
 
     try:
         from zebra_day import mkcert
 
         if not mkcert.is_mkcert_installed():
             if not json_output:
-                console.print("[yellow]⚠[/yellow]  mkcert not installed")
-                console.print(
-                    "   Install with: [dim]brew install mkcert[/dim] (macOS) or "
-                    "[dim]sudo apt install mkcert[/dim] (Ubuntu)"
+                output.warning("mkcert not installed")
+                output.detail(
+                    "Install with: brew install mkcert (macOS) or "
+                    "sudo apt install mkcert (Ubuntu)"
                 )
         elif not mkcert.is_ca_installed():
             if not json_output:
-                console.print("[yellow]⚠[/yellow]  mkcert CA not installed")
-                console.print(
-                    "   Run: [dim]mkcert -install[/dim] (one-time, requires password)"
+                output.warning("mkcert CA not installed")
+                output.detail(
+                    "Run: mkcert -install (one-time, requires password)"
                 )
         elif mkcert.certificates_exist():
             if not json_output:
-                console.print(
-                    f"[green]✓[/green] Certificates exist: {mkcert.CERT_FILE}"
-                )
+                output.success(f"Certificates exist: {mkcert.CERT_FILE}")
             certs_generated = True
             cert_path_str = str(mkcert.CERT_FILE)
         else:
             if not json_output:
-                console.print("   Generating certificates...")
+                output.detail("Generating certificates...")
             if mkcert.generate_certificates():
                 if not json_output:
-                    console.print(
-                        f"[green]✓[/green] Certificates generated: {mkcert.CERT_FILE}"
+                    output.success(
+                        f"Certificates generated: {mkcert.CERT_FILE}"
                     )
                 certs_generated = True
                 cert_path_str = str(mkcert.CERT_FILE)
             else:
                 if not json_output:
-                    console.print(
-                        "[yellow]⚠[/yellow]  Failed to generate certificates"
-                    )
+                    output.warning("Failed to generate certificates")
     except Exception as e:
         if not json_output:
-            console.print(f"[yellow]⚠[/yellow] Certificate check error: {e}")
+            output.warning(f"Certificate check error: {e}")
 
     if json_output:
         result = {
@@ -283,12 +272,11 @@ def _bootstrap_callback(
             "https_certs_generated": certs_generated,
             "cert_path": cert_path_str,
         }
-        console.print(json_mod.dumps(result, indent=2))
+        output.emit_json(result)
     else:
-        console.print("\n[bold green]✓ Bootstrap complete![/bold green]")
-        console.print("\n[bold]Next steps:[/bold]")
-        console.print("  zday gui start     Start the web UI")
-        console.print("  zday printer list  Show configured printers")
-        console.print("  zday info          Show configuration details")
-        console.print()
+        output.success("Bootstrap complete!")
+        output.heading("Next steps")
+        output.detail("zday gui start     Start the web UI")
+        output.detail("zday printer list  Show configured printers")
+        output.detail("zday info          Show configuration details")
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
-from rich.console import Console
+from cli_core_yo import output
 
 from zebra_day import paths as xdg
 
@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 gui_app = typer.Typer(help="Web UI server management commands")
-console = Console()
 
 # PID and log file locations
 STATE_DIR = xdg.get_state_dir()
@@ -156,21 +155,21 @@ def start(
 
     # Validate auth option
     if auth not in ("none", "cognito"):
-        console.print(f"[red]✗[/red] Invalid auth mode: {auth}. Use 'none' or 'cognito'.")
+        output.error(f"Invalid auth mode: {auth}. Use 'none' or 'cognito'.")
         raise typer.Exit(1)
 
     # Check if already running
     pid = _get_pid()
     if pid:
-        console.print(f"[yellow]⚠[/yellow]  Server already running (PID {pid})")
-        console.print(f"   URL: [cyan]http://{host}:{port}[/cyan]")
+        output.warning(f"Server already running (PID {pid})")
+        output.detail(f"URL: http://{host}:{port}")
         return
 
     # Check auth dependencies if cognito mode
     if auth == "cognito":
         if not _check_auth_dependencies():
-            console.print("[red]✗[/red]  Authentication requested but python-jose is not installed")
-            console.print('   Install with: [cyan]pip install -e ".[auth]"[/cyan]')
+            output.error("Authentication requested but python-jose is not installed")
+            output.detail('Install with: pip install -e ".[auth]"')
             raise typer.Exit(1)
 
         # Check required env vars
@@ -180,11 +179,11 @@ def start(
         if not os.environ.get("COGNITO_APP_CLIENT_ID"):
             missing.append("COGNITO_APP_CLIENT_ID")
         if missing:
-            console.print("[red]✗[/red]  Cognito auth enabled but environment variables missing:")
+            output.error("Cognito auth enabled but environment variables missing:")
             for var in missing:
-                console.print(f"   • {var}")
+                output.bullet(var)
             raise typer.Exit(1)
-        console.print("[green]✓[/green]  Cognito authentication enabled")
+        output.success("Cognito authentication enabled")
 
     # Resolve SSL paths with automatic generation
     cert_path, key_path, use_https, status_message = _resolve_ssl_paths(cert, key, no_https)
@@ -192,17 +191,17 @@ def start(
     protocol = "https" if use_https else "http"
 
     if use_https:
-        console.print("[green]✓[/green]  HTTPS enabled")
-        console.print(f"   Certificate: [dim]{cert_path}[/dim]")
-        console.print(f"   Private key: [dim]{key_path}[/dim]")
+        output.success("HTTPS enabled")
+        output.detail(f"Certificate: {cert_path}")
+        output.detail(f"Private key: {key_path}")
         if "auto" in status_message.lower() or "generated" in status_message.lower():
-            console.print(f"   [dim]{status_message}[/dim]")
+            output.detail(status_message)
     else:
-        console.print("[yellow]⚠[/yellow]  Running in HTTP mode (insecure)")
+        output.warning("Running in HTTP mode (insecure)")
         # Display the status message which contains guidance
         for line in status_message.split("\n"):
             if line.strip():
-                console.print(f"   {line}")
+                output.detail(line)
 
     # Build command with SSL parameters
     ssl_args = ""
@@ -226,7 +225,7 @@ def start(
 
     if reload:
         background = False
-        console.print("[dim]Auto-reload enabled (foreground mode)[/dim]")
+        output.detail("Auto-reload enabled (foreground mode)")
 
     if background:
         log_file = _get_log_file()
@@ -244,31 +243,29 @@ def start(
         time.sleep(2)
         if proc.poll() is not None:
             log_f.close()
-            console.print("[red]✗[/red]  Server failed to start. Check logs:")
-            console.print(f"   [dim]{log_file}[/dim]")
+            output.error("Server failed to start. Check logs:")
+            output.detail(str(log_file))
             if log_file.exists():
                 content = log_file.read_text().strip()
                 if content:
-                    console.print("\n[dim]--- Last error ---[/dim]")
+                    output.detail("--- Last error ---")
                     for line in content.split("\n")[-10:]:
-                        console.print(f"   {line}")
+                        output.detail(line)
             raise typer.Exit(1)
 
         PID_FILE.write_text(str(proc.pid))
-        console.print(f"[green]✓[/green]  Server started (PID {proc.pid})")
-        console.print(f"   URL: [cyan]{protocol}://{host}:{port}[/cyan]")
-        console.print(f"   Logs: [dim]{log_file}[/dim]")
+        output.success(f"Server started (PID {proc.pid})")
+        output.detail(f"URL: {protocol}://{host}:{port}")
+        output.detail(f"Logs: {log_file}")
     else:
-        console.print(
-            f"[green]✓[/green]  Starting server on [cyan]{protocol}://{host}:{port}[/cyan]"
-        )
-        console.print("   Press Ctrl+C to stop\n")
+        output.success(f"Starting server on {protocol}://{host}:{port}")
+        output.detail("Press Ctrl+C to stop")
         try:
             result = subprocess.run(cmd, cwd=Path.cwd(), env=env)
             if result.returncode != 0:
                 raise typer.Exit(result.returncode)
         except KeyboardInterrupt:
-            console.print("\n[yellow]⚠[/yellow]  Server stopped")
+            output.warning("Server stopped")
 
 
 @gui_app.command("stop")
@@ -276,7 +273,7 @@ def stop():
     """Stop the zebra_day web UI server."""
     pid = _get_pid()
     if not pid:
-        console.print("[yellow]⚠[/yellow]  No server running")
+        output.warning("No server running")
         return
 
     try:
@@ -291,12 +288,12 @@ def stop():
             os.kill(pid, signal.SIGKILL)
 
         PID_FILE.unlink(missing_ok=True)
-        console.print(f"[green]✓[/green]  Server stopped (was PID {pid})")
+        output.success(f"Server stopped (was PID {pid})")
     except ProcessLookupError:
         PID_FILE.unlink(missing_ok=True)
-        console.print("[yellow]⚠[/yellow]  Server was not running")
+        output.warning("Server was not running")
     except PermissionError:
-        console.print(f"[red]✗[/red]  Permission denied stopping PID {pid}")
+        output.error(f"Permission denied stopping PID {pid}")
         raise typer.Exit(1) from None
 
 
@@ -309,12 +306,12 @@ def status():
         # Check if HTTPS is likely enabled based on cert availability
         _, _, use_https, _ = _resolve_ssl_paths(None, None)
         protocol = "https" if use_https else "http"
-        console.print(f"[green]●[/green]  Server is [green]running[/green] (PID {pid})")
-        console.print(f"   URL: [cyan]{protocol}://0.0.0.0:8118[/cyan]")
+        output.success(f"Server is running (PID {pid})")
+        output.detail(f"URL: {protocol}://0.0.0.0:8118")
         if log_file:
-            console.print(f"   Logs: [dim]{log_file}[/dim]")
+            output.detail(f"Logs: {log_file}")
     else:
-        console.print("[dim]○[/dim]  Server is [dim]not running[/dim]")
+        output.detail("Server is not running")
 
 
 @gui_app.command("logs")
@@ -327,31 +324,31 @@ def logs(
     if all_logs:
         log_files = sorted(LOG_DIR.glob("gui_*.log"), reverse=True)
         if not log_files:
-            console.print("[yellow]⚠[/yellow]  No log files found.")
+            output.warning("No log files found.")
             return
-        console.print(f"[bold]Server log files ({len(log_files)}):[/bold]")
+        output.heading(f"Server log files ({len(log_files)})")
         for lf in log_files[:20]:
             size = lf.stat().st_size
-            console.print(f"  {lf.name}  [dim]({size:,} bytes)[/dim]")
+            output.detail(f"{lf.name}  ({size:,} bytes)")
         return
 
     log_file = _get_latest_log()
     if not log_file:
-        console.print("[yellow]⚠[/yellow]  No log file found. Start the server first.")
+        output.warning("No log file found. Start the server first.")
         return
 
     if follow:
-        console.print(f"[dim]Following {log_file.name} (Ctrl+C to stop)[/dim]\n")
+        output.detail(f"Following {log_file.name} (Ctrl+C to stop)")
         try:
             subprocess.run(["tail", "-f", "-n", str(lines), str(log_file)])
         except KeyboardInterrupt:
-            console.print("\n")
+            output.print_text("")
     else:
-        console.print(f"[dim]Showing last {lines} lines of {log_file.name}[/dim]\n")
+        output.detail(f"Showing last {lines} lines of {log_file.name}")
         try:
             subprocess.run(["tail", "-n", str(lines), str(log_file)])
         except Exception as e:
-            console.print(f"[red]✗[/red]  Error reading log: {e}")
+            output.error(f"Error reading log: {e}")
 
 
 @gui_app.command("restart")

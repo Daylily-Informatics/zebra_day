@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
+from cli_core_yo import output
 from rich.console import Console
 from rich.panel import Panel
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
     from cli_core_yo.spec import CliSpec
 
-console = Console()
+console = Console()  # retained for Rich Panel rendering
 
 env_app = typer.Typer(help="Development environment management")
 
@@ -46,14 +47,14 @@ def activate():
     project_root = _find_project_root()
 
     if project_root is None:
-        console.print("[red]✗[/red] Could not find zebra_day project root")
-        console.print("   Make sure you're in the zebra_day directory")
+        output.error("Could not find zebra_day project root")
+        output.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
     activate_script = project_root / "zday_activate"
 
     if not activate_script.exists():
-        console.print(f"[red]✗[/red] Activation script not found: {activate_script}")
+        output.error(f"Activation script not found: {activate_script}")
         raise typer.Exit(1)
 
     console.print(
@@ -63,8 +64,8 @@ def activate():
             border_style="green",
         )
     )
-    console.print("\n[dim]Note: CLI commands cannot modify the parent shell.[/dim]")
-    console.print("[dim]You must source the script directly.[/dim]")
+    output.detail("Note: CLI commands cannot modify the parent shell.")
+    output.detail("You must source the script directly.")
 
 
 @env_app.command("deactivate")
@@ -76,7 +77,7 @@ def deactivate():
     """
     # Check if environment is active
     if not os.environ.get("_ZDAY_ACTIVE"):
-        console.print("[yellow]⚠[/yellow] zebra_day environment is not active")
+        output.warning("zebra_day environment is not active")
         return
 
     project_root = _find_project_root()
@@ -100,8 +101,8 @@ def deactivate():
             )
         )
 
-    console.print("\n[dim]Note: CLI commands cannot modify the parent shell.[/dim]")
-    console.print("[dim]You must source the script directly.[/dim]")
+    output.detail("Note: CLI commands cannot modify the parent shell.")
+    output.detail("You must source the script directly.")
 
 
 @env_app.command("status")
@@ -112,21 +113,19 @@ def status():
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
     config_path = str(xdg.get_config_file_path())
 
-    console.print("\n[bold]Environment Status[/bold]\n")
+    output.heading("Environment Status")
 
     if is_active:
-        console.print("  [green]●[/green] zebra_day environment: [green]Active[/green]")
+        output.success("zebra_day environment: Active")
         if project_root:
-            console.print(f"    Project root: [cyan]{project_root}[/cyan]")
+            output.detail(f"Project root: {project_root}")
         if virtual_env:
-            console.print(f"    Virtual env:  [cyan]{virtual_env}[/cyan]")
-        console.print(f"    Config file:  [cyan]{config_path}[/cyan]")
+            output.detail(f"Virtual env:  {virtual_env}")
+        output.detail(f"Config file:  {config_path}")
     else:
-        console.print("  [dim]○[/dim] zebra_day environment: [dim]Not active[/dim]")
-        console.print("    Run [cyan]zday env activate[/cyan] for instructions")
-        console.print(f"    Config file:  [cyan]{config_path}[/cyan]")
-
-    console.print()
+        output.detail("zebra_day environment: Not active")
+        output.detail("Run 'zday env activate' for instructions")
+        output.detail(f"Config file:  {config_path}")
 
 
 @env_app.command("reset")
@@ -139,15 +138,15 @@ def reset():
     project_root = _find_project_root()
 
     if project_root is None:
-        console.print("[red]✗[/red] Could not find zebra_day project root")
-        console.print("   Make sure you're in the zebra_day directory")
+        output.error("Could not find zebra_day project root")
+        output.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
     activate_script = project_root / "zday_activate"
     deactivate_script = project_root / "zday_deactivate"
 
     if not activate_script.exists():
-        console.print(f"[red]✗[/red] Activation script not found: {activate_script}")
+        output.error(f"Activation script not found: {activate_script}")
         raise typer.Exit(1)
 
     # Check if currently active
@@ -172,8 +171,8 @@ def reset():
             )
         )
 
-    console.print("\n[dim]Note: CLI commands cannot modify the parent shell.[/dim]")
-    console.print("[dim]You must source the script directly.[/dim]")
+    output.detail("Note: CLI commands cannot modify the parent shell.")
+    output.detail("You must source the script directly.")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

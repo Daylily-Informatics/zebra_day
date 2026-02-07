@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
+from cli_core_yo import output
 from rich.console import Console
 from rich.table import Table
 
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 dynamo_app = typer.Typer(help="DynamoDB shared configuration management")
-console = Console()
+console = Console()  # retained for Rich Table rendering
 
 
 def _is_interactive() -> bool:
@@ -37,7 +38,7 @@ def _prompt_s3_bucket() -> str:
     """
     bucket = typer.prompt("S3 bucket name for backups").strip()
     if not bucket:
-        console.print("[red]✗[/red] No S3 bucket name provided.")
+        output.error("No S3 bucket name provided.")
         raise typer.Exit(1)
     return bucket
 
@@ -56,18 +57,18 @@ def _ensure_s3_bucket(backend, *, create_if_missing: bool = False) -> None:
         backend._s3.head_bucket(Bucket=backend.s3_bucket)
     except Exception:
         if create_if_missing:
-            console.print(
-                f"[cyan]→[/cyan] Bucket '{backend.s3_bucket}' not found — creating..."
+            output.action(
+                f"Bucket '{backend.s3_bucket}' not found — creating..."
             )
             backend.create_s3_bucket()
-            console.print(
-                f"[green]✓[/green] S3 bucket '{backend.s3_bucket}' created "
+            output.success(
+                f"S3 bucket '{backend.s3_bucket}' created "
                 f"(tags: lsmc-cost-center={backend.cost_center}, "
                 f"lsmc-project={backend.project})"
             )
         else:
-            console.print(
-                f"[yellow]⚠[/yellow] S3 bucket '{backend.s3_bucket}' does not exist. "
+            output.warning(
+                f"S3 bucket '{backend.s3_bucket}' does not exist. "
                 "Use --create-s3-if-missing to auto-create."
             )
 
@@ -92,14 +93,12 @@ def _get_backend_from_env(
 
     if not backend.s3_bucket:
         if not json_output and _is_interactive():
-            console.print(
-                "[yellow]⚠[/yellow] ZEBRA_DAY_S3_BACKUP_BUCKET is not set."
-            )
+            output.warning("ZEBRA_DAY_S3_BACKUP_BUCKET is not set.")
             bucket = _prompt_s3_bucket()
             backend.s3_bucket = bucket
         else:
-            console.print(
-                "[red]✗[/red] ZEBRA_DAY_S3_BACKUP_BUCKET is required when using "
+            output.error(
+                "ZEBRA_DAY_S3_BACKUP_BUCKET is required when using "
                 "DynamoDB backend. Set it to the S3 bucket name for config backups."
             )
             raise typer.Exit(1)
@@ -117,15 +116,15 @@ def _load_s3_config_file(path: str) -> dict:
     """
     p = Path(path)
     if not p.exists():
-        console.print(f"[red]✗[/red] S3 config file not found: {path}")
+        output.error(f"S3 config file not found: {path}")
         raise typer.Exit(1)
     try:
         data = json_mod.loads(p.read_text())
     except Exception as exc:
-        console.print(f"[red]✗[/red] Failed to parse S3 config file: {exc}")
+        output.error(f"Failed to parse S3 config file: {exc}")
         raise typer.Exit(1)
     if not isinstance(data, dict):
-        console.print("[red]✗[/red] S3 config file must contain a JSON object")
+        output.error("S3 config file must contain a JSON object")
         raise typer.Exit(1)
     return data
 
@@ -172,14 +171,14 @@ def _get_backend(
     )
     if not resolved_bucket:
         if _is_interactive():
-            console.print(
-                "[yellow]⚠[/yellow] S3 bucket not specified via flag, config file, "
+            output.warning(
+                "S3 bucket not specified via flag, config file, "
                 "or ZEBRA_DAY_S3_BACKUP_BUCKET env var."
             )
             resolved_bucket = _prompt_s3_bucket()
         else:
-            console.print(
-                "[red]✗[/red] S3 bucket required. Use --s3-bucket, --s3-config-file, "
+            output.error(
+                "S3 bucket required. Use --s3-bucket, --s3-config-file, "
                 "or set ZEBRA_DAY_S3_BACKUP_BUCKET."
             )
             raise typer.Exit(1)
@@ -251,67 +250,69 @@ def init_cmd(
         s3_config_file=s3_config_file,
     )
 
-    console.print("\n[bold cyan]DynamoDB Shared Config Init[/bold cyan]\n")
+    output.heading("DynamoDB Shared Config Init")
 
     # --- AWS permission pre-flight checks ---
     if not skip_checks:
-        console.print("[cyan]→[/cyan] Checking AWS permissions...")
+        output.action("Checking AWS permissions...")
         perm_result = backend.check_aws_permissions()
 
         # Show identity
         ident = perm_result.get("identity", {})
         if ident.get("arn"):
-            console.print(f"  Identity: [dim]{ident['arn']}[/dim]")
-            console.print(f"  Account:  [dim]{ident['account']}[/dim]")
+            output.detail(f"Identity: {ident['arn']}")
+            output.detail(f"Account:  {ident['account']}")
         elif ident.get("error"):
-            console.print(f"  [red]✗ Credentials failed:[/red] {ident['error']}")
+            output.error(f"Credentials failed: {ident['error']}")
 
         # Show each check
         for chk in perm_result.get("checks", []):
-            icon = "[green]✓[/green]" if chk["ok"] else "[red]✗[/red]"
-            console.print(f"  {icon} {chk['action']}: {chk['detail']}")
+            if chk["ok"]:
+                output.success(f"{chk['action']}: {chk['detail']}")
+            else:
+                output.error(f"{chk['action']}: {chk['detail']}")
 
         if not perm_result["all_ok"]:
-            console.print(
-                "\n[red]✗ Permission checks failed.[/red] "
+            output.error(
+                "Permission checks failed. "
                 "Fix the issues above or use --skip-checks to bypass."
             )
             raise typer.Exit(1)
-        console.print("[green]✓[/green] All permission checks passed\n")
+        output.success("All permission checks passed")
 
     # Create table
-    console.print(f"[cyan]→[/cyan] Creating DynamoDB table '{backend.table_name}'...")
+    output.action(f"Creating DynamoDB table '{backend.table_name}'...")
     try:
         backend.create_table()
-        console.print(f"[green]✓[/green] Table '{backend.table_name}' created and active")
+        output.success(f"Table '{backend.table_name}' created and active")
     except Exception as exc:
         if "ResourceInUseException" in str(type(exc).__name__) or "already exists" in str(exc).lower():
-            console.print(f"[yellow]⚠[/yellow] Table '{backend.table_name}' already exists")
+            output.warning(f"Table '{backend.table_name}' already exists")
         else:
-            console.print(f"[red]✗[/red] Failed to create table: {exc}")
+            output.error(f"Failed to create table: {exc}")
             raise typer.Exit(1)
 
     # Create S3 bucket (creates if not exists, applies tags)
-    console.print(f"[cyan]→[/cyan] Ensuring S3 bucket '{backend.s3_bucket}' exists...")
+    output.action(f"Ensuring S3 bucket '{backend.s3_bucket}' exists...")
     try:
         backend.create_s3_bucket()
-        console.print(f"[green]✓[/green] S3 bucket '{backend.s3_bucket}' ready")
+        output.success(f"S3 bucket '{backend.s3_bucket}' ready")
     except Exception as exc:
-        console.print(f"[red]✗[/red] Failed to create/access bucket: {exc}")
+        output.error(f"Failed to create/access bucket: {exc}")
         raise typer.Exit(1)
 
     # Write META
-    console.print("[cyan]→[/cyan] Writing metadata...")
+    output.action("Writing metadata...")
     backend.write_meta()
-    console.print("[green]✓[/green] META item written")
+    output.success("META item written")
 
     # Print env var instructions
-    console.print("\n[bold]Set these environment variables:[/bold]\n")
-    console.print(f"  export ZEBRA_DAY_CONFIG_BACKEND=dynamodb")
-    console.print(f"  export ZEBRA_DAY_DYNAMO_TABLE={backend.table_name}")
-    console.print(f"  export ZEBRA_DAY_DYNAMO_REGION={backend.region}")
-    console.print(f"  export ZEBRA_DAY_S3_BACKUP_BUCKET={backend.s3_bucket}")
-    console.print(f"  export ZEBRA_DAY_S3_BACKUP_PREFIX={backend.s3_prefix}")
+    output.heading("Set these environment variables")
+    output.detail(f"export ZEBRA_DAY_CONFIG_BACKEND=dynamodb")
+    output.detail(f"export ZEBRA_DAY_DYNAMO_TABLE={backend.table_name}")
+    output.detail(f"export ZEBRA_DAY_DYNAMO_REGION={backend.region}")
+    output.detail(f"export ZEBRA_DAY_S3_BACKUP_BUCKET={backend.s3_bucket}")
+    output.detail(f"export ZEBRA_DAY_S3_BACKUP_PREFIX={backend.s3_prefix}")
 
 
 # -----------------------------------------------------------------
@@ -332,16 +333,14 @@ def status_cmd(
             create_s3_if_missing=create_s3_if_missing,
         )
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
     try:
         status = backend.get_status()
     except Exception as exc:
         if "not found" in str(exc).lower() or "ResourceNotFoundException" in str(type(exc).__name__):
-            console.print(
-                f"[red]✗[/red] Table not found. Run 'zday dynamo init' first."
-            )
+            output.error("Table not found. Run 'zday dynamo init' first.")
             raise typer.Exit(1)
         raise
 
@@ -349,10 +348,10 @@ def status_cmd(
 
     if json_output:
         status["template_count"] = template_count
-        console.print(json_mod.dumps(status, indent=2, default=str))
+        output.emit_json(status)
         return
 
-    console.print("\n[bold cyan]DynamoDB Shared Config Status[/bold cyan]\n")
+    output.heading("DynamoDB Shared Config Status")
 
     tbl = Table(show_header=False, box=None, pad_edge=False)
     tbl.add_column("Key", style="cyan", min_width=20)
@@ -370,7 +369,6 @@ def status_cmd(
     tbl.add_row("Backups", str(status["backup_count"]))
     tbl.add_row("Last Backup", status["last_backup_at"] or "never")
     console.print(tbl)
-    console.print()
 
 
 # -----------------------------------------------------------------
@@ -398,10 +396,10 @@ def bootstrap_cmd(
     try:
         backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
-    console.print("\n[bold cyan]DynamoDB Bootstrap[/bold cyan]\n")
+    output.heading("DynamoDB Bootstrap")
 
     # Load local config
     cfg_path = Path(config_file) if config_file else xdg.get_config_file_path()
@@ -413,9 +411,9 @@ def bootstrap_cmd(
             config = yaml.safe_load(f) or {}
         backend.save_config(config)
         config_items_written = 1
-        console.print(f"[green]✓[/green] Config uploaded from {cfg_path}")
+        output.success(f"Config uploaded from {cfg_path}")
     else:
-        console.print(f"[yellow]⚠[/yellow] Config not found: {cfg_path}")
+        output.warning(f"Config not found: {cfg_path}")
 
     # Upload templates
     tpl_dirs: list[Path] = []
@@ -446,13 +444,12 @@ def bootstrap_cmd(
             backend.save_template(stem, content)
             templates_written += 1
 
-    console.print(f"[green]✓[/green] {templates_written} template(s) uploaded")
+    output.success(f"{templates_written} template(s) uploaded")
 
     # Force backup
     prefix = backend.backup_to_s3(triggered_by="bootstrap", force=True)
-    console.print(f"[green]✓[/green] Backup written to s3://{backend.s3_bucket}/{prefix}")
-    console.print(f"\n[bold green]Bootstrap complete:[/bold green] {config_items_written} config + {templates_written} templates\n")
-    console.print()
+    output.success(f"Backup written to s3://{backend.s3_bucket}/{prefix}")
+    output.success(f"Bootstrap complete: {config_items_written} config + {templates_written} templates")
 
 
 
@@ -473,14 +470,14 @@ def export_cmd(
     try:
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
     out = Path(output_dir)
     tpl_dir = out / "templates"
     tpl_dir.mkdir(parents=True, exist_ok=True)
 
-    console.print(f"\n[bold cyan]DynamoDB Export → {out}[/bold cyan]\n")
+    output.heading(f"DynamoDB Export → {out}")
 
     # Export config
     config = backend.load_config()
@@ -495,7 +492,7 @@ def export_cmd(
         with open(config_path, "w") as f:
             json_mod.dump(config, f, indent=2, default=str)
 
-    console.print(f"[green]✓[/green] Config written to {config_path}")
+    output.success(f"Config written to {config_path}")
 
     # Export templates
     templates = backend.list_templates()
@@ -504,8 +501,7 @@ def export_cmd(
         tpl_path = tpl_dir / f"{stem}.zpl"
         tpl_path.write_text(content)
 
-    console.print(f"[green]✓[/green] {len(templates)} template(s) written to {tpl_dir}")
-    console.print()
+    output.success(f"{len(templates)} template(s) written to {tpl_dir}")
 
 
 # -----------------------------------------------------------------
@@ -522,18 +518,17 @@ def backup_cmd(
     try:
         backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
-    console.print("\n[bold cyan]DynamoDB Backup[/bold cyan]\n")
+    output.heading("DynamoDB Backup")
 
     try:
         prefix = backend.backup_to_s3(triggered_by="cli-manual", force=True)
-        console.print(f"[green]✓[/green] Backup written to s3://{backend.s3_bucket}/{prefix}")
+        output.success(f"Backup written to s3://{backend.s3_bucket}/{prefix}")
     except Exception as exc:
-        console.print(f"[red]✗[/red] Backup failed: {exc}")
+        output.error(f"Backup failed: {exc}")
         raise typer.Exit(1)
-    console.print()
 
 
 # -----------------------------------------------------------------
@@ -554,13 +549,13 @@ def restore_cmd(
     try:
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
     if list_backups:
         backups = backend.list_backups()
         if not backups:
-            console.print("[yellow]No backups found.[/yellow]")
+            output.warning("No backups found.")
             raise typer.Exit(0)
 
         tbl = Table(title="Available Backups")
@@ -582,7 +577,7 @@ def restore_cmd(
         return
 
     if not s3_key:
-        console.print("[red]✗[/red] --s3-key is required. Use --list to see available backups.")
+        output.error("--s3-key is required. Use --list to see available backups.")
         raise typer.Exit(1)
 
     if not yes:
@@ -591,14 +586,13 @@ def restore_cmd(
             abort=True,
         )
 
-    console.print(f"\n[bold cyan]Restoring from {s3_key}[/bold cyan]\n")
+    output.heading(f"Restoring from {s3_key}")
     try:
         backend.restore_from_s3(s3_key)
-        console.print("[green]✓[/green] Restore complete")
+        output.success("Restore complete")
     except Exception as exc:
-        console.print(f"[red]✗[/red] Restore failed: {exc}")
+        output.error(f"Restore failed: {exc}")
         raise typer.Exit(1)
-    console.print()
 
 
 # -----------------------------------------------------------------
@@ -611,34 +605,33 @@ def destroy_cmd(
 ):
     """Delete DynamoDB table (preserves S3 backups)."""
     if not yes:
-        console.print("[red]✗[/red] --yes flag required for safety")
+        output.error("--yes flag required for safety")
         raise typer.Exit(1)
 
     try:
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
-        console.print(f"[red]✗[/red] {exc}")
+        output.error(str(exc))
         raise typer.Exit(1)
 
-    console.print("\n[bold red]DynamoDB Table Destruction[/bold red]\n")
+    output.heading("DynamoDB Table Destruction")
 
     # Final backup
-    console.print("[cyan]→[/cyan] Creating final backup...")
+    output.action("Creating final backup...")
     try:
         prefix = backend.backup_to_s3(triggered_by="pre-destroy", force=True)
-        console.print(f"[green]✓[/green] Final backup: s3://{backend.s3_bucket}/{prefix}")
+        output.success(f"Final backup: s3://{backend.s3_bucket}/{prefix}")
     except Exception as exc:
-        console.print(f"[yellow]⚠[/yellow] Backup failed: {exc}")
+        output.warning(f"Backup failed: {exc}")
 
     # Delete table
-    console.print(f"[cyan]→[/cyan] Deleting table '{backend.table_name}'...")
+    output.action(f"Deleting table '{backend.table_name}'...")
     try:
         backend.delete_table()
-        console.print(f"[green]✓[/green] Table deleted. Backups preserved in S3.")
+        output.success("Table deleted. Backups preserved in S3.")
     except Exception as exc:
-        console.print(f"[red]✗[/red] Delete failed: {exc}")
+        output.error(f"Delete failed: {exc}")
         raise typer.Exit(1)
-    console.print()
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
