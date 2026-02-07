@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 import yaml
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -35,11 +36,12 @@ _log = get_logger(__name__)
 router = APIRouter()
 
 
-def _get_scan_jobs(app) -> dict[str, dict]:
+def _get_scan_jobs(app) -> dict[str, dict[str, Any]]:
     """Return (and lazily initialize) the in-memory scan job registry."""
     if not hasattr(app.state, "scan_jobs") or app.state.scan_jobs is None:
         app.state.scan_jobs = {}
-    return app.state.scan_jobs
+    jobs: dict[str, dict[str, Any]] = app.state.scan_jobs
+    return jobs
 
 
 def get_template_context(request: Request, **kwargs) -> dict:

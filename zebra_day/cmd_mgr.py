@@ -143,7 +143,7 @@ class ZebraPrinter:
 
         response = response.strip().strip("\x02\x03")
         # Response format: "ODOMETER\r\nLABEL: XXXXX\r\n..." or numeric values
-        result = {
+        result: dict[str, str | int | None] = {
             "raw": response,
             "label_count": None,
             "total_inches": None,

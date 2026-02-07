@@ -37,7 +37,7 @@ def _prompt_s3_bucket() -> str:
 
     Raises ``typer.Exit(1)`` if the user provides an empty value.
     """
-    bucket = typer.prompt("S3 bucket name for backups").strip()
+    bucket: str = str(typer.prompt("S3 bucket name for backups")).strip()
     if not bucket:
         output.error("No S3 bucket name provided.")
         raise typer.Exit(1)
@@ -58,9 +58,7 @@ def _ensure_s3_bucket(backend, *, create_if_missing: bool = False) -> None:
         backend._s3.head_bucket(Bucket=backend.s3_bucket)
     except Exception:
         if create_if_missing:
-            output.action(
-                f"Bucket '{backend.s3_bucket}' not found — creating..."
-            )
+            output.action(f"Bucket '{backend.s3_bucket}' not found — creating...")
             backend.create_s3_bucket()
             output.success(
                 f"S3 bucket '{backend.s3_bucket}' created "
@@ -92,7 +90,15 @@ def _get_backend_from_env(
     backend = DynamoBackend.from_env(allow_missing_bucket=True)
 
     if not backend.s3_bucket:
-        if not get_context().json_mode and _is_interactive():
+        if get_context().json_mode:
+            output.emit_json(
+                {
+                    "error": "ZEBRA_DAY_S3_BACKUP_BUCKET is required when using "
+                    "DynamoDB backend. Set it to the S3 bucket name for config backups."
+                }
+            )
+            raise typer.Exit(1)
+        elif _is_interactive():
             output.warning("ZEBRA_DAY_S3_BACKUP_BUCKET is not set.")
             bucket = _prompt_s3_bucket()
             backend.s3_bucket = bucket
@@ -165,9 +171,7 @@ def _get_backend(
 
     # S3 bucket resolution: flag > config file > env var > interactive prompt
     resolved_bucket = (
-        s3_bucket
-        or file_cfg.get("s3_bucket")
-        or os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET")
+        s3_bucket or file_cfg.get("s3_bucket") or os.environ.get("ZEBRA_DAY_S3_BACKUP_BUCKET")
     )
     if not resolved_bucket:
         if _is_interactive():
@@ -208,6 +212,7 @@ def _get_backend(
 # init
 # -----------------------------------------------------------------
 
+
 @dynamo_app.command("init")
 def init_cmd(
     table_name: str = typer.Option(
@@ -216,18 +221,14 @@ def init_cmd(
     region: str = typer.Option(
         None, "--region", "-r", help="AWS region [default: env or us-east-1]"
     ),
-    s3_bucket: str = typer.Option(
-        None, "--s3-bucket", "-b", help="S3 bucket for backups"
-    ),
-    s3_prefix: str = typer.Option(
-        "zebra-day/", "--s3-prefix", help="S3 key prefix"
-    ),
+    s3_bucket: str = typer.Option(None, "--s3-bucket", "-b", help="S3 bucket for backups"),
+    s3_prefix: str = typer.Option("zebra-day/", "--s3-prefix", help="S3 key prefix"),
     s3_config_file: str = typer.Option(
-        None, "--s3-config-file", help="JSON file with S3 bucket config (keys: s3_bucket, s3_prefix, region)"
+        None,
+        "--s3-config-file",
+        help="JSON file with S3 bucket config (keys: s3_bucket, s3_prefix, region)",
     ),
-    profile: str = typer.Option(
-        None, "--profile", "-p", help="AWS profile name"
-    ),
+    profile: str = typer.Option(None, "--profile", "-p", help="AWS profile name"),
     cost_center: str = typer.Option(
         None, "--cost-center", help="lsmc-cost-center tag [default: env or 'global']"
     ),
@@ -274,8 +275,7 @@ def init_cmd(
 
         if not perm_result["all_ok"]:
             output.error(
-                "Permission checks failed. "
-                "Fix the issues above or use --skip-checks to bypass."
+                "Permission checks failed. Fix the issues above or use --skip-checks to bypass."
             )
             raise typer.Exit(1)
         output.success("All permission checks passed")
@@ -286,7 +286,10 @@ def init_cmd(
         backend.create_table()
         output.success(f"Table '{backend.table_name}' created and active")
     except Exception as exc:
-        if "ResourceInUseException" in str(type(exc).__name__) or "already exists" in str(exc).lower():
+        if (
+            "ResourceInUseException" in str(type(exc).__name__)
+            or "already exists" in str(exc).lower()
+        ):
             output.warning(f"Table '{backend.table_name}' already exists")
         else:
             output.error(f"Failed to create table: {exc}")
@@ -308,7 +311,7 @@ def init_cmd(
 
     # Print env var instructions
     output.heading("Set these environment variables")
-    output.detail(f"export ZEBRA_DAY_CONFIG_BACKEND=dynamodb")
+    output.detail("export ZEBRA_DAY_CONFIG_BACKEND=dynamodb")
     output.detail(f"export ZEBRA_DAY_DYNAMO_TABLE={backend.table_name}")
     output.detail(f"export ZEBRA_DAY_DYNAMO_REGION={backend.region}")
     output.detail(f"export ZEBRA_DAY_S3_BACKUP_BUCKET={backend.s3_bucket}")
@@ -318,6 +321,7 @@ def init_cmd(
 # -----------------------------------------------------------------
 # status
 # -----------------------------------------------------------------
+
 
 @dynamo_app.command("status")
 def status_cmd(
@@ -337,7 +341,9 @@ def status_cmd(
     try:
         status = backend.get_status()
     except Exception as exc:
-        if "not found" in str(exc).lower() or "ResourceNotFoundException" in str(type(exc).__name__):
+        if "not found" in str(exc).lower() or "ResourceNotFoundException" in str(
+            type(exc).__name__
+        ):
             output.error("Table not found. Run 'zday dynamo init' first.")
             raise typer.Exit(1)
         raise
@@ -356,7 +362,12 @@ def status_cmd(
     tbl.add_column("Value")
     tbl.add_row("Table", status["table_name"])
     tbl.add_row("Region", status["region"])
-    tbl.add_row("Status", f"[green]{status['table_status']}[/green]" if status["table_status"] == "ACTIVE" else status["table_status"])
+    tbl.add_row(
+        "Status",
+        f"[green]{status['table_status']}[/green]"
+        if status["table_status"] == "ACTIVE"
+        else status["table_status"],
+    )
     tbl.add_row("Items", str(status["item_count"]))
     tbl.add_row("Templates", str(template_count))
     tbl.add_row("Config Version", str(status["config_version"]))
@@ -372,6 +383,7 @@ def status_cmd(
 # -----------------------------------------------------------------
 # bootstrap
 # -----------------------------------------------------------------
+
 
 @dynamo_app.command("bootstrap")
 def bootstrap_cmd(
@@ -447,22 +459,22 @@ def bootstrap_cmd(
     # Force backup
     prefix = backend.backup_to_s3(triggered_by="bootstrap", force=True)
     output.success(f"Backup written to s3://{backend.s3_bucket}/{prefix}")
-    output.success(f"Bootstrap complete: {config_items_written} config + {templates_written} templates")
-
+    output.success(
+        f"Bootstrap complete: {config_items_written} config + {templates_written} templates"
+    )
 
 
 # -----------------------------------------------------------------
 # export
 # -----------------------------------------------------------------
 
+
 @dynamo_app.command("export")
 def export_cmd(
     output_dir: str = typer.Option(
         "./zebra-day-export", "--output-dir", "-o", help="Target directory"
     ),
-    fmt: str = typer.Option(
-        "json", "--format", "-f", help="Config format: json or yaml"
-    ),
+    fmt: str = typer.Option("json", "--format", "-f", help="Config format: json or yaml"),
 ):
     """Pull DynamoDB config and templates to local files."""
     try:
@@ -506,6 +518,7 @@ def export_cmd(
 # backup
 # -----------------------------------------------------------------
 
+
 @dynamo_app.command("backup")
 def backup_cmd(
     create_s3_if_missing: bool = typer.Option(
@@ -533,14 +546,13 @@ def backup_cmd(
 # restore
 # -----------------------------------------------------------------
 
+
 @dynamo_app.command("restore")
 def restore_cmd(
     s3_key: str = typer.Option(
         None, "--s3-key", "-k", help="S3 key prefix of the backup to restore"
     ),
-    list_backups: bool = typer.Option(
-        False, "--list", "-l", help="List available backups"
-    ),
+    list_backups: bool = typer.Option(False, "--list", "-l", help="List available backups"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Restore DynamoDB from an S3 backup."""
@@ -596,6 +608,7 @@ def restore_cmd(
 # -----------------------------------------------------------------
 # destroy
 # -----------------------------------------------------------------
+
 
 @dynamo_app.command("destroy")
 def destroy_cmd(

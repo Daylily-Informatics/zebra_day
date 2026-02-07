@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 from pathlib import Path
@@ -34,7 +33,8 @@ def _find_template(name: str) -> Path | None:
     """Find a template file by name using PrintMgr."""
     zp = _get_zp()
     try:
-        return zp.resolve_template_path(name)
+        path: Path = zp.resolve_template_path(name)
+        return path
     except FileNotFoundError:
         return None
 
@@ -107,7 +107,7 @@ def list_templates(
 @template_app.command("preview")
 def preview(
     template_name: str = typer.Argument(..., help="Template name to preview"),
-    output: str | None = typer.Option(None, "--output", "-o", help="Output PNG file path"),
+    dest: str | None = typer.Option(None, "--output", "-o", help="Output PNG file path"),
 ):
     """Generate a PNG preview of a ZPL template."""
     template_path = _find_template(template_name)
@@ -126,10 +126,10 @@ def preview(
         zpl_content = template_path.read_text()
 
         # Generate PNG
-        if not output:
+        if not dest:
             output_path = xdg.get_generated_files_dir() / f"{template_name}_preview.png"
         else:
-            output_path = Path(output)
+            output_path = Path(dest)
 
         zp.generate_label_png(zpl_content, str(output_path), False)
         output.success(f"Preview generated: {output_path}")
@@ -212,7 +212,7 @@ def save(
         path = zp.save_template(
             filename=filename,
             zpl_content=zpl_content,
-            location=location,  # type: ignore[arg-type]
+            location=location,
             overwrite=force,
             backup=not no_backup,
         )
@@ -251,7 +251,7 @@ def delete(
 
     zp = _get_zp()
     try:
-        zp.delete_template(name, location=location)  # type: ignore[arg-type]
+        zp.delete_template(name, location=location)
         output.success(f"Template '{name}' deleted from {location}")
     except FileNotFoundError as e:
         output.error(str(e))

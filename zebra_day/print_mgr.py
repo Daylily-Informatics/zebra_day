@@ -742,9 +742,10 @@ class zpl:
         non-local backends raise ``NotImplementedError``.
         """
         if hasattr(self._backend, "resolve_template_path"):
-            return self._backend.resolve_template_path(
+            path: Path = self._backend.resolve_template_path(
                 template, include_legacy_drafts=include_legacy_drafts
             )
+            return path
         raise NotImplementedError(
             "resolve_template_path() is only available with the local backend. "
             "Use get_template_content() instead."
@@ -803,7 +804,7 @@ class zpl:
             raise FileExistsError(f"Template already exists: {target_path}")
 
         if target_path.exists() and backup:
-            ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H%M%S.%fZ")
+            ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M%S.%fZ")
             backup_path = target_dir / f"{stem}.bak.{ts}.zpl"
             shutil.copy2(target_path, backup_path)
 
