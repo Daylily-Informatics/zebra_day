@@ -61,6 +61,49 @@ zlab.replace_printer_json_from_template()
 When clearing or writing a new config, the existing one is saved to a backup location. Users can open these and effectively rollback if errors are made. Replace from template means overwriting the active one with the template file which accompanies the repo.
 
 
+### Using DynamoDB Backend (v2.2.0+)
+
+By default `zpl()` uses local files. To use a shared DynamoDB backend, pass `backend="dynamodb"`:
+
+```python
+import zebra_day.print_mgr as zdpm
+
+# Local backend (default)
+zlab = zdpm.zpl()
+
+# DynamoDB backend — requires table + S3 bucket to exist (see `zday dynamo init`)
+zlab = zdpm.zpl(
+    backend="dynamodb",
+    table_name="zebra-day-config",
+    region="us-west-2",
+    s3_bucket="zebra-day-cfg-us-west-2",
+    s3_prefix="zebra-day/",
+    profile="my-aws-profile",
+)
+
+# All operations (print, scan, template management) work identically
+# regardless of backend. Config and templates are read/written to DynamoDB
+# instead of local files, and every write triggers an automatic S3 backup.
+```
+
+Alternatively, set environment variables and omit explicit parameters:
+
+```bash
+export ZEBRA_DAY_CONFIG_BACKEND=dynamodb
+export ZEBRA_DAY_DYNAMO_TABLE=zebra-day-config
+export ZEBRA_DAY_DYNAMO_REGION=us-west-2
+export ZEBRA_DAY_S3_BACKUP_BUCKET=zebra-day-cfg-us-west-2
+export AWS_PROFILE=my-aws-profile
+```
+
+```python
+import zebra_day.print_mgr as zdpm
+
+# Picks up DynamoDB settings from env vars automatically
+zlab = zdpm.zpl()
+```
+
+
 ### Scan Local Network For Zebra Printers
   >  def probe_zebra_printers_add_to_printers_json(self, ip_stub="192.168.1", scan_wait="0.25",lab="scan-results"):
   

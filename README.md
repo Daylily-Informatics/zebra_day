@@ -167,6 +167,76 @@ zday env reset                     # Show command to reset (deactivate + reactiv
 # Cognito authentication (requires pip install -e ".[auth]")
 zday cognito status               # Show auth configuration
 zday cognito info                 # Setup instructions
+
+# DynamoDB shared configuration (opt-in)
+zday dynamo init                  # Create DynamoDB table + S3 bucket
+zday dynamo status                # Show table/bucket status
+zday dynamo bootstrap             # Push local config & templates to DynamoDB
+zday dynamo export                # Pull DynamoDB config & templates to local files
+zday dynamo backup                # Trigger immediate S3 backup snapshot
+zday dynamo restore               # Restore DynamoDB from S3 backup
+zday dynamo destroy               # Delete DynamoDB table (preserves S3 backups)
+
+# Interactive documentation browser
+zday man                          # Interactive topic menu
+zday man quickstart               # View specific topic
+zday man --list                   # List all topics
+zday man --search "dynamo"        # Search docs for a term
+```
+
+#### DynamoDB CLI Reference (`zday dynamo`)
+
+Opt-in shared configuration via AWS DynamoDB with S3 backup snapshots. Local-file mode remains the default.
+
+| Command | Description | Key Options |
+|---------|-------------|-------------|
+| `zday dynamo init` | Create DynamoDB table and S3 bucket | `--table-name`, `--region`, `--s3-bucket`, `--profile`, `--cost-center`, `--project`, `--skip-checks` |
+| `zday dynamo status` | Show table and S3 backup status | `--json`, `--create-s3-if-missing` |
+| `zday dynamo bootstrap` | Push local config + templates to DynamoDB | `--config-file`, `--templates-dir`, `--include-package/--no-include-package`, `--create-s3-if-missing` |
+| `zday dynamo export` | Pull DynamoDB config + templates to local files | `--output-dir`, `--format json|yaml` |
+| `zday dynamo backup` | Trigger immediate S3 backup snapshot | `--create-s3-if-missing` |
+| `zday dynamo restore` | Restore DynamoDB from an S3 backup | `--s3-key`, `--list`, `--yes` |
+| `zday dynamo destroy` | Delete DynamoDB table (preserves S3) | `--yes` (required safety gate) |
+
+##### DynamoDB Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ZEBRA_DAY_CONFIG_BACKEND` | Set to `dynamodb` to enable DynamoDB mode | `local` |
+| `ZEBRA_DAY_DYNAMO_TABLE` | DynamoDB table name | `zebra-day-config` |
+| `ZEBRA_DAY_DYNAMO_REGION` | AWS region | `us-west-2` |
+| `ZEBRA_DAY_S3_BACKUP_BUCKET` | S3 bucket for config backups | _(none — prompted interactively)_ |
+| `ZEBRA_DAY_S3_BACKUP_PREFIX` | S3 key prefix | `zebra-day/` |
+| `AWS_PROFILE` | AWS profile name (must **not** be `default`) | _(none)_ |
+
+##### Quick DynamoDB Workflow
+
+```bash
+# 1. Create table + bucket
+export AWS_PROFILE=my-profile
+zday dynamo init --region us-west-2 --s3-bucket zebra-day-cfg-us-west-2
+
+# 2. Push local config & templates
+zday dynamo bootstrap --create-s3-if-missing
+
+# 3. Confirm status
+zday dynamo status
+
+# 4. Switch a running GUI to DynamoDB (session-only, via web UI Config page)
+#    or set env vars and restart:
+export ZEBRA_DAY_CONFIG_BACKEND=dynamodb
+zday gui restart
+```
+
+#### Documentation Browser (`zday man`)
+
+Browse built-in documentation topics from the terminal using Rich-rendered Markdown.
+
+```bash
+zday man                    # Interactive topic picker
+zday man quickstart         # Jump to a topic by slug
+zday man --list             # List all topics with descriptions
+zday man --search "template"  # Full-text search across all docs
 ```
 
 #### Migration from 0.5.x
@@ -411,8 +481,11 @@ Use `zday info` to see the exact paths on your system.
 
 
 ## Hardware Config
-### AWS Headsup
-- New functionality, best engaged for now via the GUI, allows for a shared dynamodb config resource so multiple clients can query it and share the same config across varios points of code execution.
+### AWS DynamoDB Shared Config (opt-in)
+- Multiple clients can share a single DynamoDB table as the config backend (printer fleet + ZPL templates).
+- Enable via `ZEBRA_DAY_CONFIG_BACKEND=dynamodb` env var or the GUI's Switch Backend form.
+- Every DynamoDB write triggers an automatic S3 backup snapshot (JSON).
+- See `zday dynamo --help` and the [DynamoDB Plan](AWS_DYNAMO_CONFIG_PLAN.md) for details.
 
 ### Quick
 * Connect all zebra printers to the same network as the machine you'll be running `zebra_day` is connected to. Load labels, power on printers , confirm status lights are green, etc.
@@ -694,6 +767,52 @@ http://YOUR.HOST.IP.ADDR:8118/_print_label?lab=default&printer=192.168.1.7&label
 
 ### [Web UI Guide](zebra_day/docs/zebra_day_ui_guide.md)
 
+### DynamoDB GUI Features (v2.2.0+)
+
+The **Config** page includes controls for the DynamoDB shared backend:
+
+- **Backend Status Card** — shows current backend type (`local` or `dynamodb`), table name, region, S3 bucket, AWS profile
+- **Switch Backend Form** — swap between `local` and `dynamodb` backends for the running session (does not persist to env vars)
+  - Auto-detects existing DynamoDB tables in the selected region
+  - Auto-suggests S3 bucket name based on region
+  - Validates AWS profile (rejects `default`)
+  - "Create Bucket" button if the target S3 bucket doesn't exist
+- **Refresh Config** — reload config from the active backend
+
+The **Templates** page includes:
+
+- **Import to DynamoDB** — when a DynamoDB backend is active, local templates (user + package) appear with checkboxes for selective import into DynamoDB
+
+### DynamoDB API Endpoints
+
+All prefixed with `/api/v1/`. Available when the web server is running.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/config/backend-status` | Current backend type and AWS details |
+| `POST` | `/config/refresh` | Reload config from active backend |
+| `GET` | `/config/detect-tables` | List DynamoDB tables in a region (`?region=&profile=`) |
+| `POST` | `/config/check-s3-bucket` | Check if an S3 bucket exists |
+| `POST` | `/config/create-s3-bucket` | Create S3 bucket with `lsmc` cost tags |
+| `POST` | `/config/switch-backend` | Switch live backend (session-only) |
+| `POST` | `/templates/import-to-dynamo` | Import local templates into DynamoDB |
+| `POST` | `/templates` | Save/create a ZPL template |
+| `DELETE` | `/templates/{name}` | Delete a template |
+
+```bash
+# Example: check backend status
+curl https://localhost:8118/api/v1/config/backend-status
+
+# Example: switch to DynamoDB (session-only)
+curl -X POST https://localhost:8118/api/v1/config/switch-backend \
+  -H "Content-Type: application/json" \
+  -d '{"backend_type":"dynamodb","table_name":"zebra-day-config","region":"us-west-2","s3_bucket":"zebra-day-cfg-us-west-2","profile":"my-profile"}'
+
+# Example: import local templates to DynamoDB
+curl -X POST https://localhost:8118/api/v1/templates/import-to-dynamo \
+  -H "Content-Type: application/json" \
+  -d '{"template_names":["tube_2inX1in","plate_1inX0.25in"]}'
+```
 
 <br><br>
 
