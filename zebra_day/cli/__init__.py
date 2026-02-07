@@ -6,7 +6,6 @@ import os
 
 import typer
 import yaml
-
 from cli_core_yo.app import create_app
 from cli_core_yo.runtime import _reset, initialize
 from cli_core_yo.spec import CliSpec, ConfigSpec, PluginSpec, XdgSpec

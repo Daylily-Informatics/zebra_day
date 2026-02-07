@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import datetime
 import http.client
-import json
 import re
 import shutil
 import socket
@@ -24,8 +23,6 @@ import time
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
-
-import yaml
 
 from zebra_day import paths as xdg
 from zebra_day.backends import ConfigBackend, get_backend
@@ -302,8 +299,11 @@ class zpl:
         def _http_probe(ip_addr: str, port: int) -> dict:
             """Try HTTP/HTTPS on *port*; return {found, model, serial, title, scheme}."""
             res: dict = {
-                "found": False, "model": "Unknown", "serial": "Unknown",
-                "title": None, "scheme": None,
+                "found": False,
+                "model": "Unknown",
+                "serial": "Unknown",
+                "title": None,
+                "scheme": None,
             }
             hdrs_low: dict[str, str] = {}
 
@@ -316,12 +316,19 @@ class zpl:
                     else:
                         ctx = ssl._create_unverified_context()
                         conn = http.client.HTTPSConnection(
-                            ip_addr, 443, timeout=wait_time, context=ctx,
+                            ip_addr,
+                            443,
+                            timeout=wait_time,
+                            context=ctx,
                         )
-                    conn.request("GET", "/", headers={
-                        "User-Agent": "zebra-day-network-scan/1.0",
-                        "Accept": "text/html,*/*;q=0.8",
-                    })
+                    conn.request(
+                        "GET",
+                        "/",
+                        headers={
+                            "User-Agent": "zebra-day-network-scan/1.0",
+                            "Accept": "text/html,*/*;q=0.8",
+                        },
+                    )
                     resp = conn.getresponse()
                     hdrs_low.update({k.lower(): v for k, v in resp.getheaders()})
                     body = resp.read(64 * 1024).decode("utf-8", errors="ignore")
@@ -353,10 +360,13 @@ class zpl:
                 sch = "https" if ok else None
 
             html = text or ""
-            haystack = " ".join([
-                html, hdrs_low.get("server", ""),
-                hdrs_low.get("www-authenticate", ""),
-            ]).lower()
+            haystack = " ".join(
+                [
+                    html,
+                    hdrs_low.get("server", ""),
+                    hdrs_low.get("www-authenticate", ""),
+                ]
+            ).lower()
             if "zebra" in haystack or "zebralink" in haystack or "link-os" in haystack:
                 res["found"] = True
                 res["scheme"] = sch
@@ -368,7 +378,8 @@ class zpl:
                     res["model"] = m.group(1).strip()
                 m = re.search(
                     r"serial\s*(?:number)?\s*[:#]?\s*([A-Za-z0-9._-]{2,64})",
-                    html, flags=re.I,
+                    html,
+                    flags=re.I,
                 )
                 if m:
                     res["serial"] = m.group(1).strip()

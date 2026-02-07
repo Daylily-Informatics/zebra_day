@@ -32,6 +32,7 @@ _log = logging.getLogger(__name__)
 # Printer profile — all configurable attributes for a simulated printer
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PrinterProfile:
     """Configuration for a single simulated Zebra printer."""
@@ -60,6 +61,7 @@ class PrinterProfile:
 # ---------------------------------------------------------------------------
 # ZPL TCP server (port 9100)
 # ---------------------------------------------------------------------------
+
 
 class _ZplHandler(socketserver.StreamRequestHandler):
     """Handle a single ZPL TCP connection."""
@@ -90,11 +92,7 @@ def _build_zpl_response(cmd: str, p: PrinterProfile) -> str | None:
     if cmd == "~HQES":
         return "\x02ERROR STATUS\r\n0000 0000 0000 0000\r\n\x03"
     if cmd == "~HQOD":
-        return (
-            f"\x02ODOMETER\r\n"
-            f"LABEL: {p.label_count}\r\n"
-            f"TOTAL INCHES: {p.total_inches}\r\n\x03"
-        )
+        return f"\x02ODOMETER\r\nLABEL: {p.label_count}\r\nTOTAL INCHES: {p.total_inches}\r\n\x03"
     if cmd == "~HS":
         pause = "1" if p.paused else "0"
         paper = "1" if p.paper_out else "0"
@@ -121,6 +119,7 @@ def _build_zpl_response(cmd: str, p: PrinterProfile) -> str | None:
 # ---------------------------------------------------------------------------
 # HTTP server (port 80) — Zebra-like web page for scanner discovery
 # ---------------------------------------------------------------------------
+
 
 def _make_http_handler_class(profile: PrinterProfile) -> type:
     """Factory: returns a BaseHTTPRequestHandler subclass bound to *profile*."""
@@ -158,6 +157,7 @@ def _make_http_handler_class(profile: PrinterProfile) -> type:
 # ---------------------------------------------------------------------------
 # SimulatedPrinter — bundles both servers for one printer instance
 # ---------------------------------------------------------------------------
+
 
 class SimulatedPrinter:
     """Manages a ZPL + HTTP server pair for a single simulated printer."""
@@ -251,6 +251,7 @@ class SimulatedPrinter:
 # SimulatorManager — manage a fleet of simulated printers
 # ---------------------------------------------------------------------------
 
+
 class SimulatorManager:
     """Track and manage multiple SimulatedPrinter instances."""
 
@@ -305,4 +306,3 @@ class SimulatorManager:
     def get(self, host: str, zpl_port: int = 9100) -> SimulatedPrinter | None:
         """Get a specific printer instance."""
         return self._printers.get(self._key(host, zpl_port))
-

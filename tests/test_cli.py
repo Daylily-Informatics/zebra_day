@@ -2,6 +2,8 @@
 Tests for the zebra_day CLI commands.
 """
 
+import http.client
+import socket
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
@@ -180,10 +182,21 @@ def _make_mock_zpl(found_printers=None):
                 "serial": p.get("serial", "Unknown"),
             }
             if progress_callback:
-                progress_callback({"kind": "found", "ip": ip, "model": p.get("model", "Unknown"), "serial": p.get("serial", "Unknown")})
-                progress_callback({"kind": "checked", "ip": ip, "checked": idx + 1, "total": 255, "open": True})
+                progress_callback(
+                    {
+                        "kind": "found",
+                        "ip": ip,
+                        "model": p.get("model", "Unknown"),
+                        "serial": p.get("serial", "Unknown"),
+                    }
+                )
+                progress_callback(
+                    {"kind": "checked", "ip": ip, "checked": idx + 1, "total": 255, "open": True}
+                )
         if progress_callback:
-            progress_callback({"kind": "done", "cancelled": False, "checked": len(found_printers), "total": 255})
+            progress_callback(
+                {"kind": "done", "cancelled": False, "checked": len(found_printers), "total": 255}
+            )
 
     mock_zp.probe_zebra_printers_add_to_printers_json = _fake_probe
     return mock_zp
@@ -285,7 +298,6 @@ class TestCLIPrinterScanTrailingDot:
         result = runner.invoke(app, ["printer", "scan", "-i", "10.0.0."])
         assert result.exit_code == 1
         assert "trailing dot" in result.output
-
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +409,7 @@ class TestCLIManGracefulDegradation:
 
     def test_missing_file_shows_warning(self):
         """A topic pointing to a missing file shows a warning, not a crash."""
-        from zebra_day.cli.man import TOPICS, Topic, TopicSource, _get_topic_content
+        from zebra_day.cli.man import Topic, TopicSource, _get_topic_content
 
         fake_topic = Topic(
             name="Missing",
@@ -409,7 +421,7 @@ class TestCLIManGracefulDegradation:
 
     def test_missing_section_shows_warning(self):
         """A topic with a bad heading shows a warning, not a crash."""
-        from zebra_day.cli.man import TOPICS, Topic, TopicSource, _get_topic_content
+        from zebra_day.cli.man import Topic, TopicSource, _get_topic_content
 
         fake_topic = Topic(
             name="BadSection",
@@ -420,14 +432,9 @@ class TestCLIManGracefulDegradation:
         assert "not found" in content.lower()
 
 
-
 # =====================================================================
 # Simulator tests
 # =====================================================================
-
-import socket
-import http.client
-import time
 
 
 class TestSimulatorCore:
@@ -536,11 +543,13 @@ class TestSimulatorCore:
 
     def test_cmd_mgr_integration(self):
         """cmd_mgr.ZebraPrinter can query the simulator and parse responses."""
-        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
         from zebra_day.cmd_mgr import ZebraPrinter
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
 
         profile = PrinterProfile(
-            model="ZT411-203dpi ZPL", serial="INTEG001", firmware="V99.0.0",
+            model="ZT411-203dpi ZPL",
+            serial="INTEG001",
+            firmware="V99.0.0",
             label_count=500,
         )
         printer = SimulatedPrinter("127.0.0.1", zpl_port=19206, http_port=18206, profile=profile)
@@ -598,7 +607,9 @@ class TestSimulatorCLI:
 
     def test_simulator_stop_nonexistent(self):
         """simulator stop on non-running simulator doesn't crash."""
-        result = runner.invoke(app, ["simulator", "stop", "--host", "127.0.0.1", "--zpl-port", "19999"])
+        result = runner.invoke(
+            app, ["simulator", "stop", "--host", "127.0.0.1", "--zpl-port", "19999"]
+        )
         assert result.exit_code == 0
 
 
@@ -612,7 +623,9 @@ class TestSimulatorManager:
         mgr = SimulatorManager()
         try:
             mgr.start_printer(
-                host="127.0.0.1", zpl_port=19210, http_port=18210,
+                host="127.0.0.1",
+                zpl_port=19210,
+                http_port=18210,
                 profile=PrinterProfile(model="ZD420-203dpi ZPL", serial="MGR001"),
             )
             printers = mgr.list_printers()
@@ -626,6 +639,7 @@ class TestSimulatorManager:
     def test_start_duplicate_raises(self):
         """Starting a printer on same address raises RuntimeError."""
         import pytest
+
         from zebra_day.simulator import SimulatorManager
 
         mgr = SimulatorManager()
@@ -649,17 +663,21 @@ class TestSimulatorManager:
 
     def test_multiple_printers(self):
         """Multiple simulators can run simultaneously with different responses."""
-        from zebra_day.simulator import PrinterProfile, SimulatorManager
         from zebra_day.cmd_mgr import ZebraPrinter
+        from zebra_day.simulator import PrinterProfile, SimulatorManager
 
         mgr = SimulatorManager()
         try:
             mgr.start_printer(
-                host="127.0.0.1", zpl_port=19214, http_port=18214,
+                host="127.0.0.1",
+                zpl_port=19214,
+                http_port=18214,
                 profile=PrinterProfile(model="ZD620-203dpi ZPL", serial="FLEET1"),
             )
             mgr.start_printer(
-                host="127.0.0.1", zpl_port=19215, http_port=18215,
+                host="127.0.0.1",
+                zpl_port=19215,
+                http_port=18215,
                 profile=PrinterProfile(model="ZT411-300dpi ZPL", serial="FLEET2"),
             )
             zp1 = ZebraPrinter("127.0.0.1", port=19214)
@@ -707,8 +725,9 @@ class TestScannerZPLFirst:
         """Default scan (no scan_http_port) discovers printer via ZPL port 9100."""
         import threading
         from unittest.mock import patch as _patch
-        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
         import zebra_day.print_mgr as zdpm
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
 
         profile = PrinterProfile(model="ZD620-203dpi ZPL", serial="SCANTEST1")
         printer = SimulatedPrinter("127.0.0.1", zpl_port=19220, http_port=18220, profile=profile)
@@ -748,8 +767,9 @@ class TestScannerZPLFirst:
         """scan_http_port enables HTTP-based discovery when ZPL fails."""
         import threading
         from unittest.mock import patch as _patch
-        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
         import zebra_day.print_mgr as zdpm
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
 
         profile = PrinterProfile(model="ZT411-300dpi ZPL", serial="HTTPFB1")
         printer = SimulatedPrinter("127.0.0.1", zpl_port=19221, http_port=18221, profile=profile)
@@ -789,8 +809,9 @@ class TestScannerZPLFirst:
         """Without scan_http_port, HTTP is not attempted (backward compat)."""
         import threading
         from unittest.mock import patch as _patch
-        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
         import zebra_day.print_mgr as zdpm
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
 
         profile = PrinterProfile(model="ZD420-203dpi ZPL", serial="NOHTTP1")
         printer = SimulatedPrinter("127.0.0.1", zpl_port=19222, http_port=18222, profile=profile)
@@ -817,7 +838,9 @@ class TestScannerZPLFirst:
                 )
 
             lab_printers = zp.printers.get("labs", {}).get("nohttp-test", {}).get("printers", {})
-            found_any = [ip for ip, p in lab_printers.items() if p.get("model") == "ZD420-203dpi ZPL"]
+            found_any = [
+                ip for ip, p in lab_printers.items() if p.get("model") == "ZD420-203dpi ZPL"
+            ]
             assert len(found_any) >= 1
             p = lab_printers[found_any[0]]
             assert "zpl" in p.get("notes", "").lower()

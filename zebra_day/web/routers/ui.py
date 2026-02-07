@@ -736,7 +736,10 @@ async def modern_config_scan(
         )
     zp = request.app.state.zp
     zp.probe_zebra_printers_add_to_printers_json(
-        ip_stub=ip_stub, scan_wait=scan_wait, lab=lab, scan_http_port=scan_http_port,
+        ip_stub=ip_stub,
+        scan_wait=scan_wait,
+        lab=lab,
+        scan_http_port=scan_http_port,
     )
     time.sleep(2.2)
     return RedirectResponse(url=f"/printers/{lab}", status_code=303)

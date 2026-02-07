@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import signal
-import sys
 import time
 from typing import TYPE_CHECKING
 
@@ -61,9 +60,7 @@ def sim_start(
 
     mgr = _get_manager()
     try:
-        printer = mgr.start_printer(
-            host=host, zpl_port=zpl_port, http_port=http_port, profile=profile
-        )
+        mgr.start_printer(host=host, zpl_port=zpl_port, http_port=http_port, profile=profile)
     except RuntimeError as exc:
         output.error(str(exc))
         raise typer.Exit(1) from None
@@ -128,4 +125,3 @@ def sim_list() -> None:
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
     """cli-core-yo plugin: register the simulator command group."""
     registry.add_typer_app(None, sim_app, "simulator", "Mock Zebra printer simulator")
-

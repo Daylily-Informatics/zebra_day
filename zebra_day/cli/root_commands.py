@@ -65,9 +65,7 @@ def _status_callback() -> None:
             if hasattr(zp, "printers") and "labs" in zp.printers:
                 labs = list(zp.printers["labs"].keys())
                 status_data["printers"]["labs"] = labs
-                total_printers = sum(
-                    len(list(zp.printers["labs"][lab].keys())) for lab in labs
-                )
+                total_printers = sum(len(list(zp.printers["labs"][lab].keys())) for lab in labs)
                 status_data["printers"]["configured"] = total_printers
         except Exception:
             pass
@@ -79,10 +77,7 @@ def _status_callback() -> None:
     # Human-readable output
     output.heading("Service Status")
     if status_data["gui_server"]["running"]:
-        output.success(
-            f"GUI Server: Running"
-            f" (PID {status_data['gui_server']['pid']})"
-        )
+        output.success(f"GUI Server: Running (PID {status_data['gui_server']['pid']})")
         output.detail(f"URL: {status_data['gui_server']['url']}")
     else:
         output.detail("GUI Server: Not running")
@@ -91,9 +86,7 @@ def _status_callback() -> None:
     if status_data["config"]["exists"]:
         output.success("Config: Loaded")
         output.detail(f"Printers: {status_data['printers']['configured']}")
-        output.detail(
-            f"Labs: {', '.join(status_data['printers']['labs']) or 'none'}"
-        )
+        output.detail(f"Labs: {', '.join(status_data['printers']['labs']) or 'none'}")
     else:
         output.warning("Config: Not found")
         output.detail("Run 'zday bootstrap' to initialize")
@@ -103,9 +96,7 @@ def _bootstrap_callback(
     ip_stub: str | None = typer.Option(
         None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"
     ),
-    skip_scan: bool = typer.Option(
-        False, "--skip-scan", "-s", help="Skip printer network scan"
-    ),
+    skip_scan: bool = typer.Option(False, "--skip-scan", "-s", help="Skip printer network scan"),
     silent_scan: bool = typer.Option(
         False, "--silent-scan", help="Suppress per-IP scan output (show summary only)"
     ),
@@ -169,17 +160,12 @@ def _bootstrap_callback(
                 checked = event.get("checked", 0)
                 total = event.get("total", 255)
                 ip_addr = event.get("ip", "")
-                output.print_text(
-                    f"  [{checked + 1}/{total}] Probing {ip_addr}..."
-                )
+                output.print_text(f"  [{checked + 1}/{total}] Probing {ip_addr}...")
             elif kind == "found":
                 ip_addr = event.get("ip", "")
                 model = event.get("model", "Unknown")
                 serial = event.get("serial", "Unknown")
-                output.success(
-                    f"Found printer at {ip_addr}"
-                    f"  model={model}  serial={serial}"
-                )
+                output.success(f"Found printer at {ip_addr}  model={model}  serial={serial}")
             elif kind == "done":
                 checked = event.get("checked", 0)
                 total = event.get("total", 255)
@@ -218,14 +204,11 @@ def _bootstrap_callback(
         if not mkcert.is_mkcert_installed():
             output.warning("mkcert not installed")
             output.detail(
-                "Install with: brew install mkcert (macOS) or "
-                "sudo apt install mkcert (Ubuntu)"
+                "Install with: brew install mkcert (macOS) or sudo apt install mkcert (Ubuntu)"
             )
         elif not mkcert.is_ca_installed():
             output.warning("mkcert CA not installed")
-            output.detail(
-                "Run: mkcert -install (one-time, requires password)"
-            )
+            output.detail("Run: mkcert -install (one-time, requires password)")
         elif mkcert.certificates_exist():
             output.success(f"Certificates exist: {mkcert.CERT_FILE}")
             certs_generated = True
@@ -233,9 +216,7 @@ def _bootstrap_callback(
         else:
             output.detail("Generating certificates...")
             if mkcert.generate_certificates():
-                output.success(
-                    f"Certificates generated: {mkcert.CERT_FILE}"
-                )
+                output.success(f"Certificates generated: {mkcert.CERT_FILE}")
                 certs_generated = True
                 cert_path_str = str(mkcert.CERT_FILE)
             else:
@@ -260,4 +241,3 @@ def _bootstrap_callback(
     output.detail("zday gui start     Start the web UI")
     output.detail("zday printer list  Show configured printers")
     output.detail("zday info          Show configuration details")
-
