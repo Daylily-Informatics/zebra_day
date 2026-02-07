@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import typer
 from cli_core_yo import output
+from cli_core_yo.runtime import get_context
 from rich.console import Console
 from rich.table import Table
 
@@ -40,7 +41,6 @@ def _find_template(name: str) -> Path | None:
 
 @template_app.command("list")
 def list_templates(
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show full paths"),
 ):
     """List available ZPL templates."""
@@ -79,7 +79,7 @@ def list_templates(
                     }
                 )
 
-    if json_output:
+    if get_context().json_mode:
         output.emit_json(templates)
         return
 

@@ -248,7 +248,7 @@ class TestCLIBootstrap:
         )
         result = runner.invoke(
             app,
-            ["bootstrap", "--ip-stub", "10.0.0", "--json"],
+            ["--json", "bootstrap", "--ip-stub", "10.0.0"],
         )
         assert result.exit_code == 0, result.output
         assert "Probing" not in result.output

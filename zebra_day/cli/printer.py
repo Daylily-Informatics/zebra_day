@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import typer
 from cli_core_yo import output
+from cli_core_yo.runtime import get_context
 from rich.console import Console
 from rich.table import Table
 
@@ -50,9 +51,10 @@ def scan(
         "--description",
         help="Optional lab description. Stored in config as lab_description.",
     ),
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ):
     """Scan network for Zebra printers."""
+    json_mode = get_context().json_mode
+
     # Determine IP stub if not provided
     if not ip_stub:
         local_ip = _get_local_ip()
@@ -65,9 +67,8 @@ def scan(
         )
         raise typer.Exit(1)
 
-    if not json_output:
-        output.action(f"Scanning {ip_stub}.* for Zebra printers...")
-        output.detail("This may take a few minutes...")
+    output.action(f"Scanning {ip_stub}.* for Zebra printers...")
+    output.detail("This may take a few minutes...")
 
     try:
         import zebra_day.print_mgr as zdpm
@@ -108,22 +109,23 @@ def scan(
                         }
                     )
 
-        if json_output:
+        if json_mode:
             output.emit_json(found)
-        else:
-            output.success(f"Found {len(found)} printer(s)")
-            if found:
-                table = Table()
-                table.add_column("Name", style="cyan")
-                table.add_column("IP Address")
-                table.add_column("Model")
-                table.add_column("Serial")
-                for p in found:
-                    table.add_row(p["name"], p["ip"], p["model"], p["serial"])
-                console.print(table)
+            return
+
+        output.success(f"Found {len(found)} printer(s)")
+        if found:
+            table = Table()
+            table.add_column("Name", style="cyan")
+            table.add_column("IP Address")
+            table.add_column("Model")
+            table.add_column("Serial")
+            for p in found:
+                table.add_row(p["name"], p["ip"], p["model"], p["serial"])
+            console.print(table)
 
     except Exception as e:
-        if json_output:
+        if json_mode:
             output.emit_json({"error": str(e)})
         else:
             output.error(f"Scan error: {e}")
@@ -133,7 +135,6 @@ def scan(
 @printer_app.command("list")
 def list_printers(
     lab: str | None = typer.Option(None, "--lab", "-l", help="Filter by lab name"),
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     live: bool = typer.Option(False, "--live", help="Query live status from printers"),
     timeout: float = typer.Option(
         2.0, "--timeout", "-t", help="Timeout per printer query (seconds)"
@@ -164,10 +165,11 @@ def list_printers(
                             }
                         )
 
+        json_mode = get_context().json_mode
+
         # Query live status if requested
         if live and printers:
-            if not json_output:
-                output.action("Querying live status from printers...")
+            output.action("Querying live status from printers...")
             for p in printers:
                 ip = p.get("ip", "")
                 if ip and ip not in ("unknown", "dl_png"):
@@ -199,7 +201,7 @@ def list_printers(
                     p["status"] = "n/a"
                     p["state"] = "Unknown"
 
-        if json_output:
+        if json_mode:
             output.emit_json(printers)
             return
 
@@ -280,7 +282,7 @@ def list_printers(
         console.print(table)
 
     except Exception as e:
-        if json_output:
+        if get_context().json_mode:
             output.emit_json({"error": str(e)})
         else:
             output.error(f"Error: {e}")

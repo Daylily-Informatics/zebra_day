@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import typer
 from cli_core_yo import output
+from cli_core_yo.runtime import get_context
 from rich.console import Console
 from rich.table import Table
 
@@ -75,7 +76,6 @@ def _ensure_s3_bucket(backend, *, create_if_missing: bool = False) -> None:
 
 def _get_backend_from_env(
     *,
-    json_output: bool = False,
     create_s3_if_missing: bool = False,
 ):
     """Create a ``DynamoBackend`` from env vars with interactive prompt fallback.
@@ -92,7 +92,7 @@ def _get_backend_from_env(
     backend = DynamoBackend.from_env(allow_missing_bucket=True)
 
     if not backend.s3_bucket:
-        if not json_output and _is_interactive():
+        if not get_context().json_mode and _is_interactive():
             output.warning("ZEBRA_DAY_S3_BACKUP_BUCKET is not set.")
             bucket = _prompt_s3_bucket()
             backend.s3_bucket = bucket
@@ -321,7 +321,6 @@ def init_cmd(
 
 @dynamo_app.command("status")
 def status_cmd(
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     create_s3_if_missing: bool = typer.Option(
         False, "--create-s3-if-missing", help="Auto-create S3 bucket if it doesn't exist"
     ),
@@ -329,7 +328,6 @@ def status_cmd(
     """Show DynamoDB table and S3 backup status."""
     try:
         backend = _get_backend_from_env(
-            json_output=json_output,
             create_s3_if_missing=create_s3_if_missing,
         )
     except (ConfigError, ImportError) as exc:
@@ -346,7 +344,7 @@ def status_cmd(
 
     template_count = len(backend.list_templates())
 
-    if json_output:
+    if get_context().json_mode:
         status["template_count"] = template_count
         output.emit_json(status)
         return

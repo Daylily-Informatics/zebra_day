@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import typer
 from cli_core_yo import output
+from cli_core_yo.runtime import get_context
 
 from zebra_day import paths as xdg
 
@@ -32,12 +33,8 @@ def register(registry: CommandRegistry, spec: CliSpec) -> None:
     )
 
 
-def _status_callback(
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
-) -> None:
+def _status_callback() -> None:
     """Show printer fleet status, network connectivity, and service health."""
-    import json as json_mod
-
     status_data: dict[str, dict[str, Any]] = {
         "gui_server": {"running": False, "pid": None, "url": None},
         "printers": {"configured": 0, "labs": []},
@@ -75,7 +72,7 @@ def _status_callback(
         except Exception:
             pass
 
-    if json_output:
+    if get_context().json_mode:
         output.emit_json(status_data)
         return
 
@@ -112,7 +109,6 @@ def _bootstrap_callback(
     silent_scan: bool = typer.Option(
         False, "--silent-scan", help="Suppress per-IP scan output (show summary only)"
     ),
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ) -> None:
     """Initialize configuration, scan for printers, and setup first-time environment.
 
@@ -125,21 +121,20 @@ def _bootstrap_callback(
     printer discovered.  Use --silent-scan to suppress per-IP output and only
     show the final summary.
     """
-    import json as json_mod
+    json_mode = get_context().json_mode
 
     config_dir = str(xdg.get_config_dir())
     data_dir = str(xdg.get_data_dir())
     printers_found = 0
     labs: list[str] = []
 
-    if not json_output:
-        output.heading("zebra_day Bootstrap")
-        output.success("Config directory: " + config_dir)
-        output.success("Data directory: " + data_dir)
+    # output.* primitives auto-suppress in json_mode
+    output.heading("zebra_day Bootstrap")
+    output.success("Config directory: " + config_dir)
+    output.success("Data directory: " + data_dir)
 
     if skip_scan:
-        if not json_output:
-            output.detail("Skipping printer scan (--skip-scan)")
+        output.detail("Skipping printer scan (--skip-scan)")
     else:
         # Determine IP stub
         if not ip_stub:
@@ -159,15 +154,12 @@ def _bootstrap_callback(
             )
             raise typer.Exit(1)
 
-        if not json_output:
-            output.action(
-                f"Scanning network for Zebra printers ({ip_stub}.*)..."
-            )
-            if silent_scan:
-                output.detail("This may take a few minutes...")
+        output.action(f"Scanning network for Zebra printers ({ip_stub}.*)...")
+        if silent_scan:
+            output.detail("This may take a few minutes...")
 
         # Build progress callback for verbose (non-silent) scan output
-        verbose_scan = not json_output and not silent_scan
+        verbose_scan = not json_mode and not silent_scan
 
         def _scan_progress(event: dict) -> None:
             if not verbose_scan:
@@ -208,62 +200,50 @@ def _bootstrap_callback(
                     printers_found += printers_in_lab
                     labs.append(lab)
 
-            if not json_output:
-                output.success(
-                    f"Scan complete: {printers_found} printer(s) found"
-                )
-                if labs:
-                    output.detail(f"Labs: {', '.join(labs)}")
+            output.success(f"Scan complete: {printers_found} printer(s) found")
+            if labs:
+                output.detail(f"Labs: {', '.join(labs)}")
         except Exception as e:
-            if not json_output:
-                output.warning(f"Scan error: {e}")
+            output.warning(f"Scan error: {e}")
 
     # Generate HTTPS certificates if mkcert is available
     certs_generated = False
     cert_path_str = None
 
-    if not json_output:
-        output.action("Checking HTTPS certificates...")
+    output.action("Checking HTTPS certificates...")
 
     try:
         from zebra_day import mkcert
 
         if not mkcert.is_mkcert_installed():
-            if not json_output:
-                output.warning("mkcert not installed")
-                output.detail(
-                    "Install with: brew install mkcert (macOS) or "
-                    "sudo apt install mkcert (Ubuntu)"
-                )
+            output.warning("mkcert not installed")
+            output.detail(
+                "Install with: brew install mkcert (macOS) or "
+                "sudo apt install mkcert (Ubuntu)"
+            )
         elif not mkcert.is_ca_installed():
-            if not json_output:
-                output.warning("mkcert CA not installed")
-                output.detail(
-                    "Run: mkcert -install (one-time, requires password)"
-                )
+            output.warning("mkcert CA not installed")
+            output.detail(
+                "Run: mkcert -install (one-time, requires password)"
+            )
         elif mkcert.certificates_exist():
-            if not json_output:
-                output.success(f"Certificates exist: {mkcert.CERT_FILE}")
+            output.success(f"Certificates exist: {mkcert.CERT_FILE}")
             certs_generated = True
             cert_path_str = str(mkcert.CERT_FILE)
         else:
-            if not json_output:
-                output.detail("Generating certificates...")
+            output.detail("Generating certificates...")
             if mkcert.generate_certificates():
-                if not json_output:
-                    output.success(
-                        f"Certificates generated: {mkcert.CERT_FILE}"
-                    )
+                output.success(
+                    f"Certificates generated: {mkcert.CERT_FILE}"
+                )
                 certs_generated = True
                 cert_path_str = str(mkcert.CERT_FILE)
             else:
-                if not json_output:
-                    output.warning("Failed to generate certificates")
+                output.warning("Failed to generate certificates")
     except Exception as e:
-        if not json_output:
-            output.warning(f"Certificate check error: {e}")
+        output.warning(f"Certificate check error: {e}")
 
-    if json_output:
+    if json_mode:
         result = {
             "config_dir": config_dir,
             "data_dir": data_dir,
@@ -273,10 +253,11 @@ def _bootstrap_callback(
             "cert_path": cert_path_str,
         }
         output.emit_json(result)
-    else:
-        output.success("Bootstrap complete!")
-        output.heading("Next steps")
-        output.detail("zday gui start     Start the web UI")
-        output.detail("zday printer list  Show configured printers")
-        output.detail("zday info          Show configuration details")
+        return
+
+    output.success("Bootstrap complete!")
+    output.heading("Next steps")
+    output.detail("zday gui start     Start the web UI")
+    output.detail("zday printer list  Show configured printers")
+    output.detail("zday info          Show configuration details")
 

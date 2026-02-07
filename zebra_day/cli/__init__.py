@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 
+import typer
 import yaml
 
 from cli_core_yo.app import create_app
+from cli_core_yo.runtime import _reset, initialize
 from cli_core_yo.spec import CliSpec, ConfigSpec, PluginSpec, XdgSpec
 
 from zebra_day import paths as xdg
@@ -133,6 +135,17 @@ spec = CliSpec(
 )
 
 app = create_app(spec)
+
+
+@app.callback()
+def _root_callback(
+    json_flag: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Initialize RuntimeContext for the current invocation."""
+    _reset()
+    debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
+    xdg_paths = app._cli_core_yo_xdg_paths  # type: ignore[attr-defined]
+    initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
 
 
 def main():
