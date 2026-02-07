@@ -1322,6 +1322,38 @@ class TestTemplatesPageImportSection:
         assert "import-cb" in response.text
 
 
+class TestScanTrailingDotRejection:
+    """Tests for trailing-dot ip_stub rejection on web scan routes."""
+
+    def test_config_scan_rejects_trailing_dot(self, client):
+        """GET /config/scan?ip_stub=192.168.1. returns 400."""
+        resp = client.get("/config/scan", params={"ip_stub": "192.168.1."})
+        assert resp.status_code == 400
+        assert "trailing dot" in resp.json()["detail"]
+
+    def test_config_scan_stream_rejects_trailing_dot(self, client):
+        """GET /config/scan/stream?ip_stub=10.0.0. returns 400."""
+        resp = client.get("/config/scan/stream", params={"ip_stub": "10.0.0."})
+        assert resp.status_code == 400
+        assert "trailing dot" in resp.json()["detail"]
+
+    def test_config_scan_accepts_valid_stub(self, client, monkeypatch):
+        """GET /config/scan with valid ip_stub does NOT return 400."""
+        zp = client.app.state.zp
+        monkeypatch.setattr(
+            zp,
+            "probe_zebra_printers_add_to_printers_json",
+            lambda **kw: None,
+        )
+        resp = client.get(
+            "/config/scan",
+            params={"ip_stub": "192.168.1"},
+            follow_redirects=False,
+        )
+        # Should redirect (303) on success, not 400
+        assert resp.status_code == 303
+
+
 # Keep the simple assertion test for backward compatibility
 def test_web_ui():
     """Simple test to ensure test module loads."""

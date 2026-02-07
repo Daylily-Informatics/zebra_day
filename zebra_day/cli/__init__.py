@@ -215,6 +215,13 @@ def bootstrap(
             except Exception:
                 ip_stub = "192.168.1"
 
+        if ip_stub.endswith("."):
+            console.print(
+                f"[red]✗[/red] ip-stub must not end with a trailing dot: '{ip_stub}'. "
+                f"Use '{ip_stub.rstrip('.')}' instead."
+            )
+            raise typer.Exit(1)
+
         if not json_output:
             console.print(f"\n[cyan]→[/cyan] Scanning network for Zebra printers ({ip_stub}.*)...")
             if silent_scan:

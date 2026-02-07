@@ -137,10 +137,18 @@ def scan(ip_stub: str = "192.168.1", lab: str = "default") -> None:
         ip_stub: First three octets of IP range to scan (default: "192.168.1")
         lab: Lab identifier to add discovered printers to (default: "default")
 
+    Raises:
+        ValueError: If ip_stub ends with a trailing dot.
+
     Example:
         >>> import zebra_day as zd
         >>> zd.scan(ip_stub="10.0.0", lab="production")
     """
+    if isinstance(ip_stub, str) and ip_stub.endswith("."):
+        raise ValueError(
+            f"ip_stub must not end with a trailing dot: '{ip_stub}'. "
+            f"Use '{ip_stub.rstrip('.')}' instead."
+        )
     zp = _get_zpl()
     zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, lab=lab)
 

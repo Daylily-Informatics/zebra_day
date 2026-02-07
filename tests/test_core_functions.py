@@ -315,3 +315,51 @@ class TestZebraPrinterQueries:
         assert result["online"] is True
 
         clear_printer_cache()
+
+
+class TestIpStubTrailingDotRejection:
+    """Tests for rejecting ip_stub values that end with a trailing dot."""
+
+    def test_probe_rejects_trailing_dot(self):
+        """probe_zebra_printers_add_to_printers_json raises ValueError for trailing dot."""
+        import zebra_day.print_mgr as zdpm
+
+        zp = zdpm.zpl()
+        with pytest.raises(ValueError, match="trailing dot"):
+            zp.probe_zebra_printers_add_to_printers_json(ip_stub="192.168.1.")
+
+    def test_probe_rejects_single_dot(self):
+        """A bare '.' is also rejected."""
+        import zebra_day.print_mgr as zdpm
+
+        zp = zdpm.zpl()
+        with pytest.raises(ValueError, match="trailing dot"):
+            zp.probe_zebra_printers_add_to_printers_json(ip_stub=".")
+
+    def test_probe_rejects_multiple_trailing_dots(self):
+        """Multiple trailing dots (e.g. '10.0.0..') are rejected."""
+        import zebra_day.print_mgr as zdpm
+
+        zp = zdpm.zpl()
+        with pytest.raises(ValueError, match="trailing dot"):
+            zp.probe_zebra_printers_add_to_printers_json(ip_stub="10.0.0..")
+
+    def test_probe_accepts_valid_stub(self):
+        """Valid ip_stub (no trailing dot) does NOT raise ValueError.
+
+        We mock http.client connections to avoid real network I/O.
+        """
+        import zebra_day.print_mgr as zdpm
+
+        zp = zdpm.zpl()
+        # Mock HTTPConnection and HTTPSConnection so the 255-IP loop
+        # completes instantly without real network calls.
+        with mock.patch("http.client.HTTPConnection") as mock_http, \
+             mock.patch("http.client.HTTPSConnection") as mock_https:
+            # Make every connection attempt raise immediately (no printer)
+            mock_http.return_value.request.side_effect = OSError("mocked")
+            mock_https.return_value.request.side_effect = OSError("mocked")
+            try:
+                zp.probe_zebra_printers_add_to_printers_json(ip_stub="10.0.0")
+            except ValueError:
+                pytest.fail("Valid ip_stub raised ValueError")

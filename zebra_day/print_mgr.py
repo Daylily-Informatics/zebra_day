@@ -228,6 +228,13 @@ class zpl:
         scan_wait = seconds to re-try probing until moving on. 0.5 default may be too quick/slow
         lab = code for the lab key to add/update to given finding new printers
         """
+        # Reject trailing-dot ip_stub (e.g. "192.168.1." is invalid)
+        if isinstance(ip_stub, str) and ip_stub.endswith("."):
+            raise ValueError(
+                f"ip_stub must not end with a trailing dot: '{ip_stub}'. "
+                f"Use '{ip_stub.rstrip('.')}' instead."
+            )
+
         # Ensure schema version is set
         if "schema_version" not in self.printers:
             self.printers["schema_version"] = "2.1.0"

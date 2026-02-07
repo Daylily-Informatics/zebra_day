@@ -255,6 +255,38 @@ class TestCLIBootstrap:
         assert "printers_found" in result.output
 
 
+class TestCLIBootstrapTrailingDot:
+    """Tests for trailing-dot ip_stub rejection in bootstrap command."""
+
+    def test_bootstrap_rejects_trailing_dot(self):
+        """bootstrap --ip-stub '192.168.1.' exits with error."""
+        result = runner.invoke(app, ["bootstrap", "--ip-stub", "192.168.1."])
+        assert result.exit_code == 1
+        assert "trailing dot" in result.output
+
+    def test_bootstrap_rejects_trailing_dot_short_flag(self):
+        """bootstrap -i '10.0.0.' exits with error."""
+        result = runner.invoke(app, ["bootstrap", "-i", "10.0.0."])
+        assert result.exit_code == 1
+        assert "trailing dot" in result.output
+
+
+class TestCLIPrinterScanTrailingDot:
+    """Tests for trailing-dot ip_stub rejection in printer scan command."""
+
+    def test_printer_scan_rejects_trailing_dot(self):
+        """printer scan --ip-stub '192.168.1.' exits with error."""
+        result = runner.invoke(app, ["printer", "scan", "--ip-stub", "192.168.1."])
+        assert result.exit_code == 1
+        assert "trailing dot" in result.output
+
+    def test_printer_scan_rejects_trailing_dot_short_flag(self):
+        """printer scan -i '10.0.0.' exits with error."""
+        result = runner.invoke(app, ["printer", "scan", "-i", "10.0.0."])
+        assert result.exit_code == 1
+        assert "trailing dot" in result.output
+
+
 
 # ---------------------------------------------------------------------------
 # zday man — interactive documentation browser
