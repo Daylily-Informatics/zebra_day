@@ -17,6 +17,7 @@ from zebra_day.cli.config import config_app
 from zebra_day.cli.dynamo import dynamo_app
 from zebra_day.cli.env import env_app
 from zebra_day.cli.gui import gui_app
+from zebra_day.cli.man import man_app
 from zebra_day.cli.printer import printer_app
 from zebra_day.cli.template import template_app
 
@@ -37,6 +38,7 @@ app.add_typer(config_app, name="config", help="Configuration management")
 app.add_typer(env_app, name="env", help="Development environment management")
 app.add_typer(cognito_app, name="cognito", help="Cognito authentication management")
 app.add_typer(dynamo_app, name="dynamo", help="DynamoDB shared configuration management")
+app.add_typer(man_app, name="man", help="Interactive documentation browser")
 
 
 def _get_version() -> str:

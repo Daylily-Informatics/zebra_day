@@ -94,6 +94,7 @@ include = ["zebra_day*"]
 [tool.setuptools.package-data]
 zebra_day = [
     "bin/*",
+    "docs/*.md",
     "etc/*",
     "etc/label_styles/*",
     "etc/label_styles/tmps/*",
