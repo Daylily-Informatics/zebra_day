@@ -91,6 +91,40 @@ The **State** column shows additional details when errors are detected:
 
 ---
 
+## DynamoDB Backend Controls (v2.2.0+)
+
+The **Config** page includes a DynamoDB section when the feature is enabled:
+
+### Backend Status Card
+Displays the active backend (`local` or `dynamodb`) along with AWS details (table name, region, S3 bucket, profile).
+
+### Switch Backend Form
+Swap between `local` and `dynamodb` backends for the running server session:
+- Select backend type from dropdown
+- DynamoDB fields appear when `dynamodb` is selected: table, region, S3 bucket, S3 prefix, AWS profile
+- Auto-detects existing DynamoDB tables in the chosen region
+- Auto-suggests S3 bucket name (`zebra-day-cfg-<region>`)
+- "Create Bucket" button appears if the bucket doesn't exist
+- Validates that AWS profile is not set to `default`
+- **Session-only**: switching does not change environment variables or persist across restarts
+
+### Refresh Config
+Reloads the printer configuration from the active backend (useful after external changes to DynamoDB).
+
+---
+
+## Template Import to DynamoDB (v2.3.0+)
+
+When a DynamoDB backend is active, the **Templates** page shows an additional section:
+
+### Import Local Templates
+- Lists all local templates (user-created and package-shipped) with checkboxes
+- Select one or more templates and click **Import Selected to DynamoDB**
+- Templates already present in DynamoDB are skipped
+- Imported templates become the active set for all clients sharing the DynamoDB table
+
+---
+
 ## API Reference (curl examples)
 
 All API endpoints are documented at `/docs` (Swagger UI) and `/redoc`. Here are common operations:
