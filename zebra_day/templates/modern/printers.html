@@ -209,7 +209,7 @@
     <div class="card-header">
         <h3 class="card-title">Scan Network for Printers</h3>
     </div>
-	    <form action="/config/scan" method="get" class="grid grid-4" onsubmit="return startNetworkScan(event, this)">
+	    <form action="/config/scan" method="get" class="grid grid-5" onsubmit="return startNetworkScan(event, this)">
         <div class="form-group mb-0">
             <label class="form-label">IP Range</label>
             <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
@@ -232,6 +232,10 @@
 	                <option value="1.0">1.0s</option>
 	            </select>
 	        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">HTTP Port</label>
+            <input type="number" name="scan_http_port" class="form-control" placeholder="optional" min="1" max="65535">
+        </div>
         <div class="form-group mb-0" style="display: flex; align-items: flex-end;">
             <button type="submit" class="btn btn-primary">
                 <i class="fas fa-search"></i> Scan Network

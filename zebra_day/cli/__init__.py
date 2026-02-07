@@ -129,6 +129,7 @@ spec = CliSpec(
             "zebra_day.cli.man.register",
             "zebra_day.cli.cognito.register",
             "zebra_day.cli.root_commands.register",
+            "zebra_day.cli.simulator.register",
         ]
     ),
     info_hooks=[_zday_info_hook],

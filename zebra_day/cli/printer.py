@@ -51,6 +51,11 @@ def scan(
         "--description",
         help="Optional lab description. Stored in config as lab_description.",
     ),
+    scan_http_port: int | None = typer.Option(
+        None,
+        "--scan-http-port",
+        help="Also probe this HTTP port for web-based discovery (e.g. 80). Default: ZPL-only.",
+    ),
 ):
     """Scan network for Zebra printers."""
     json_mode = get_context().json_mode
@@ -79,6 +84,7 @@ def scan(
             scan_wait=str(wait),
             lab=lab,
             lab_description=description or "",
+            scan_http_port=scan_http_port,
         )
 
         # Apply lab metadata updates (if explicitly provided)

@@ -167,7 +167,7 @@ def _make_mock_zpl(found_printers=None):
     mock_zp = MagicMock()
     mock_zp.printers = {"labs": {}}
 
-    def _fake_probe(ip_stub="192.168.1", progress_callback=None, **kwargs):
+    def _fake_probe(ip_stub="192.168.1", progress_callback=None, scan_http_port=None, **kwargs):
         lab = kwargs.get("lab", "default")
         mock_zp.printers["labs"].setdefault(lab, {"printers": {}})
         for idx, p in enumerate(found_printers):
@@ -418,3 +418,409 @@ class TestCLIManGracefulDegradation:
         )
         content = _get_topic_content(fake_topic)
         assert "not found" in content.lower()
+
+
+
+# =====================================================================
+# Simulator tests
+# =====================================================================
+
+import socket
+import http.client
+import time
+
+
+class TestSimulatorCore:
+    """Tests for the simulator module (non-CLI)."""
+
+    def test_zpl_hi_response(self):
+        """~HI returns expected host identification."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
+        profile = PrinterProfile(model="ZT411-300dpi ZPL", serial="TESTSN1", firmware="V1.0.0")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19201, http_port=18201, profile=profile)
+        printer.start()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                s.connect(("127.0.0.1", 19201))
+                s.sendall(b"~HI")
+                resp = s.recv(4096).decode(errors="ignore")
+            assert "ZT411-300dpi ZPL" in resp
+            assert "V1.0.0" in resp
+        finally:
+            printer.stop()
+
+    def test_zpl_serial_number(self):
+        """~HQSN returns configured serial number."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
+        profile = PrinterProfile(serial="ABCD1234")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19202, http_port=18202, profile=profile)
+        printer.start()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                s.connect(("127.0.0.1", 19202))
+                s.sendall(b"~HQSN")
+                resp = s.recv(4096).decode(errors="ignore")
+            assert "ABCD1234" in resp
+        finally:
+            printer.stop()
+
+    def test_zpl_host_status_flags(self):
+        """~HS returns correct status flags for paper_out + head_up."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
+        profile = PrinterProfile(paper_out=True, head_up=True)
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19203, http_port=18203, profile=profile)
+        printer.start()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                s.connect(("127.0.0.1", 19203))
+                s.sendall(b"~HS")
+                resp = s.recv(4096).decode(errors="ignore")
+            # Line 1 format: 0000,0,{pause},{...},{paper},{head},{ribbon},...
+            # With paper_out=True head_up=True: ...,1,1,0,...
+            lines = resp.strip().strip("\x02\x03").split("\r\n")
+            parts = lines[0].split(",")
+            assert parts[5].strip() == "1"  # paper_out
+            assert parts[6].strip() == "1"  # head_up
+            assert parts[7].strip() == "0"  # ribbon_out (not set)
+        finally:
+            printer.stop()
+
+    def test_zpl_odometer(self):
+        """~HQOD returns label count."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
+        profile = PrinterProfile(label_count=99999)
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19204, http_port=18204, profile=profile)
+        printer.start()
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2)
+                s.connect(("127.0.0.1", 19204))
+                s.sendall(b"~HQOD")
+                resp = s.recv(4096).decode(errors="ignore")
+            assert "99999" in resp
+            assert "LABEL" in resp.upper()
+        finally:
+            printer.stop()
+
+    def test_http_discovery_page(self):
+        """HTTP server returns page with Zebra keywords for scanner detection."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+
+        profile = PrinterProfile(model="ZD620-203dpi ZPL", serial="HTTPSN1")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19205, http_port=18205, profile=profile)
+        printer.start()
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", 18205, timeout=2)
+            conn.request("GET", "/")
+            resp = conn.getresponse()
+            body = resp.read().decode()
+            conn.close()
+            # Scanner looks for these keywords
+            body_lower = body.lower()
+            assert "zebra" in body_lower
+            assert "link-os" in body_lower
+            # Model and serial should be present
+            assert "ZD620" in body
+            assert "HTTPSN1" in body
+            # Server header should say Zebra
+            assert "Zebra" in (resp.getheader("Server") or "")
+        finally:
+            printer.stop()
+
+    def test_cmd_mgr_integration(self):
+        """cmd_mgr.ZebraPrinter can query the simulator and parse responses."""
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        profile = PrinterProfile(
+            model="ZT411-203dpi ZPL", serial="INTEG001", firmware="V99.0.0",
+            label_count=500,
+        )
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19206, http_port=18206, profile=profile)
+        printer.start()
+        try:
+            zp = ZebraPrinter("127.0.0.1", port=19206)
+            hi = zp.get_host_identification()
+            assert hi is not None
+            assert hi["model"] == "ZT411-203dpi ZPL"
+            assert hi["firmware"] == "V99.0.0"
+
+            sn = zp.get_serial_number()
+            assert sn == "INTEG001"
+
+            od = zp.get_odometer()
+            assert od is not None
+            assert od["label_count"] == 500
+
+            hs = zp.get_host_status()
+            assert hs is not None
+            assert hs["paper_out"] is False
+
+            status = zp.get_full_status()
+            assert status["online"] is True
+            assert status["model"] == "ZT411-203dpi ZPL"
+            assert status["serial"] == "INTEG001"
+        finally:
+            printer.stop()
+
+
+class TestSimulatorCLI:
+    """Tests for the simulator CLI commands."""
+
+    def test_simulator_help(self):
+        """simulator --help shows commands."""
+        result = runner.invoke(app, ["simulator", "--help"])
+        assert result.exit_code == 0
+        assert "start" in result.output
+        assert "stop" in result.output
+        assert "list" in result.output
+
+    def test_simulator_start_help(self):
+        """simulator start --help shows options."""
+        result = runner.invoke(app, ["simulator", "start", "--help"])
+        assert result.exit_code == 0
+        assert "--model" in result.output
+        assert "--serial" in result.output
+        assert "--zpl-port" in result.output
+        assert "--http-port" in result.output
+
+    def test_simulator_list_empty(self):
+        """simulator list works when no simulators running."""
+        result = runner.invoke(app, ["simulator", "list"])
+        assert result.exit_code == 0
+
+    def test_simulator_stop_nonexistent(self):
+        """simulator stop on non-running simulator doesn't crash."""
+        result = runner.invoke(app, ["simulator", "stop", "--host", "127.0.0.1", "--zpl-port", "19999"])
+        assert result.exit_code == 0
+
+
+class TestSimulatorManager:
+    """Tests for SimulatorManager fleet management."""
+
+    def test_start_and_list(self):
+        """Start a printer and verify it appears in list."""
+        from zebra_day.simulator import PrinterProfile, SimulatorManager
+
+        mgr = SimulatorManager()
+        try:
+            mgr.start_printer(
+                host="127.0.0.1", zpl_port=19210, http_port=18210,
+                profile=PrinterProfile(model="ZD420-203dpi ZPL", serial="MGR001"),
+            )
+            printers = mgr.list_printers()
+            assert len(printers) == 1
+            assert printers[0]["model"] == "ZD420-203dpi ZPL"
+            assert printers[0]["serial"] == "MGR001"
+            assert printers[0]["running"] is True
+        finally:
+            mgr.stop_all()
+
+    def test_start_duplicate_raises(self):
+        """Starting a printer on same address raises RuntimeError."""
+        import pytest
+        from zebra_day.simulator import SimulatorManager
+
+        mgr = SimulatorManager()
+        try:
+            mgr.start_printer(host="127.0.0.1", zpl_port=19211, http_port=18211)
+            with pytest.raises(RuntimeError, match="already running"):
+                mgr.start_printer(host="127.0.0.1", zpl_port=19211, http_port=18212)
+        finally:
+            mgr.stop_all()
+
+    def test_stop_all(self):
+        """stop_all shuts down all printers."""
+        from zebra_day.simulator import SimulatorManager
+
+        mgr = SimulatorManager()
+        mgr.start_printer(host="127.0.0.1", zpl_port=19212, http_port=18212)
+        mgr.start_printer(host="127.0.0.1", zpl_port=19213, http_port=18213)
+        count = mgr.stop_all()
+        assert count == 2
+        assert mgr.list_printers() == []
+
+    def test_multiple_printers(self):
+        """Multiple simulators can run simultaneously with different responses."""
+        from zebra_day.simulator import PrinterProfile, SimulatorManager
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        mgr = SimulatorManager()
+        try:
+            mgr.start_printer(
+                host="127.0.0.1", zpl_port=19214, http_port=18214,
+                profile=PrinterProfile(model="ZD620-203dpi ZPL", serial="FLEET1"),
+            )
+            mgr.start_printer(
+                host="127.0.0.1", zpl_port=19215, http_port=18215,
+                profile=PrinterProfile(model="ZT411-300dpi ZPL", serial="FLEET2"),
+            )
+            zp1 = ZebraPrinter("127.0.0.1", port=19214)
+            zp2 = ZebraPrinter("127.0.0.1", port=19215)
+            assert zp1.get_serial_number() == "FLEET1"
+            assert zp2.get_serial_number() == "FLEET2"
+        finally:
+            mgr.stop_all()
+
+
+# ---------------------------------------------------------------------------
+# Scanner integration tests (ZPL-first discovery with simulator)
+# ---------------------------------------------------------------------------
+
+
+class TestScannerZPLFirst:
+    """Tests verifying the ZPL-first scanner logic using the simulator.
+
+    On macOS every 127.0.0.x address routes to loopback, so a naïve
+    test that redirects ALL connections to the simulator would discover
+    255 printers and take minutes.  Instead, each test:
+      • Routes only the *target* IP (127.0.0.1) to the simulator port.
+      • Routes all other IPs to a guaranteed-dead port → instant
+        ``ConnectionRefused``.
+      • Uses ``cancel_event`` that fires after the first ``found``
+        callback for extra safety.
+      • Uses a tiny ``scan_wait`` (0.05 s) so refused connections fail
+        fast.
+    """
+
+    @staticmethod
+    def _make_selective_zp(target_ip, sim_port):
+        """Return a ZebraPrinter subclass that routes *target_ip* to
+        *sim_port* and everything else to a dead port (39999)."""
+        from zebra_day.cmd_mgr import ZebraPrinter
+
+        class _SelectiveZP(ZebraPrinter):
+            def __init__(self, ip, port=9100, **kw):
+                real_port = sim_port if ip == target_ip else 39999
+                super().__init__(ip, port=real_port, **kw)
+
+        return _SelectiveZP
+
+    def test_scan_finds_printer_via_zpl(self):
+        """Default scan (no scan_http_port) discovers printer via ZPL port 9100."""
+        import threading
+        from unittest.mock import patch as _patch
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+        import zebra_day.print_mgr as zdpm
+
+        profile = PrinterProfile(model="ZD620-203dpi ZPL", serial="SCANTEST1")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19220, http_port=18220, profile=profile)
+        printer.start()
+        try:
+            zp = zdpm.zpl()
+            cancel = threading.Event()
+            found_events = []
+
+            def _cb(evt):
+                if evt.get("kind") == "found":
+                    found_events.append(evt)
+                    cancel.set()
+
+            _SelectiveZP = self._make_selective_zp("127.0.0.1", 19220)
+            with _patch("zebra_day.cmd_mgr.ZebraPrinter", _SelectiveZP):
+                zp.probe_zebra_printers_add_to_printers_json(
+                    ip_stub="127.0.0",
+                    scan_wait="0.05",
+                    lab="zpl-test",
+                    progress_callback=_cb,
+                    cancel_event=cancel,
+                )
+
+            lab_printers = zp.printers.get("labs", {}).get("zpl-test", {}).get("printers", {})
+            assert len(found_events) >= 1
+            found_ip = found_events[0]["ip"]
+            assert found_ip in lab_printers
+            p = lab_printers[found_ip]
+            assert p["model"] == "ZD620-203dpi ZPL"
+            assert p["serial"] == "SCANTEST1"
+            assert "zpl" in p.get("notes", "").lower()
+        finally:
+            printer.stop()
+
+    def test_scan_http_fallback(self):
+        """scan_http_port enables HTTP-based discovery when ZPL fails."""
+        import threading
+        from unittest.mock import patch as _patch
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+        import zebra_day.print_mgr as zdpm
+
+        profile = PrinterProfile(model="ZT411-300dpi ZPL", serial="HTTPFB1")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19221, http_port=18221, profile=profile)
+        printer.start()
+        try:
+            zp = zdpm.zpl()
+            cancel = threading.Event()
+            found_events = []
+
+            def _cb(evt):
+                if evt.get("kind") == "found":
+                    found_events.append(evt)
+                    cancel.set()
+
+            # ZPL always fails (dead port); HTTP goes to simulator
+            _DeadZP = self._make_selective_zp("__none__", 39999)
+            with _patch("zebra_day.cmd_mgr.ZebraPrinter", _DeadZP):
+                zp.probe_zebra_printers_add_to_printers_json(
+                    ip_stub="127.0.0",
+                    scan_wait="0.05",
+                    lab="http-fb-test",
+                    scan_http_port=18221,
+                    progress_callback=_cb,
+                    cancel_event=cancel,
+                )
+
+            lab_printers = zp.printers.get("labs", {}).get("http-fb-test", {}).get("printers", {})
+            assert len(found_events) >= 1
+            found_ip = found_events[0]["ip"]
+            assert found_ip in lab_printers
+            p = lab_printers[found_ip]
+            assert "http" in p.get("notes", "").lower()
+        finally:
+            printer.stop()
+
+    def test_scan_no_http_port_skips_http(self):
+        """Without scan_http_port, HTTP is not attempted (backward compat)."""
+        import threading
+        from unittest.mock import patch as _patch
+        from zebra_day.simulator import PrinterProfile, SimulatedPrinter
+        import zebra_day.print_mgr as zdpm
+
+        profile = PrinterProfile(model="ZD420-203dpi ZPL", serial="NOHTTP1")
+        printer = SimulatedPrinter("127.0.0.1", zpl_port=19222, http_port=18222, profile=profile)
+        printer.start()
+        try:
+            zp = zdpm.zpl()
+            cancel = threading.Event()
+            found_events = []
+
+            def _cb(evt):
+                if evt.get("kind") == "found":
+                    found_events.append(evt)
+                    cancel.set()
+
+            _SelectiveZP = self._make_selective_zp("127.0.0.1", 19222)
+            with _patch("zebra_day.cmd_mgr.ZebraPrinter", _SelectiveZP):
+                zp.probe_zebra_printers_add_to_printers_json(
+                    ip_stub="127.0.0",
+                    scan_wait="0.05",
+                    lab="nohttp-test",
+                    progress_callback=_cb,
+                    cancel_event=cancel,
+                    # scan_http_port NOT set — should be ZPL-only
+                )
+
+            lab_printers = zp.printers.get("labs", {}).get("nohttp-test", {}).get("printers", {})
+            found_any = [ip for ip, p in lab_printers.items() if p.get("model") == "ZD420-203dpi ZPL"]
+            assert len(found_any) >= 1
+            p = lab_printers[found_any[0]]
+            assert "zpl" in p.get("notes", "").lower()
+            assert "http" not in p.get("notes", "").lower()
+        finally:
+            printer.stop()

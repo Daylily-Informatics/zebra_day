@@ -725,6 +725,7 @@ async def modern_config_scan(
     ip_stub: str = "192.168.1",
     scan_wait: str = "0.5",
     lab: str = "scan-results",
+    scan_http_port: int | None = None,
 ):
     """Scan network for printers."""
     if ip_stub.endswith("."):
@@ -734,7 +735,9 @@ async def modern_config_scan(
             f"Use '{ip_stub.rstrip('.')}' instead.",
         )
     zp = request.app.state.zp
-    zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait, lab=lab)
+    zp.probe_zebra_printers_add_to_printers_json(
+        ip_stub=ip_stub, scan_wait=scan_wait, lab=lab, scan_http_port=scan_http_port,
+    )
     time.sleep(2.2)
     return RedirectResponse(url=f"/printers/{lab}", status_code=303)
 
@@ -745,6 +748,7 @@ async def modern_config_scan_stream(
     ip_stub: str = "192.168.1",
     scan_wait: str = "0.5",
     lab: str = "scan-results",
+    scan_http_port: int | None = None,
 ):
     """Stream network scan progress via Server-Sent Events (SSE)."""
     if ip_stub.endswith("."):
@@ -775,6 +779,7 @@ async def modern_config_scan_stream(
                 lab=lab,
                 cancel_event=cancel_event,
                 progress_callback=progress_callback,
+                scan_http_port=scan_http_port,
             )
         except Exception as e:
             progress_callback({"kind": "error", "message": str(e)})
