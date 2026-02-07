@@ -6,12 +6,17 @@ import json as json_mod
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from zebra_day.exceptions import ConfigError
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 dynamo_app = typer.Typer(help="DynamoDB shared configuration management")
 console = Console()
@@ -634,3 +639,8 @@ def destroy_cmd(
         console.print(f"[red]✗[/red] Delete failed: {exc}")
         raise typer.Exit(1)
     console.print()
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the dynamo command group."""
+    registry.add_typer_app(None, dynamo_app, "dynamo", "DynamoDB shared configuration management")

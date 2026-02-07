@@ -7,6 +7,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
@@ -14,6 +15,10 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 man_app = typer.Typer(help="Interactive documentation browser")
 console = Console()
@@ -468,3 +473,7 @@ def man_main(
     else:
         _show_topic_menu()
 
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the man command group."""
+    registry.add_typer_app(None, man_app, "man", "Interactive documentation browser")

@@ -1,5 +1,7 @@
 """GUI server management commands for zebra_day CLI."""
 
+from __future__ import annotations
+
 import os
 import signal
 import subprocess
@@ -7,11 +9,16 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 
 from zebra_day import paths as xdg
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 gui_app = typer.Typer(help="Web UI server management commands")
 console = Console()
@@ -371,3 +378,8 @@ def restart(
         key=key,
         no_https=no_https,
     )
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the gui command group."""
+    registry.add_typer_app(None, gui_app, "gui", "Web UI server management")

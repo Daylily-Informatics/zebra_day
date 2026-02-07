@@ -1,11 +1,18 @@
 """Printer fleet management commands for zebra_day CLI."""
 
+from __future__ import annotations
+
 import json
 import socket
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.table import Table
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 printer_app = typer.Typer(help="Printer fleet management commands")
 console = Console()
@@ -305,3 +312,8 @@ def test_print(
     except Exception as e:
         console.print(f"[red]✗[/red] Print error: {e}")
         raise typer.Exit(1) from None
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the printer command group."""
+    registry.add_typer_app(None, printer_app, "printer", "Printer fleet management commands")

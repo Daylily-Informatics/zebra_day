@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import typer
 from rich.console import Console
@@ -14,6 +14,10 @@ from rich.table import Table
 
 import zebra_day.print_mgr as zdpm
 from zebra_day import paths as xdg
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 template_app = typer.Typer(help="ZPL template management commands")
 console = Console()
@@ -254,3 +258,8 @@ def delete(
     except PermissionError as e:
         console.print(f"[red]✗[/red] {e}")
         raise typer.Exit(1) from None
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the template command group."""
+    registry.add_typer_app(None, template_app, "template", "ZPL template management commands")

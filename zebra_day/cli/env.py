@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.panel import Panel
 
 from zebra_day import paths as xdg
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 console = Console()
 
@@ -169,3 +174,8 @@ def reset():
 
     console.print("\n[dim]Note: CLI commands cannot modify the parent shell.[/dim]")
     console.print("[dim]You must source the script directly.[/dim]")
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the env command group (custom, not built-in)."""
+    registry.add_typer_app(None, env_app, "env", "Development environment management")

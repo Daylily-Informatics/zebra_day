@@ -4,11 +4,18 @@ This module delegates to daylily-cognito if available, otherwise provides
 basic status and info commands.
 """
 
+from __future__ import annotations
+
 import os
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.table import Table
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 console = Console()
 
@@ -125,3 +132,8 @@ def _create_fallback_app() -> typer.Typer:
 
 # Export the cognito app - either the full version from daylily-cognito or the fallback
 cognito_app = _get_cognito_app()
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the cognito command group."""
+    registry.add_typer_app(None, cognito_app, "cognito", "Cognito authentication management")
