@@ -253,3 +253,136 @@ class TestCLIBootstrap:
         assert result.exit_code == 0, result.output
         assert "Probing" not in result.output
         assert "printers_found" in result.output
+
+
+
+# ---------------------------------------------------------------------------
+# zday man — interactive documentation browser
+# ---------------------------------------------------------------------------
+
+
+class TestCLIManHelp:
+    """Tests for zday man --help output."""
+
+    def test_man_help(self):
+        """Test man --help shows expected options."""
+        result = runner.invoke(app, ["man", "--help"])
+        assert result.exit_code == 0
+        assert "Interactive documentation browser" in result.output
+        assert "--search" in result.output
+        assert "--list" in result.output
+
+    def test_man_in_main_help(self):
+        """man subcommand appears in top-level help."""
+        result = runner.invoke(app, ["--help"])
+        assert result.exit_code == 0
+        assert "man" in result.output
+
+
+class TestCLIManList:
+    """Tests for zday man --list."""
+
+    def test_list_topics(self):
+        """--list shows the topic table."""
+        result = runner.invoke(app, ["man", "--list"])
+        assert result.exit_code == 0
+        assert "Quickstart" in result.output
+        assert "CLI Reference" in result.output
+        assert "DynamoDB" in result.output
+        assert "Troubleshooting" in result.output
+
+
+class TestCLIManTopics:
+    """Tests for direct topic display."""
+
+    def test_quickstart(self):
+        """zday man quickstart renders content."""
+        result = runner.invoke(app, ["man", "quickstart"])
+        assert result.exit_code == 0
+        assert "Quickstart" in result.output
+
+    def test_cli_reference(self):
+        """zday man cli renders content."""
+        result = runner.invoke(app, ["man", "cli"])
+        assert result.exit_code == 0
+        assert "CLI Reference" in result.output
+
+    def test_gui(self):
+        """zday man gui renders the UI guide."""
+        result = runner.invoke(app, ["man", "gui"])
+        assert result.exit_code == 0
+        assert "GUI Usage" in result.output
+
+    def test_https(self):
+        """zday man https renders HTTPS docs."""
+        result = runner.invoke(app, ["man", "https"])
+        assert result.exit_code == 0
+        assert "HTTPS" in result.output
+
+    def test_hardware(self):
+        """zday man hardware renders hardware guide."""
+        result = runner.invoke(app, ["man", "hardware"])
+        assert result.exit_code == 0
+        assert "Hardware" in result.output
+
+    def test_unknown_topic_exits_1(self):
+        """Unknown topic prints error and exits 1."""
+        result = runner.invoke(app, ["man", "nonexistent_xyz"])
+        assert result.exit_code == 1
+        assert "Unknown topic" in result.output
+
+    def test_partial_match(self):
+        """Partial topic slug resolves correctly."""
+        result = runner.invoke(app, ["man", "quick"])
+        assert result.exit_code == 0
+        assert "Quickstart" in result.output
+
+    def test_numeric_topic(self):
+        """Numeric input resolves to topic by index."""
+        result = runner.invoke(app, ["man", "1"])
+        assert result.exit_code == 0
+        assert "Overview" in result.output
+
+
+class TestCLIManSearch:
+    """Tests for zday man --search."""
+
+    def test_search_finds_results(self):
+        """--search returns matching lines."""
+        result = runner.invoke(app, ["man", "--search", "printer"])
+        assert result.exit_code == 0
+        assert "matches" in result.output.lower() or "printer" in result.output.lower()
+
+    def test_search_no_results(self):
+        """--search with nonsense term shows no results."""
+        result = runner.invoke(app, ["man", "--search", "xyzzy_nonexistent_qwerty"])
+        assert result.exit_code == 0
+        assert "No results" in result.output
+
+
+class TestCLIManGracefulDegradation:
+    """Tests for graceful handling of missing doc files."""
+
+    def test_missing_file_shows_warning(self):
+        """A topic pointing to a missing file shows a warning, not a crash."""
+        from zebra_day.cli.man import TOPICS, Topic, TopicSource, _get_topic_content
+
+        fake_topic = Topic(
+            name="Missing",
+            description="test",
+            sources=[TopicSource("does_not_exist.md")],
+        )
+        content = _get_topic_content(fake_topic)
+        assert "not found" in content.lower()
+
+    def test_missing_section_shows_warning(self):
+        """A topic with a bad heading shows a warning, not a crash."""
+        from zebra_day.cli.man import TOPICS, Topic, TopicSource, _get_topic_content
+
+        fake_topic = Topic(
+            name="BadSection",
+            description="test",
+            sources=[TopicSource("README.md", "HEADING_THAT_DOES_NOT_EXIST_12345")],
+        )
+        content = _get_topic_content(fake_topic)
+        assert "not found" in content.lower()
