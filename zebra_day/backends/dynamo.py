@@ -58,9 +58,7 @@ class DynamoBackend:
         self.s3_prefix = s3_prefix.rstrip("/") + "/" if s3_prefix else "zebra-day/"
         self.client_id = client_id or f"{platform.node()}.{getpass.getuser()}"
         self.cost_center = cost_center or os.environ.get("LSMC_COST_CENTER", "global")
-        self.project = project or os.environ.get(
-            "LSMC_PROJECT", f"zebra-day+{self.region}"
-        )
+        self.project = project or os.environ.get("LSMC_PROJECT", f"zebra-day+{self.region}")
 
         session_kwargs: dict[str, Any] = {"region_name": self.region}
         if profile:
@@ -80,7 +78,7 @@ class DynamoBackend:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_env(cls, *, allow_missing_bucket: bool = False) -> "DynamoBackend":
+    def from_env(cls, *, allow_missing_bucket: bool = False) -> DynamoBackend:
         """Create a DynamoBackend from environment variables.
 
         Args:
@@ -182,7 +180,11 @@ class DynamoBackend:
             code = exc.response["Error"]["Code"]
             if code == "ResourceNotFoundException":
                 result["checks"].append(
-                    {"action": "dynamodb:DescribeTable", "ok": True, "detail": "table not found (will be created)"}
+                    {
+                        "action": "dynamodb:DescribeTable",
+                        "ok": True,
+                        "detail": "table not found (will be created)",
+                    }
                 )
             else:
                 result["checks"].append(
@@ -201,11 +203,19 @@ class DynamoBackend:
                 code = exc.response["Error"]["Code"]
                 if code in ("404", "NoSuchBucket"):
                     result["checks"].append(
-                        {"action": "s3:HeadBucket", "ok": True, "detail": "bucket not found (will be created)"}
+                        {
+                            "action": "s3:HeadBucket",
+                            "ok": True,
+                            "detail": "bucket not found (will be created)",
+                        }
                     )
                 elif code == "403":
                     result["checks"].append(
-                        {"action": "s3:HeadBucket", "ok": False, "detail": "access denied — check S3 permissions"}
+                        {
+                            "action": "s3:HeadBucket",
+                            "ok": False,
+                            "detail": "access denied — check S3 permissions",
+                        }
                     )
                     result["all_ok"] = False
                 else:
@@ -288,7 +298,7 @@ class DynamoBackend:
         """Write the META#table_info item (used by `zday dynamo init`)."""
         from zebra_day import __version__
 
-        now = datetime.datetime.now(datetime.UTC).isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         self._table.put_item(
             Item={
                 "PK": "META",
@@ -324,12 +334,13 @@ class DynamoBackend:
 
         config_data = item.get("config_data", "{}")
         if isinstance(config_data, str):
-            return json.loads(config_data)
+            result: dict[str, Any] = json.loads(config_data)
+            return result
         return dict(config_data)
 
     def save_config(self, config: dict) -> None:
         """Save the printer configuration to DynamoDB with optimistic locking."""
-        now = datetime.datetime.now(datetime.UTC).isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         config_json = json.dumps(config, default=str)
 
         # Get current version
@@ -398,7 +409,7 @@ class DynamoBackend:
     def save_template(self, name: str, zpl_content: str) -> None:
         """Save or overwrite a template in DynamoDB with optimistic locking."""
         stem = self._normalize_stem(name)
-        now = datetime.datetime.now(datetime.UTC).isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         current_version = self._get_item_version("TEMPLATE", stem)
         content = str(zpl_content)
 
@@ -451,7 +462,6 @@ class DynamoBackend:
         )
         return "Item" in resp
 
-
     # ------------------------------------------------------------------
     # S3 Backup
     # ------------------------------------------------------------------
@@ -460,7 +470,7 @@ class DynamoBackend:
         """Write a full snapshot to S3. Returns the S3 key prefix of the backup."""
         from zebra_day import __version__
 
-        now = datetime.datetime.now(datetime.UTC)
+        now = datetime.datetime.now(datetime.timezone.utc)
         ts = now.strftime("%Y-%m-%dT%H-%M-%SZ")
         prefix = f"{self.s3_prefix}backups/{ts}/"
 
@@ -551,7 +561,7 @@ class DynamoBackend:
         config = json.loads(resp["Body"].read().decode())
 
         # Write config to DDB (bypass optimistic locking for restore)
-        now = datetime.datetime.now(datetime.UTC).isoformat()
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         self._table.put_item(
             Item={
                 "PK": "CONFIG",

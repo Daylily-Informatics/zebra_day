@@ -37,6 +37,11 @@
                 </select>
                 <small class="text-muted">Longer wait times find more printers on slow networks</small>
             </div>
+            <div class="form-group">
+                <label class="form-label">HTTP Port (optional)</label>
+                <input type="number" name="scan_http_port" class="form-control" placeholder="e.g. 80" min="1" max="65535">
+                <small class="text-muted">Also probe this HTTP port for web-based discovery</small>
+            </div>
 	            <button type="submit" class="btn btn-primary">
                 <i class="fas fa-search"></i> Start Network Scan
             </button>

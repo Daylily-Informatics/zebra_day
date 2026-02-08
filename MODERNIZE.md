@@ -72,6 +72,21 @@ This document tracks the modernization of zebra_day from 0.5.0 to 2.2.0.
 - [x] Added 60-second caching for printer status queries
 - [x] 152+ tests passing
 
+### Phase 8 - cli-core-yo Migration + Simulator + ZPL-First Scanner
+- [x] Migrated CLI from raw Typer to cli-core-yo foundation (`create_app(spec)` + plugin system)
+- [x] Converted all command modules to `register()` plugin pattern (8 modules)
+- [x] Standardized output: `console.print()` → `output.*` primitives (heading, success, warning, error, etc.)
+- [x] Global `--json/-j` flag via RuntimeContext (replaced per-command `--json` flags)
+- [x] Added mock Zebra printer simulator (`zday simulator start/stop/list`)
+  - ZPL TCP server (port 9100) + HTTP status server (port 18080)
+  - Configurable model, serial, firmware, and error conditions
+- [x] Refactored network scanner to ZPL-first discovery (port 9100 default)
+  - Optional HTTP fallback via `--scan-http-port`
+  - Discovery method tracked in `notes` field: "zpl", "http(port)", "zpl+http(port)"
+- [x] Fixed 27 pre-existing mypy errors (0 remaining)
+- [x] ruff check + ruff format clean on all modified files
+- [x] 334 tests passing across 13 test files
+
 ---
 
 ## Commands Reference
@@ -84,13 +99,15 @@ ruff check zebra_day tests          # Lint
 ruff format --check zebra_day tests # Format check
 mypy zebra_day                      # Type check
 
-# CLI
+# CLI (global --json/-j flag available on all commands)
 zday --help                         # Show all commands
 zday info                           # Show config paths and status
 zday bootstrap                      # First-time setup
 zday gui start                      # Start web server (HTTPS by default)
 zday gui start --no-https           # Start without HTTPS
 zday gui stop                       # Stop web server
+zday simulator start --foreground   # Mock printer for testing
+zday printer scan --ip-stub 192.168.1  # ZPL-first scanner
 
 # Build
 python -m build                     # Build wheel and sdist

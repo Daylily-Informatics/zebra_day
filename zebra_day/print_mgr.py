@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import datetime
 import http.client
-import json
 import re
 import shutil
 import socket
@@ -24,8 +23,6 @@ import time
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
-
-import yaml
 
 from zebra_day import paths as xdg
 from zebra_day.backends import ConfigBackend, get_backend
@@ -210,23 +207,42 @@ class zpl:
         cancel_event=None,
         progress_callback=None,
         lab_description: str = "",
+        scan_http_port: int | None = None,
     ):
         """
-        Scan the network for zebra printers.
+        Scan the network for Zebra printers.
 
-        NOTE! this should work with no dependencies on a MAC
-        UBUNTU requires system wide net-tools (for arp)
-        Others... well, this may not work
+        **Default behaviour (scan_http_port=None):**
+        For each IP in the subnet, send a ``~HI`` ZPL host-identification
+        query to TCP port 9100.  If the printer responds, model, firmware,
+        DPI and serial number are extracted directly from the ZPL response.
 
-        ---
-        Requires:
-          curl is pretty standard, arp seems less so
-          arp
-        ---
+        **Optional HTTP fallback (scan_http_port=80):**
+        When *scan_http_port* is set (typically ``80``), the scanner will
+        *also* attempt an HTTP(S) ``GET /`` on that port and look for
+        Zebra-identifying keywords in the HTML.  This is useful for
+        printers whose ZPL port is firewalled or for supplementing ZPL
+        data with the printer's web-UI title.
 
-        ip_stub = all 255 possibilities will be probed beneath this stub provided
-        scan_wait = seconds to re-try probing until moving on. 0.5 default may be too quick/slow
-        lab = code for the lab key to add/update to given finding new printers
+        Parameters
+        ----------
+        ip_stub : str
+            First three octets of the subnet to scan (e.g. ``"192.168.1"``).
+        scan_wait : str | float
+            Timeout in seconds per IP probe.
+        lab : str
+            Lab key under which discovered printers are stored.
+        relative : bool
+            Legacy parameter (unused, kept for backward compatibility).
+        cancel_event : threading.Event | None
+            Set this event to cancel the scan early.
+        progress_callback : callable | None
+            Called with progress dicts (kind: checking/found/checked/done).
+        lab_description : str
+            Optional description for the lab.
+        scan_http_port : int | None
+            When set, also probe this HTTP port for web-based discovery.
+            Pass ``80`` for standard Zebra web UIs.
         """
         # Reject trailing-dot ip_stub (e.g. "192.168.1." is invalid)
         if isinstance(ip_stub, str) and ip_stub.endswith("."):
@@ -271,11 +287,103 @@ class zpl:
         if lab_description:
             lab_obj["lab_description"] = str(lab_description)
 
-        # Scan network for Zebra printers using pure Python
+        # Scan network for Zebra printers
+        # Default: ZPL port 9100 probe; optional HTTP supplement via scan_http_port
+        from zebra_day.cmd_mgr import ZebraPrinter as _ZP
+
         wait_time = float(scan_wait) if scan_wait else 0.5
         total = 255
         checked = 0
         cancelled = False
+
+        def _http_probe(ip_addr: str, port: int) -> dict:
+            """Try HTTP/HTTPS on *port*; return {found, model, serial, title, scheme}."""
+            res: dict = {
+                "found": False,
+                "model": "Unknown",
+                "serial": "Unknown",
+                "title": None,
+                "scheme": None,
+            }
+            hdrs_low: dict[str, str] = {}
+
+            def _fetch(scheme: str) -> tuple[bool, str]:
+                nonlocal hdrs_low
+                conn = None
+                try:
+                    if scheme == "http":
+                        conn = http.client.HTTPConnection(ip_addr, port, timeout=wait_time)
+                    else:
+                        ctx = ssl._create_unverified_context()
+                        conn = http.client.HTTPSConnection(
+                            ip_addr,
+                            443,
+                            timeout=wait_time,
+                            context=ctx,
+                        )
+                    conn.request(
+                        "GET",
+                        "/",
+                        headers={
+                            "User-Agent": "zebra-day-network-scan/1.0",
+                            "Accept": "text/html,*/*;q=0.8",
+                        },
+                    )
+                    resp = conn.getresponse()
+                    hdrs_low.update({k.lower(): v for k, v in resp.getheaders()})
+                    body = resp.read(64 * 1024).decode("utf-8", errors="ignore")
+                    if (
+                        scheme == "http"
+                        and resp.status in {301, 302, 303, 307, 308}
+                        and hdrs_low.get("location", "").lower().startswith("https://")
+                    ):
+                        return True, "__TRY_HTTPS__"
+                    return True, body
+                except Exception:
+                    return False, ""
+                finally:
+                    try:
+                        if conn is not None:
+                            conn.close()
+                    except Exception:
+                        pass
+
+            ok, text = _fetch("http")
+            sch = None
+            if ok and text == "__TRY_HTTPS__":
+                ok, text = _fetch("https")
+                sch = "https" if ok else None
+            elif ok:
+                sch = "http"
+            if not ok:
+                ok, text = _fetch("https")
+                sch = "https" if ok else None
+
+            html = text or ""
+            haystack = " ".join(
+                [
+                    html,
+                    hdrs_low.get("server", ""),
+                    hdrs_low.get("www-authenticate", ""),
+                ]
+            ).lower()
+            if "zebra" in haystack or "zebralink" in haystack or "link-os" in haystack:
+                res["found"] = True
+                res["scheme"] = sch
+                m = re.search(r"<title>([^<]{1,200})</title>", html, flags=re.I)
+                if m:
+                    res["title"] = m.group(1).strip()
+                m = re.search(r"model\s*[:#]?\s*([A-Za-z0-9._-]{2,64})", html, flags=re.I)
+                if m:
+                    res["model"] = m.group(1).strip()
+                m = re.search(
+                    r"serial\s*(?:number)?\s*[:#]?\s*([A-Za-z0-9._-]{2,64})",
+                    html,
+                    flags=re.I,
+                )
+                if m:
+                    res["serial"] = m.group(1).strip()
+            return res
 
         for i in range(1, 256):
             if (
@@ -290,156 +398,68 @@ class zpl:
             found_this_ip = False
             model = "Unknown"
             serial = "Unknown"
+            title = None
+            discovery_method = None
 
             if progress_callback:
                 try:
                     progress_callback(
-                        {
-                            "kind": "checking",
-                            "ip": ip,
-                            "checked": checked,
-                            "total": total,
-                        }
+                        {"kind": "checking", "ip": ip, "checked": checked, "total": total}
                     )
                 except Exception:
                     pass
 
             try:
-                # Scan should only check for a webserver listening (HTTP/HTTPS)
-                # and parse the HTML response. Do NOT probe raw ZPL port 9100 here
-                # because it can hang (or be open for non-Zebra services).
-                html = ""
-                headers_lower: dict[str, str] = {}
-                scheme_used = None
+                # PRIMARY: ZPL port 9100 probe (default behaviour)
+                _zp = _ZP(ip, port=9100)
+                host_id = _zp.get_host_identification(timeout=wait_time)
+                if host_id:
+                    found_this_ip = True
+                    discovery_method = "zpl"
+                    model = host_id.get("model", "Unknown")
+                    sn = _zp.get_serial_number(timeout=wait_time)
+                    if sn:
+                        serial = sn
 
-                def _try_fetch(scheme: str, ip_addr: str = ip) -> tuple[bool, str]:
-                    nonlocal headers_lower
-                    conn = None
-                    try:
-                        if scheme == "http":
-                            conn = http.client.HTTPConnection(ip_addr, 80, timeout=wait_time)
+                # OPTIONAL: HTTP supplement / fallback
+                if scan_http_port is not None:
+                    hr = _http_probe(ip, scan_http_port)
+                    if hr["found"]:
+                        if not found_this_ip:
+                            found_this_ip = True
+                            discovery_method = f"http({scan_http_port})"
+                            model = hr["model"]
+                            serial = hr["serial"]
                         else:
-                            # Printers often use self-signed certs; for scanning we only
-                            # need the HTML content, so we skip verification.
-                            ctx = ssl._create_unverified_context()
-                            conn = http.client.HTTPSConnection(
-                                ip_addr, 443, timeout=wait_time, context=ctx
-                            )
+                            discovery_method = f"zpl+http({scan_http_port})"
+                        title = hr.get("title")
 
-                        conn.request(
-                            "GET",
-                            "/",
-                            headers={
-                                "User-Agent": "zebra-day-network-scan/1.0",
-                                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                            },
-                        )
-                        resp = conn.getresponse()
-                        hdrs = {k.lower(): v for (k, v) in resp.getheaders()}
-                        body = resp.read(64 * 1024)
-                        text = body.decode("utf-8", errors="ignore")
+                if found_this_ip and ip not in self.printers["labs"][lab]["printers"]:
+                    self.printers["labs"][lab]["printers"][ip] = {
+                        "ip_address": ip,
+                        "printer_name": title,
+                        "lab_location": None,
+                        "manufacturer": "zebra",
+                        "model": model,
+                        "serial": serial,
+                        "label_zpl_styles": [
+                            "tube_2inX1in",
+                            "plate_1inX0.25in",
+                            "tube_2inX0.3in",
+                        ],
+                        "default_label_style": "tube_2inX1in",
+                        "print_method": "socket",
+                        "arp_data": "",
+                        "notes": f"Discovered via {discovery_method}",
+                    }
 
-                        # If HTTP redirects to HTTPS, we still want to attempt HTTPS.
-                        loc = hdrs.get("location", "")
-                        if scheme == "http" and resp.status in {
-                            301,
-                            302,
-                            303,
-                            307,
-                            308,
-                        }:
-                            if loc.lower().startswith("https://"):
-                                return True, "__TRY_HTTPS__"
-
-                        headers_lower = hdrs
-                        return True, text
-                    except Exception:
-                        return False, ""
-                    finally:
+                    if progress_callback:
                         try:
-                            if conn is not None:
-                                conn.close()
+                            progress_callback(
+                                {"kind": "found", "ip": ip, "model": model, "serial": serial}
+                            )
                         except Exception:
                             pass
-
-                ok, text = _try_fetch("http")
-                if ok and text == "__TRY_HTTPS__":
-                    ok, text = _try_fetch("https")
-                    if ok:
-                        scheme_used = "https"
-                elif ok:
-                    scheme_used = "http"
-
-                if not ok:
-                    ok, text = _try_fetch("https")
-                    if ok:
-                        scheme_used = "https"
-
-                html = text or ""
-
-                # Heuristic detection: Zebra web UIs typically contain "zebra",
-                # "zebralink", or "link-os".
-                haystack = " ".join(
-                    [
-                        html,
-                        headers_lower.get("server", ""),
-                        headers_lower.get("www-authenticate", ""),
-                    ]
-                ).lower()
-
-                if "zebra" in haystack or "zebralink" in haystack or "link-os" in haystack:
-                    found_this_ip = True
-
-                    # Best-effort parsing of model/serial/name from HTML.
-                    title = None
-                    m = re.search(r"<title>([^<]{1,200})</title>", html, flags=re.I)
-                    if m:
-                        title = m.group(1).strip()
-
-                    m = re.search(r"model\s*[:#]?\s*([A-Za-z0-9._-]{2,64})", html, flags=re.I)
-                    if m:
-                        model = m.group(1).strip()
-
-                    m = re.search(
-                        r"serial\s*(?:number)?\s*[:#]?\s*([A-Za-z0-9._-]{2,64})",
-                        html,
-                        flags=re.I,
-                    )
-                    if m:
-                        serial = m.group(1).strip()
-
-                    if ip not in self.printers["labs"][lab]["printers"]:
-                        # The label formats set here are the installed defaults
-                        self.printers["labs"][lab]["printers"][ip] = {
-                            "ip_address": ip,
-                            "printer_name": title or None,
-                            "lab_location": None,  # User can set location later
-                            "manufacturer": "zebra",
-                            "model": model,
-                            "serial": serial,
-                            "label_zpl_styles": [
-                                "tube_2inX1in",
-                                "plate_1inX0.25in",
-                                "tube_2inX0.3in",
-                            ],
-                            "default_label_style": "tube_2inX1in",  # Default to first style
-                            "print_method": "socket",
-                            "arp_data": "",
-                            "notes": (f"Discovered via {scheme_used or 'http(s)'} web scan"),
-                        }
-
-                        if progress_callback:
-                            try:
-                                progress_callback(
-                                    {
-                                        "kind": "found",
-                                        "ip": ip,
-                                        "model": model,
-                                        "serial": serial,
-                                    }
-                                )
-                            except Exception:
-                                pass
             except Exception:
                 pass  # Skip unreachable IPs
             finally:
@@ -722,9 +742,10 @@ class zpl:
         non-local backends raise ``NotImplementedError``.
         """
         if hasattr(self._backend, "resolve_template_path"):
-            return self._backend.resolve_template_path(
+            path: Path = self._backend.resolve_template_path(
                 template, include_legacy_drafts=include_legacy_drafts
             )
+            return path
         raise NotImplementedError(
             "resolve_template_path() is only available with the local backend. "
             "Use get_template_content() instead."
@@ -783,7 +804,7 @@ class zpl:
             raise FileExistsError(f"Template already exists: {target_path}")
 
         if target_path.exists() and backup:
-            ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H%M%S.%fZ")
+            ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M%S.%fZ")
             backup_path = target_dir / f"{stem}.bak.{ts}.zpl"
             shutil.copy2(target_path, backup_path)
 

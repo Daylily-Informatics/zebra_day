@@ -195,7 +195,7 @@ class TestDynamoStatus:
     def test_status_json(self, aws_env):
         with mock_aws():
             _provision_resources()
-            result = runner.invoke(app, ["dynamo", "status", "--json"])
+            result = runner.invoke(app, ["--json", "dynamo", "status"])
             assert result.exit_code == 0, result.output
             data = json.loads(result.output)
             assert data["table_name"] == "test-zebra-config"
@@ -410,7 +410,7 @@ class TestInteractiveS3Prompt:
         monkeypatch.setattr("zebra_day.cli.dynamo._is_interactive", lambda: True)
         with mock_aws():
             _provision_resources()
-            result = runner.invoke(app, ["dynamo", "status", "--json"])
+            result = runner.invoke(app, ["--json", "dynamo", "status"])
             assert result.exit_code == 1
             assert "ZEBRA_DAY_S3_BACKUP_BUCKET" in result.output
 

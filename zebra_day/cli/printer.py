@@ -1,14 +1,22 @@
 """Printer fleet management commands for zebra_day CLI."""
 
-import json
+from __future__ import annotations
+
 import socket
+from typing import TYPE_CHECKING
 
 import typer
+from cli_core_yo import output
+from cli_core_yo.runtime import get_context
 from rich.console import Console
 from rich.table import Table
 
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
+
 printer_app = typer.Typer(help="Printer fleet management commands")
-console = Console()
+console = Console()  # retained for Rich Table rendering
 
 
 def _get_local_ip() -> str:
@@ -42,24 +50,29 @@ def scan(
         "--description",
         help="Optional lab description. Stored in config as lab_description.",
     ),
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+    scan_http_port: int | None = typer.Option(
+        None,
+        "--scan-http-port",
+        help="Also probe this HTTP port for web-based discovery (e.g. 80). Default: ZPL-only.",
+    ),
 ):
     """Scan network for Zebra printers."""
+    json_mode = get_context().json_mode
+
     # Determine IP stub if not provided
     if not ip_stub:
         local_ip = _get_local_ip()
         ip_stub = ".".join(local_ip.split(".")[:-1])
 
     if ip_stub.endswith("."):
-        console.print(
-            f"[red]✗[/red] ip-stub must not end with a trailing dot: '{ip_stub}'. "
+        output.error(
+            f"ip-stub must not end with a trailing dot: '{ip_stub}'. "
             f"Use '{ip_stub.rstrip('.')}' instead."
         )
         raise typer.Exit(1)
 
-    if not json_output:
-        console.print(f"[cyan]→[/cyan] Scanning {ip_stub}.* for Zebra printers...")
-        console.print("[dim]  This may take a few minutes...[/dim]")
+    output.action(f"Scanning {ip_stub}.* for Zebra printers...")
+    output.detail("This may take a few minutes...")
 
     try:
         import zebra_day.print_mgr as zdpm
@@ -70,6 +83,7 @@ def scan(
             scan_wait=str(wait),
             lab=lab,
             lab_description=description or "",
+            scan_http_port=scan_http_port,
         )
 
         # Apply lab metadata updates (if explicitly provided)
@@ -100,32 +114,32 @@ def scan(
                         }
                     )
 
-        if json_output:
-            console.print(json.dumps(found, indent=2))
-        else:
-            console.print(f"\n[green]✓[/green] Found {len(found)} printer(s)")
-            if found:
-                table = Table()
-                table.add_column("Name", style="cyan")
-                table.add_column("IP Address")
-                table.add_column("Model")
-                table.add_column("Serial")
-                for p in found:
-                    table.add_row(p["name"], p["ip"], p["model"], p["serial"])
-                console.print(table)
+        if json_mode:
+            output.emit_json(found)
+            return
+
+        output.success(f"Found {len(found)} printer(s)")
+        if found:
+            table = Table()
+            table.add_column("Name", style="cyan")
+            table.add_column("IP Address")
+            table.add_column("Model")
+            table.add_column("Serial")
+            for p in found:
+                table.add_row(p["name"], p["ip"], p["model"], p["serial"])
+            console.print(table)
 
     except Exception as e:
-        if json_output:
-            console.print(json.dumps({"error": str(e)}))
+        if json_mode:
+            output.emit_json({"error": str(e)})
         else:
-            console.print(f"[red]✗[/red] Scan error: {e}")
+            output.error(f"Scan error: {e}")
         raise typer.Exit(1) from None
 
 
 @printer_app.command("list")
 def list_printers(
     lab: str | None = typer.Option(None, "--lab", "-l", help="Filter by lab name"),
-    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     live: bool = typer.Option(False, "--live", help="Query live status from printers"),
     timeout: float = typer.Option(
         2.0, "--timeout", "-t", help="Timeout per printer query (seconds)"
@@ -156,10 +170,11 @@ def list_printers(
                             }
                         )
 
+        json_mode = get_context().json_mode
+
         # Query live status if requested
         if live and printers:
-            if not json_output:
-                console.print("[cyan]→[/cyan] Querying live status from printers...")
+            output.action("Querying live status from printers...")
             for p in printers:
                 ip = p.get("ip", "")
                 if ip and ip not in ("unknown", "dl_png"):
@@ -191,26 +206,26 @@ def list_printers(
                     p["status"] = "n/a"
                     p["state"] = "Unknown"
 
-        if json_output:
-            console.print(json.dumps(printers, indent=2))
+        if json_mode:
+            output.emit_json(printers)
             return
 
         if not printers:
-            console.print("[yellow]⚠[/yellow] No printers configured")
-            console.print("   Run [cyan]zday printer scan[/cyan] to discover printers")
+            output.warning("No printers configured")
+            output.detail("Run 'zday printer scan' to discover printers")
             return
 
         # If a lab filter is specified, show lab metadata first.
         if lab:
             try:
                 meta = zp.get_lab_metadata(lab)
-                console.print(
-                    f"[dim]Lab:[/dim] {meta.get('lab')}  "
-                    f"[dim]Display:[/dim] {meta.get('lab_display_name')}  "
-                    f"[dim]Stub:[/dim] {meta.get('network_stub')}"
+                output.detail(
+                    f"Lab: {meta.get('lab')}  "
+                    f"Display: {meta.get('lab_display_name')}  "
+                    f"Stub: {meta.get('network_stub')}"
                 )
                 if meta.get("lab_description"):
-                    console.print(f"[dim]Description:[/dim] {meta.get('lab_description')}")
+                    output.detail(f"Description: {meta.get('lab_description')}")
             except Exception:
                 pass
 
@@ -272,10 +287,10 @@ def list_printers(
         console.print(table)
 
     except Exception as e:
-        if json_output:
-            console.print(json.dumps({"error": str(e)}))
+        if get_context().json_mode:
+            output.emit_json({"error": str(e)})
         else:
-            console.print(f"[red]✗[/red] Error: {e}")
+            output.error(f"Error: {e}")
         raise typer.Exit(1) from None
 
 
@@ -291,7 +306,7 @@ def test_print(
 
         zp = zdpm.zpl()
 
-        console.print(f"[cyan]→[/cyan] Sending test print to {printer_name}...")
+        output.action(f"Sending test print to {printer_name}...")
         zp.print_zpl(
             lab=lab,
             printer_name=printer_name,
@@ -300,8 +315,13 @@ def test_print(
             alt_b="zebra_day CLI",
             label_zpl_style=label_style,
         )
-        console.print("[green]✓[/green] Test print sent successfully")
+        output.success("Test print sent successfully")
 
     except Exception as e:
-        console.print(f"[red]✗[/red] Print error: {e}")
+        output.error(f"Print error: {e}")
         raise typer.Exit(1) from None
+
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the printer command group."""
+    registry.add_typer_app(None, printer_app, "printer", "Printer fleet management commands")

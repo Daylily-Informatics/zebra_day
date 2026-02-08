@@ -120,11 +120,23 @@ zday gui stop
 
 The `zday` CLI provides a comprehensive interface for managing your Zebra printer fleet.
 
+#### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` / `-j` | Emit machine-readable JSON output (applies to all commands) |
+| `--help` | Show help for any command or subcommand |
+
 ```bash
 # Get help on any command
 zday --help
 zday gui --help
 zday printer --help
+
+# JSON output for any command
+zday --json info
+zday --json printer list --live
+zday -j dynamo status
 
 # Core commands
 zday info         # Show version, config paths, server status
@@ -138,11 +150,12 @@ zday gui status
 zday gui logs [--tail N] [--follow]
 zday gui restart
 
-# Printer management
-zday printer scan [--ip-stub IP]   # Scan network for printers
-zday printer list [--lab LAB]      # List configured printers (static config)
-zday printer list --live           # Query live status from printers (Status + State)
-zday printer test PRINTER_NAME     # Send test print
+# Printer management (ZPL-first discovery, port 9100)
+zday printer scan [--ip-stub IP]                  # Scan via ZPL port 9100 (default)
+zday printer scan --ip-stub 192.168.1 --scan-http-port 80  # Also probe HTTP
+zday printer list [--lab LAB]                     # List configured printers (static config)
+zday printer list --live                          # Query live status (Status + State)
+zday printer test PRINTER_NAME                    # Send test print
 
 # Template management
 zday template list                 # List ZPL templates
@@ -152,7 +165,7 @@ zday template show TEMPLATE        # Display template contents
 
 # Configuration management
 zday config init                   # Initialize config from template
-zday config show                   # Display current config (YAML)
+zday config show                   # Display current config
 zday config path                   # Print path to config file
 zday config validate               # Validate config schema
 zday config edit                   # Open config in $EDITOR
@@ -177,6 +190,11 @@ zday dynamo backup                # Trigger immediate S3 backup snapshot
 zday dynamo restore               # Restore DynamoDB from S3 backup
 zday dynamo destroy               # Delete DynamoDB table (preserves S3 backups)
 
+# Printer simulator (for testing without physical printers)
+zday simulator start [--foreground] [--model MODEL] [--serial SN]
+zday simulator stop [--all]
+zday simulator list
+
 # Interactive documentation browser
 zday man                          # Interactive topic menu
 zday man quickstart               # View specific topic
@@ -191,7 +209,7 @@ Opt-in shared configuration via AWS DynamoDB with S3 backup snapshots. Local-fil
 | Command | Description | Key Options |
 |---------|-------------|-------------|
 | `zday dynamo init` | Create DynamoDB table and S3 bucket | `--table-name`, `--region`, `--s3-bucket`, `--profile`, `--cost-center`, `--project`, `--skip-checks` |
-| `zday dynamo status` | Show table and S3 backup status | `--json`, `--create-s3-if-missing` |
+| `zday dynamo status` | Show table and S3 backup status | `--create-s3-if-missing` (use global `--json` flag) |
 | `zday dynamo bootstrap` | Push local config + templates to DynamoDB | `--config-file`, `--templates-dir`, `--include-package/--no-include-package`, `--create-s3-if-missing` |
 | `zday dynamo export` | Pull DynamoDB config + templates to local files | `--output-dir`, `--format json|yaml` |
 | `zday dynamo backup` | Trigger immediate S3 backup snapshot | `--create-s3-if-missing` |
@@ -238,6 +256,68 @@ zday man quickstart         # Jump to a topic by slug
 zday man --list             # List all topics with descriptions
 zday man --search "template"  # Full-text search across all docs
 ```
+
+#### Printer Simulator (`zday simulator`)
+
+A mock Zebra printer simulator for testing and development without physical printers.
+The simulator responds to standard ZPL queries (`~HI`, `~HS`, `~HQSN`, `~HQOD`, `~HQES`)
+on a configurable TCP port (default 9100) and serves a Zebra-like HTTP page.
+
+```bash
+# Start a simulator in the foreground (Ctrl+C to stop)
+zday simulator start --foreground --model "ZT411-300dpi ZPL" --serial DEMO001
+
+# Start in the background (default host 0.0.0.0)
+zday simulator start --model "ZD620-203dpi ZPL" --serial LAB01
+
+# Simulate error conditions
+zday simulator start --foreground --paper-out        # Paper-out condition
+zday simulator start --foreground --paused           # Paused state
+
+# List running simulators
+zday simulator list
+
+# Stop all running simulators
+zday simulator stop --all
+
+# Stop a specific simulator
+zday simulator stop --host 0.0.0.0 --zpl-port 9100
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--host` / `-b` | `0.0.0.0` | Bind address |
+| `--zpl-port` / `-z` | `9100` | ZPL TCP port |
+| `--http-port` / `-p` | `18080` | HTTP status port |
+| `--model` / `-m` | `ZD620-203dpi ZPL` | Reported model string |
+| `--serial` / `-s` | `SIM1001` | Reported serial number |
+| `--foreground` / `-f` | `false` | Block until Ctrl+C |
+| `--paper-out` | `false` | Simulate paper-out error |
+| `--ribbon-out` | `false` | Simulate ribbon-out error |
+| `--head-up` | `false` | Simulate head-up error |
+| `--paused` | `false` | Simulate paused state |
+
+#### Network Scanner (ZPL-First)
+
+The printer scanner probes **port 9100 (ZPL)** by default, sending the `~HI` host identification
+query. This is more reliable than HTTP-based discovery since port 9100 is the standard
+Zebra printer protocol port.
+
+```bash
+# Default: ZPL-only scan (port 9100)
+zday printer scan --ip-stub 192.168.1
+
+# With optional HTTP fallback (also probe port 80)
+zday printer scan --ip-stub 192.168.1 --scan-http-port 80
+
+# JSON output
+zday --json printer scan --ip-stub 192.168.1
+```
+
+The `notes` field in discovered printers records the discovery method:
+- `"zpl"` — found via ZPL port 9100 only
+- `"http(80)"` — found via HTTP only
+- `"zpl+http(80)"` — found via both ZPL and HTTP
 
 #### Migration from 0.5.x
 
@@ -591,7 +671,10 @@ import zebra_day.print_mgr as zdpm
 
 zlab = zdpm.zpl()
 
-zlab.probe_zebra_printers_add_to_printers_json('192.168.1')  # REPLACE the IP stub with the correct value for your network. This may take a few min to run.  !! This command is not required if you've sucessuflly run the quickstart already, also, won't hurt.
+# Scan via ZPL port 9100 (default). REPLACE the IP stub with your network.
+zlab.probe_zebra_printers_add_to_printers_json('192.168.1')
+# Optional: also probe HTTP port 80 for web-based discovery
+# zlab.probe_zebra_printers_add_to_printers_json('192.168.1', scan_http_port=80)
 
 print(zlab.printers)  # This should print out the config dict of all detected zebra printers. An empty dict, {}, is a failure of autodetection, and manual creation of the config file may be needed. If successful, the lab name assigned is 'default', this may be edited later.
 
@@ -666,8 +749,8 @@ Returns a list of all configured lab identifiers.
 #### `zd.query_printers(lab: str) -> Dict[str, Dict]`
 Returns a dictionary of printers for the specified lab. Raises `KeyError` if lab doesn't exist.
 
-#### `zd.scan(ip_stub: str = "192.168.1", lab: str = "default") -> None`
-Scans the network range (`{ip_stub}.0` to `{ip_stub}.255`) for Zebra printers and adds them to the specified lab.
+#### `zd.scan(ip_stub: str = "192.168.1", lab: str = "default", scan_http_port: int | None = None) -> None`
+Scans the network range (`{ip_stub}.0` to `{ip_stub}.255`) for Zebra printers via ZPL port 9100 and adds them to the specified lab. Optionally pass `scan_http_port=80` for HTTP fallback discovery.
 
 #### `zd.print_zpl(lab, printer_name, label_zpl_style, uid_barcode='', alt_a='', ..., alt_f='') -> str`
 Sends a print job to the specified printer. Returns the ZPL string sent.

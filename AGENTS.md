@@ -1,0 +1,87 @@
+# AGENTS.md — zebra_day Project Directives
+
+## What This Repo Is
+
+`zebra_day` is a Python library + CLI + web GUI for managing fleets of Zebra label printers.
+It speaks ZPL over TCP (port 9100), provides a FastAPI web UI, and optionally stores
+config in AWS DynamoDB with S3 backups.
+
+## Architecture Quick Reference
+
+| Layer | Key Files | Notes |
+|-------|-----------|-------|
+| CLI | `zebra_day/cli/__init__.py` | Built on `cli-core-yo` (`create_app(spec)` + plugin `register()` pattern) |
+| Core | `zebra_day/print_mgr.py`, `zebra_day/cmd_mgr.py` | `zpl()` class, ZPL TCP communication |
+| Backends | `zebra_day/backends/` | `ConfigBackend` protocol → `LocalBackend` (files) or `DynamoBackend` (AWS) |
+| Web | `zebra_day/web/` | FastAPI app, Jinja2 templates in `zebra_day/templates/modern/` |
+| Simulator | `zebra_day/simulator.py` | Mock ZPL printer for testing (TCP 9100 + HTTP) |
+| Paths | `zebra_day/paths.py` | XDG Base Directory helpers |
+
+## CLI Rules
+
+- The CLI uses **cli-core-yo** as its foundation. All command modules expose a `register(registry, spec)` function.
+- **Global `--json/-j` flag** lives on the root callback. Do NOT add per-command `--json` flags.
+- Use `output.*` primitives (`heading`, `success`, `warning`, `error`, `action`, `detail`, `bullet`, `emit_json`, `print_text`) — never raw `print()` or `console.print()` for user-facing output.
+- In JSON mode, `output.error()` and other display primitives are **auto-suppressed**. Use `output.emit_json()` to emit machine-readable payloads.
+- Pin cli-core-yo, typer, and rich versions per `pyproject.toml` ranges.
+
+## Testing
+
+- **Framework**: `pytest` + `pytest-cov`
+- **Test files**: `tests/test_*.py` (13 files, 334+ tests)
+- **AWS mocks**: Use `moto[dynamodb,s3]` — never real AWS credentials in tests
+- **Run all**: `pytest tests/ -v --tb=short`
+- **Run one file**: `pytest tests/test_cli.py -v`
+- **Linting**: `ruff check zebra_day tests && ruff format --check zebra_day tests`
+- **Type checking**: `mypy zebra_day --ignore-missing-imports`
+
+## Quality Gates (must pass before merge)
+
+```bash
+ruff check zebra_day tests
+ruff format --check zebra_day tests
+mypy zebra_day --ignore-missing-imports
+pytest tests/ -v --tb=short
+```
+
+## Config Format
+
+- Printer fleet config is **YAML** (`zebra-day-config.yaml`) for historical reasons.
+- All new config/data interchange should prefer **JSON**.
+- DynamoDB stores config as JSON-encoded strings.
+
+## Network Scanner
+
+- Default discovery: **ZPL port 9100** (`~HI` query).
+- Optional HTTP fallback via `scan_http_port` parameter.
+- The `notes` field records discovery method: `"zpl"`, `"http(port)"`, or `"zpl+http(port)"`.
+
+## Web UI
+
+- FastAPI + Jinja2 templates in `zebra_day/templates/modern/`.
+- API routes: `zebra_day/web/routers/api.py` (JSON), `zebra_day/web/routers/ui.py` (HTML).
+- Default port: **8118**. HTTPS by default if mkcert certs exist.
+- Follow the API documentation exposure rules from global `~/.augment/rules/01_http_https_api_rules.md`.
+
+## Versioning
+
+- `setuptools_scm` — no hardcoded version. Tags are `X.Y.Z` (no `v` prefix).
+- `_version.py` is generated — do not edit or commit it.
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `ZEBRA_DAY_CONFIG_BACKEND` | `local` | `local` or `dynamodb` |
+| `ZEBRA_DAY_DYNAMO_TABLE` | `zebra-day-config` | DynamoDB table name |
+| `ZEBRA_DAY_DYNAMO_REGION` | `us-west-2` | AWS region |
+| `ZEBRA_DAY_S3_BACKUP_BUCKET` | _(none)_ | Required for dynamodb backend |
+| `AWS_PROFILE` | _(none)_ | Never pass `"default"` explicitly |
+
+## Do NOT
+
+- Add per-command `--json` flags (use the global one).
+- Use `datetime.UTC` (use `datetime.timezone.utc` for mypy compat).
+- Use `console.print()` for user-facing output (use `output.*` primitives).
+- Store real patient data or PHI in tests or examples.
+- Edit `_version.py` manually.

@@ -15,6 +15,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 import yaml
 from fastapi import APIRouter, Form, HTTPException, Request
@@ -35,11 +36,12 @@ _log = get_logger(__name__)
 router = APIRouter()
 
 
-def _get_scan_jobs(app) -> dict[str, dict]:
+def _get_scan_jobs(app) -> dict[str, dict[str, Any]]:
     """Return (and lazily initialize) the in-memory scan job registry."""
     if not hasattr(app.state, "scan_jobs") or app.state.scan_jobs is None:
         app.state.scan_jobs = {}
-    return app.state.scan_jobs
+    jobs: dict[str, dict[str, Any]] = app.state.scan_jobs
+    return jobs
 
 
 def get_template_context(request: Request, **kwargs) -> dict:
@@ -725,6 +727,7 @@ async def modern_config_scan(
     ip_stub: str = "192.168.1",
     scan_wait: str = "0.5",
     lab: str = "scan-results",
+    scan_http_port: int | None = None,
 ):
     """Scan network for printers."""
     if ip_stub.endswith("."):
@@ -734,7 +737,12 @@ async def modern_config_scan(
             f"Use '{ip_stub.rstrip('.')}' instead.",
         )
     zp = request.app.state.zp
-    zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, scan_wait=scan_wait, lab=lab)
+    zp.probe_zebra_printers_add_to_printers_json(
+        ip_stub=ip_stub,
+        scan_wait=scan_wait,
+        lab=lab,
+        scan_http_port=scan_http_port,
+    )
     time.sleep(2.2)
     return RedirectResponse(url=f"/printers/{lab}", status_code=303)
 
@@ -745,6 +753,7 @@ async def modern_config_scan_stream(
     ip_stub: str = "192.168.1",
     scan_wait: str = "0.5",
     lab: str = "scan-results",
+    scan_http_port: int | None = None,
 ):
     """Stream network scan progress via Server-Sent Events (SSE)."""
     if ip_stub.endswith("."):
@@ -775,6 +784,7 @@ async def modern_config_scan_stream(
                 lab=lab,
                 cancel_event=cancel_event,
                 progress_callback=progress_callback,
+                scan_http_port=scan_http_port,
             )
         except Exception as e:
             progress_callback({"kind": "error", "message": str(e)})

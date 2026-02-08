@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
+
+if TYPE_CHECKING:
+    from cli_core_yo.registry import CommandRegistry
+    from cli_core_yo.spec import CliSpec
 
 man_app = typer.Typer(help="Interactive documentation browser")
 console = Console()
@@ -21,6 +24,7 @@ console = Console()
 # ---------------------------------------------------------------------------
 # Topic registry
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TopicSource:
@@ -37,7 +41,7 @@ class Topic:
     name: str
     description: str
     sources: list[TopicSource] = field(default_factory=list)
-    subtopics: dict[str, "Topic"] = field(default_factory=dict)
+    subtopics: dict[str, Topic] = field(default_factory=dict)
 
 
 # Map of topic slug -> Topic
@@ -220,9 +224,7 @@ def _get_topic_content(topic: Topic) -> str:
             if section:
                 parts.append(section)
             else:
-                parts.append(
-                    f"> *Section '{src.heading}' not found in `{src.file_path}`*\n"
-                )
+                parts.append(f"> *Section '{src.heading}' not found in `{src.file_path}`*\n")
         else:
             parts.append(raw)
     return "\n\n---\n\n".join(parts) if parts else "*No content available.*"
@@ -321,13 +323,14 @@ def _search_docs(term: str) -> None:
         return
 
     console.print(
-        Panel(f"[bold]Search results for:[/bold] {term}  ({len(results)} matches)", border_style="cyan")
+        Panel(
+            f"[bold]Search results for:[/bold] {term}  ({len(results)} matches)",
+            border_style="cyan",
+        )
     )
     for file_path, topic_name, line_no, line in results[:50]:
         highlighted = pattern.sub(lambda m: f"[bold red]{m.group()}[/bold red]", line)
-        console.print(
-            f"  [dim]{file_path}:{line_no}[/dim] [cyan]({topic_name})[/cyan]"
-        )
+        console.print(f"  [dim]{file_path}:{line_no}[/dim] [cyan]({topic_name})[/cyan]")
         console.print(f"    {highlighted}")
     if len(results) > 50:
         console.print(f"\n  [dim]...and {len(results) - 50} more matches[/dim]")
@@ -419,7 +422,9 @@ def _interactive_loop() -> None:
 @man_app.callback(invoke_without_command=True)
 def man_main(
     ctx: typer.Context,
-    topic: str | None = typer.Argument(None, help="Topic to display (e.g. quickstart, cli, dynamo)"),
+    topic: str | None = typer.Argument(
+        None, help="Topic to display (e.g. quickstart, cli, dynamo)"
+    ),
     search: str | None = typer.Option(None, "--search", "-s", help="Search all docs for a term"),
     list_topics: bool = typer.Option(False, "--list", "-l", help="List available topics"),
 ):
@@ -468,3 +473,7 @@ def man_main(
     else:
         _show_topic_menu()
 
+
+def register(registry: CommandRegistry, spec: CliSpec) -> None:
+    """cli-core-yo plugin: register the man command group."""
+    registry.add_typer_app(None, man_app, "man", "Interactive documentation browser")

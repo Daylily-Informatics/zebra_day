@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from zebra_day import paths as xdg
+from zebra_day.backends import ConfigBackend
 from zebra_day.logging_config import get_logger
 
 _log = get_logger(__name__)
@@ -154,9 +155,7 @@ class TemplateDeleteResponse(BaseModel):
 class TemplateImportRequest(BaseModel):
     """Request model for importing local templates into DynamoDB."""
 
-    templates: list[str] = Field(
-        ..., description="List of template stem names to import"
-    )
+    templates: list[str] = Field(..., description="List of template stem names to import")
 
 
 class TemplateImportResponse(BaseModel):
@@ -164,7 +163,9 @@ class TemplateImportResponse(BaseModel):
 
     success: bool
     imported: list[str] = Field(default_factory=list, description="Successfully imported templates")
-    skipped: list[str] = Field(default_factory=list, description="Templates that already exist in DynamoDB")
+    skipped: list[str] = Field(
+        default_factory=list, description="Templates that already exist in DynamoDB"
+    )
     errors: list[str] = Field(default_factory=list, description="Templates that failed to import")
 
 
@@ -264,7 +265,8 @@ async def list_templates(request: Request) -> list[str]:
     2. Package dir (zebra_day/etc/label_styles/)
     """
     zp = request.app.state.zp
-    return zp.list_template_names(include_legacy_drafts=False)
+    names: list[str] = zp.list_template_names(include_legacy_drafts=False)
+    return names
 
 
 @router.post("/templates", response_model=TemplateSaveResponse)
@@ -660,7 +662,6 @@ async def update_printer(
 def _get_backend_info(zp) -> dict[str, Any]:
     """Build a backend status dict from the active zpl() instance."""
     from zebra_day.backends.dynamo import DynamoBackend
-    from zebra_day.backends.local import LocalBackend
 
     backend = zp._backend
     backend_type = "dynamodb" if isinstance(backend, DynamoBackend) else "local"
@@ -670,7 +671,11 @@ def _get_backend_info(zp) -> dict[str, Any]:
     }
 
     if backend_type == "dynamodb":
-        info["aws_profile"] = getattr(backend, "profile", None) or os.environ.get("AWS_PROFILE") or "default credential chain"
+        info["aws_profile"] = (
+            getattr(backend, "profile", None)
+            or os.environ.get("AWS_PROFILE")
+            or "default credential chain"
+        )
         info["dynamo_table"] = backend.table_name
         info["aws_region"] = backend.region
         info["s3_bucket"] = backend.s3_bucket or ""
@@ -782,21 +787,25 @@ async def config_detect_tables(
                 # Describe each match for details
                 try:
                     desc = ddb.describe_table(TableName=tname)["Table"]
-                    matches.append({
-                        "table_name": tname,
-                        "region": scan_region,
-                        "item_count": desc.get("ItemCount", 0),
-                        "status": desc.get("TableStatus", "UNKNOWN"),
-                        "size_bytes": desc.get("TableSizeBytes", 0),
-                    })
+                    matches.append(
+                        {
+                            "table_name": tname,
+                            "region": scan_region,
+                            "item_count": desc.get("ItemCount", 0),
+                            "status": desc.get("TableStatus", "UNKNOWN"),
+                            "size_bytes": desc.get("TableSizeBytes", 0),
+                        }
+                    )
                 except Exception as desc_exc:
-                    matches.append({
-                        "table_name": tname,
-                        "region": scan_region,
-                        "item_count": -1,
-                        "status": f"Error: {desc_exc}",
-                        "size_bytes": 0,
-                    })
+                    matches.append(
+                        {
+                            "table_name": tname,
+                            "region": scan_region,
+                            "item_count": -1,
+                            "status": f"Error: {desc_exc}",
+                            "size_bytes": 0,
+                        }
+                    )
 
         return {
             "region": scan_region,
@@ -924,6 +933,8 @@ async def config_switch_backend(
     corresponding environment variables before restarting the server.
     """
     zp = request.app.state.zp
+
+    new_backend: ConfigBackend
 
     if body.backend_type == "dynamodb":
         # Reject profile="default" explicitly

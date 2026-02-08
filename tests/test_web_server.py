@@ -585,6 +585,7 @@ class TestModernUINetworkScan:
             lab: str,
             cancel_event=None,
             progress_callback=None,
+            scan_http_port=None,
         ):
             total = 255
             ip = f"{ip_stub}.1"

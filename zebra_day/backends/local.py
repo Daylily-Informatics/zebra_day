@@ -130,7 +130,7 @@ class LocalBackend:
 
         # Backup existing
         if target.exists():
-            ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H%M%S.%fZ")
+            ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H%M%S.%fZ")
             backup = target.parent / f"{stem}.bak.{ts}.zpl"
             shutil.copy2(target, backup)
 
@@ -156,9 +156,7 @@ class LocalBackend:
     # Path resolution (local-only helpers used by zpl() for compat)
     # ------------------------------------------------------------------
 
-    def resolve_template_path(
-        self, template: str, *, include_legacy_drafts: bool = False
-    ) -> Path:
+    def resolve_template_path(self, template: str, *, include_legacy_drafts: bool = False) -> Path:
         """Resolve a template name to an on-disk .zpl path.
 
         Resolution order:
@@ -264,4 +262,3 @@ class LocalBackend:
         backup_dir = xdg.get_config_backups_dir()
         backup_name = f"{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}_migrated_from.json"
         shutil.copy2(json_path, backup_dir / backup_name)
-
