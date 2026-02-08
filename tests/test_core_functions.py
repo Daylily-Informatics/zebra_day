@@ -354,8 +354,10 @@ class TestIpStubTrailingDotRejection:
         zp = zdpm.zpl()
         # Mock HTTPConnection and HTTPSConnection so the 255-IP loop
         # completes instantly without real network calls.
-        with mock.patch("http.client.HTTPConnection") as mock_http, \
-             mock.patch("http.client.HTTPSConnection") as mock_https:
+        with (
+            mock.patch("http.client.HTTPConnection") as mock_http,
+            mock.patch("http.client.HTTPSConnection") as mock_https,
+        ):
             # Make every connection attempt raise immediately (no printer)
             mock_http.return_value.request.side_effect = OSError("mocked")
             mock_https.return_value.request.side_effect = OSError("mocked")

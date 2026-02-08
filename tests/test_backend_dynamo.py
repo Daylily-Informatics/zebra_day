@@ -5,7 +5,6 @@ Tests for zebra_day.backends.dynamo.DynamoBackend using moto mocks.
 from __future__ import annotations
 
 import json
-import os
 import time
 from unittest import mock
 
@@ -13,17 +12,17 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from zebra_day.backends.dynamo import DynamoBackend, _BACKUP_DEBOUNCE_SECONDS
+from zebra_day.backends.dynamo import DynamoBackend
 from zebra_day.exceptions import (
     ConfigError,
     LabelTemplateNotFoundError,
     VersionConflictError,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def aws_env(monkeypatch):
@@ -59,6 +58,7 @@ def dynamo_backend(aws_env):
 # ---------------------------------------------------------------------------
 # Config CRUD
 # ---------------------------------------------------------------------------
+
 
 class TestLoadConfig:
     def test_empty_table_returns_default(self, dynamo_backend):
@@ -119,6 +119,7 @@ class TestOptimisticLock:
 # Template CRUD
 # ---------------------------------------------------------------------------
 
+
 class TestTemplateCRUD:
     def test_save_and_get(self, dynamo_backend):
         dynamo_backend.save_template("my_label", "^XA^FO10,10^A0N,30,30^FDHello^FS^XZ")
@@ -163,10 +164,10 @@ class TestTemplateCRUD:
                 dynamo_backend.save_template("tpl", "v2")
 
 
-
 # ---------------------------------------------------------------------------
 # S3 Backup & Restore
 # ---------------------------------------------------------------------------
+
 
 class TestS3Backup:
     def test_backup_creates_manifest(self, dynamo_backend):
@@ -230,6 +231,7 @@ class TestS3Restore:
 # Resource Tagging
 # ---------------------------------------------------------------------------
 
+
 class TestResourceTagging:
     def test_dynamodb_table_tags(self, aws_env):
         with mock_aws():
@@ -243,7 +245,9 @@ class TestResourceTagging:
             backend.create_table()
 
             # Check tags via describe
-            arn = backend._ddb_client.describe_table(TableName="tag-test-table")["Table"]["TableArn"]
+            arn = backend._ddb_client.describe_table(TableName="tag-test-table")["Table"][
+                "TableArn"
+            ]
             tags_resp = backend._ddb_client.list_tags_of_resource(ResourceArn=arn)
             tags = {t["Key"]: t["Value"] for t in tags_resp.get("Tags", [])}
             assert tags["lsmc-cost-center"] == "my-cc"
@@ -293,6 +297,7 @@ class TestResourceTagging:
 # Factory & Profile Rules
 # ---------------------------------------------------------------------------
 
+
 class TestFromEnv:
     def test_from_env_basic(self, aws_env, monkeypatch):
         monkeypatch.setenv("ZEBRA_DAY_DYNAMO_TABLE", "my-table")
@@ -341,6 +346,7 @@ class TestFromEnv:
 # Status
 # ---------------------------------------------------------------------------
 
+
 class TestStatus:
     def test_get_status(self, dynamo_backend):
         dynamo_backend.save_config({"schema_version": "2.1.0", "labs": {}})
@@ -354,6 +360,7 @@ class TestStatus:
 # ---------------------------------------------------------------------------
 # Integration: zpl() with DynamoBackend
 # ---------------------------------------------------------------------------
+
 
 class TestZplIntegration:
     def test_zpl_init_with_backend(self, dynamo_backend):
@@ -418,6 +425,7 @@ class TestZplIntegration:
 # ---------------------------------------------------------------------------
 # AWS Permission Checks
 # ---------------------------------------------------------------------------
+
 
 class TestCheckAWSPermissions:
     def test_all_checks_pass_with_resources(self, dynamo_backend):

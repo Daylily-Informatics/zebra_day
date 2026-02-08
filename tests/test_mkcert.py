@@ -1,11 +1,8 @@
 """
 Tests for the mkcert integration module.
 """
-import platform
-from pathlib import Path
-from unittest import mock
 
-import pytest
+from unittest import mock
 
 from zebra_day import mkcert
 
@@ -51,8 +48,7 @@ class TestMkcertChecks:
         with mock.patch("shutil.which", return_value="/usr/local/bin/mkcert"):
             with mock.patch("subprocess.run") as mock_run:
                 mock_run.return_value = mock.Mock(
-                    returncode=0,
-                    stdout="/Users/test/.local/share/mkcert\n"
+                    returncode=0, stdout="/Users/test/.local/share/mkcert\n"
                 )
                 with mock.patch("pathlib.Path.exists", return_value=True):
                     assert mkcert.is_ca_installed() is True
@@ -137,4 +133,3 @@ class TestAutoGeneration:
                         assert "success" in message.lower()
                         assert cert is not None
                         assert key is not None
-

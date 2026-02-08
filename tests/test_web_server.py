@@ -2,7 +2,7 @@
 
 import json
 import threading
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -710,8 +710,17 @@ class TestBackendStatusAPI:
         """Test response contains all required keys."""
         response = client.get("/api/v1/config/backend-status")
         data = response.json()
-        for key in ["backend_type", "aws_profile", "dynamo_table", "aws_region",
-                     "s3_bucket", "s3_prefix", "last_backup", "config_version", "error"]:
+        for key in [
+            "backend_type",
+            "aws_profile",
+            "dynamo_table",
+            "aws_region",
+            "s3_bucket",
+            "s3_prefix",
+            "last_backup",
+            "config_version",
+            "error",
+        ]:
             assert key in data, f"Missing key: {key}"
 
 
@@ -937,9 +946,7 @@ class TestDetectTablesAPI:
         """Test detect-tables endpoint accepts profile query parameter."""
         # This will fail with boto3 error (no credentials), but we're testing
         # that the endpoint accepts the parameter without 400 error
-        response = client.get(
-            "/api/v1/config/detect-tables?region=us-west-2&profile=test-profile"
-        )
+        response = client.get("/api/v1/config/detect-tables?region=us-west-2&profile=test-profile")
         # Should get 503 (AWS error) or 501 (boto3 not installed), not 400 (bad request)
         assert response.status_code in [501, 503]
 
@@ -947,6 +954,7 @@ class TestDetectTablesAPI:
 # ---------------------------------------------------------------------------
 # Helper: create a mock DynamoBackend that passes isinstance checks
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_dynamo_backend(
     profile="test-profile",
@@ -1096,6 +1104,7 @@ class TestConfigPageDynamoDBBackend:
         html = response.text
         # Find the profile input and check it's empty
         import re
+
         match = re.search(r'id="switch-profile"[^>]*value="([^"]*)"', html)
         assert match is not None
         assert match.group(1) == ""
@@ -1107,6 +1116,7 @@ class TestConfigPageDynamoDBBackend:
 
         response = client.get("/config")
         import re
+
         match = re.search(r'id="switch-profile"[^>]*value="([^"]*)"', response.text)
         assert match is not None
         # Should be empty since profile is None → "default credential chain"

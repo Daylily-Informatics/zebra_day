@@ -134,7 +134,6 @@ class DynamoBackend:
 
         # 1. STS identity check — do credentials work at all?
         try:
-            sts = self._ddb_resource.meta.client.meta.events
             # Use the session to create an STS client
             session_kwargs: dict[str, Any] = {"region_name": self.region}
             import boto3 as _b3
@@ -371,7 +370,7 @@ class DynamoBackend:
                     ExpressionAttributeValues={":expected": current_version},
                 )
         except self._ddb_resource.meta.client.exceptions.ConditionalCheckFailedException:
-            raise VersionConflictError("CONFIG#printer_config", current_version)
+            raise VersionConflictError("CONFIG#printer_config", current_version) from None
 
         _log.debug("Config saved to DynamoDB (version %d)", current_version + 1)
         self._maybe_backup("save_config")
@@ -438,7 +437,7 @@ class DynamoBackend:
                     ExpressionAttributeValues={":expected": current_version},
                 )
         except self._ddb_resource.meta.client.exceptions.ConditionalCheckFailedException:
-            raise VersionConflictError(f"TEMPLATE#{stem}", current_version)
+            raise VersionConflictError(f"TEMPLATE#{stem}", current_version) from None
 
         _log.debug("Template '%s' saved to DynamoDB (version %d)", stem, current_version + 1)
         self._maybe_backup("save_template")

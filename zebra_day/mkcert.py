@@ -209,9 +209,7 @@ def try_auto_generate_certificates() -> tuple[bool, str, Path | None, Path | Non
     if not is_mkcert_installed():
         install_cmd = get_platform_install_command()
         msg = (
-            f"mkcert is not installed. Install it with:\n"
-            f"  {install_cmd}\n"
-            f"Then run: mkcert -install"
+            f"mkcert is not installed. Install it with:\n  {install_cmd}\nThen run: mkcert -install"
         )
         _log.warning("mkcert not installed - cannot auto-generate certificates")
         return False, msg, None, None

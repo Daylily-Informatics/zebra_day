@@ -128,7 +128,7 @@ def _load_s3_config_file(path: str) -> dict:
         data = json_mod.loads(p.read_text())
     except Exception as exc:
         output.error(f"Failed to parse S3 config file: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
     if not isinstance(data, dict):
         output.error("S3 config file must contain a JSON object")
         raise typer.Exit(1)
@@ -293,7 +293,7 @@ def init_cmd(
             output.warning(f"Table '{backend.table_name}' already exists")
         else:
             output.error(f"Failed to create table: {exc}")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
 
     # Create S3 bucket (creates if not exists, applies tags)
     output.action(f"Ensuring S3 bucket '{backend.s3_bucket}' exists...")
@@ -302,7 +302,7 @@ def init_cmd(
         output.success(f"S3 bucket '{backend.s3_bucket}' ready")
     except Exception as exc:
         output.error(f"Failed to create/access bucket: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     # Write META
     output.action("Writing metadata...")
@@ -336,7 +336,7 @@ def status_cmd(
         )
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     try:
         status = backend.get_status()
@@ -345,7 +345,7 @@ def status_cmd(
             type(exc).__name__
         ):
             output.error("Table not found. Run 'zday dynamo init' first.")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
         raise
 
     template_count = len(backend.list_templates())
@@ -407,7 +407,7 @@ def bootstrap_cmd(
         backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     output.heading("DynamoDB Bootstrap")
 
@@ -481,7 +481,7 @@ def export_cmd(
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     out = Path(output_dir)
     tpl_dir = out / "templates"
@@ -530,7 +530,7 @@ def backup_cmd(
         backend = _get_backend_from_env(create_s3_if_missing=create_s3_if_missing)
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     output.heading("DynamoDB Backup")
 
@@ -539,7 +539,7 @@ def backup_cmd(
         output.success(f"Backup written to s3://{backend.s3_bucket}/{prefix}")
     except Exception as exc:
         output.error(f"Backup failed: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 # -----------------------------------------------------------------
@@ -560,7 +560,7 @@ def restore_cmd(
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     if list_backups:
         backups = backend.list_backups()
@@ -602,7 +602,7 @@ def restore_cmd(
         output.success("Restore complete")
     except Exception as exc:
         output.error(f"Restore failed: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 # -----------------------------------------------------------------
@@ -623,7 +623,7 @@ def destroy_cmd(
         backend = _get_backend_from_env()
     except (ConfigError, ImportError) as exc:
         output.error(str(exc))
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     output.heading("DynamoDB Table Destruction")
 
@@ -642,7 +642,7 @@ def destroy_cmd(
         output.success("Table deleted. Backups preserved in S3.")
     except Exception as exc:
         output.error(f"Delete failed: {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

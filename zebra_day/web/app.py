@@ -16,7 +16,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from zebra_day import __version__, paths as xdg
+from zebra_day import __version__
+from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
@@ -194,6 +195,7 @@ def run_server(
     5. Fall back to HTTP with guidance if certificate setup fails
     """
     import uvicorn
+
     from zebra_day import mkcert
 
     # Store auth mode in environment for factory function
