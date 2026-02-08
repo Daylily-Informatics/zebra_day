@@ -729,7 +729,7 @@ async def config_refresh(request: Request) -> dict[str, Any]:
         return {"success": True, "message": "Configuration reloaded from backend."}
     except Exception as exc:
         _log.error("Config refresh failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/config/detect-tables")
@@ -764,12 +764,12 @@ async def config_detect_tables(
         raise HTTPException(
             status_code=501,
             detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        )
+        ) from None
     except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail=f"Unable to create AWS session: {exc}",
-        )
+        ) from exc
 
     try:
         # List all tables (paginate)
@@ -817,7 +817,7 @@ async def config_detect_tables(
         raise HTTPException(
             status_code=503,
             detail=f"Failed to scan DynamoDB tables in {scan_region}: {exc}",
-        )
+        ) from exc
 
 
 class CheckS3BucketRequest(BaseModel):
@@ -862,7 +862,7 @@ async def config_check_s3_bucket(body: CheckS3BucketRequest) -> dict[str, Any]:
         raise HTTPException(
             status_code=501,
             detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        )
+        ) from None
     except Exception:
         return {"exists": False, "bucket": body.bucket}
 
@@ -903,12 +903,12 @@ async def config_create_s3_bucket(body: CreateS3BucketRequest) -> dict[str, Any]
         raise HTTPException(
             status_code=501,
             detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        )
+        ) from None
     except Exception as exc:
         raise HTTPException(
             status_code=503,
             detail=f"Failed to create S3 bucket '{body.bucket}': {exc}",
-        )
+        ) from exc
 
 
 class SwitchBackendRequest(BaseModel):
@@ -970,13 +970,13 @@ async def config_switch_backend(
             raise HTTPException(
                 status_code=501,
                 detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-            )
+            ) from None
         except Exception as exc:
             raise HTTPException(
                 status_code=503,
                 detail=f"Cannot connect to DynamoDB table '{body.table_name}' "
                 f"in {body.region}: {exc}",
-            )
+            ) from exc
 
     else:
         # Switch to local backend
@@ -998,7 +998,7 @@ async def config_switch_backend(
         raise HTTPException(
             status_code=500,
             detail=f"Backend switch failed during config reload: {exc}",
-        )
+        ) from exc
 
     _log.info("Backend switched to %s", body.backend_type)
     return {

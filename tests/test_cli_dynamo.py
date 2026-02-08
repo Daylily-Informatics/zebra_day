@@ -5,10 +5,7 @@ Tests for the zday dynamo CLI subcommand group using moto mocks.
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
-import boto3
 import pytest
 from moto import mock_aws
 from typer.testing import CliRunner
@@ -67,10 +64,14 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--s3-bucket", "test-backup-bucket",
-                    "--region", "us-east-1",
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--s3-bucket",
+                    "test-backup-bucket",
+                    "--region",
+                    "us-east-1",
                 ],
             )
             assert result.exit_code == 0, result.output
@@ -94,10 +95,14 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--region", "us-east-1",
-                    "--s3-config-file", str(cfg),
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--region",
+                    "us-east-1",
+                    "--s3-config-file",
+                    str(cfg),
                 ],
             )
             assert result.exit_code == 0, result.output
@@ -110,11 +115,16 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--region", "us-east-1",
-                    "--s3-bucket", "flag-bucket",
-                    "--s3-config-file", str(cfg),
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--region",
+                    "us-east-1",
+                    "--s3-bucket",
+                    "flag-bucket",
+                    "--s3-config-file",
+                    str(cfg),
                 ],
             )
             assert result.exit_code == 0, result.output
@@ -127,10 +137,14 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--region", "us-east-1",
-                    "--s3-config-file", str(cfg),
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--region",
+                    "us-east-1",
+                    "--s3-config-file",
+                    str(cfg),
                 ],
             )
             assert result.exit_code == 1
@@ -140,10 +154,14 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--region", "us-east-1",
-                    "--s3-config-file", "/tmp/no-such-file-12345.json",
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--region",
+                    "us-east-1",
+                    "--s3-config-file",
+                    "/tmp/no-such-file-12345.json",
                 ],
             )
             assert result.exit_code == 1
@@ -154,24 +172,35 @@ class TestDynamoInit:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--s3-bucket", "test-backup-bucket",
-                    "--region", "us-east-1",
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--s3-bucket",
+                    "test-backup-bucket",
+                    "--region",
+                    "us-east-1",
                 ],
             )
             assert result.exit_code == 0, result.output
-            assert "permission checks passed" in result.output.lower() or "Checking AWS" in result.output
+            assert (
+                "permission checks passed" in result.output.lower()
+                or "Checking AWS" in result.output
+            )
 
     def test_init_skip_checks(self, aws_env):
         with mock_aws():
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--s3-bucket", "test-backup-bucket",
-                    "--region", "us-east-1",
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--s3-bucket",
+                    "test-backup-bucket",
+                    "--region",
+                    "us-east-1",
                     "--skip-checks",
                 ],
             )
@@ -225,9 +254,12 @@ class TestDynamoBootstrap:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "bootstrap",
-                    "--config-file", str(cfg),
-                    "--templates-dir", str(tpl_dir),
+                    "dynamo",
+                    "bootstrap",
+                    "--config-file",
+                    str(cfg),
+                    "--templates-dir",
+                    str(tpl_dir),
                     "--no-include-package",
                 ],
             )
@@ -235,8 +267,6 @@ class TestDynamoBootstrap:
             assert "Config uploaded" in result.output
             assert "1 template(s) uploaded" in result.output
             assert "Backup written" in result.output
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +411,6 @@ class TestDynamoDestroy:
             assert "Backups preserved" in result.output
 
 
-
 # ---------------------------------------------------------------------------
 # Interactive S3 bucket prompt
 # ---------------------------------------------------------------------------
@@ -398,9 +427,7 @@ class TestInteractiveS3Prompt:
         with mock_aws():
             _provision_resources()
             # Provide bucket name via CliRunner input
-            result = runner.invoke(
-                app, ["dynamo", "status"], input="test-backup-bucket\n"
-            )
+            result = runner.invoke(app, ["dynamo", "status"], input="test-backup-bucket\n")
             assert result.exit_code == 0, result.output
             assert "test-zebra-config" in result.output
 
@@ -429,9 +456,7 @@ class TestInteractiveS3Prompt:
         with mock_aws():
             backend = _provision_resources()
             backend.save_config({"labs": {}})
-            result = runner.invoke(
-                app, ["dynamo", "backup"], input="test-backup-bucket\n"
-            )
+            result = runner.invoke(app, ["dynamo", "backup"], input="test-backup-bucket\n")
             assert result.exit_code == 0, result.output
             assert "Backup written" in result.output
 
@@ -443,9 +468,12 @@ class TestInteractiveS3Prompt:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "init",
-                    "--table-name", "test-zebra-config",
-                    "--region", "us-east-1",
+                    "dynamo",
+                    "init",
+                    "--table-name",
+                    "test-zebra-config",
+                    "--region",
+                    "us-east-1",
                 ],
                 input="test-backup-bucket\n",
             )
@@ -467,6 +495,7 @@ class TestCreateS3IfMissing:
             _provision_resources()
             # Delete the bucket so it doesn't exist
             import boto3
+
             s3 = boto3.client("s3", region_name="us-east-1")
             # Empty and delete the bucket
             try:
@@ -479,9 +508,7 @@ class TestCreateS3IfMissing:
 
             # Use a new bucket name via env
             monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "new-auto-bucket")
-            result = runner.invoke(
-                app, ["dynamo", "status", "--create-s3-if-missing"]
-            )
+            result = runner.invoke(app, ["dynamo", "status", "--create-s3-if-missing"])
             assert result.exit_code == 0, result.output
             # Bucket should have been created
             assert "created" in result.output.lower() or "test-zebra-config" in result.output
@@ -494,9 +521,7 @@ class TestCreateS3IfMissing:
 
             # Point to a new bucket that doesn't exist
             monkeypatch.setenv("ZEBRA_DAY_S3_BACKUP_BUCKET", "auto-backup-bucket")
-            result = runner.invoke(
-                app, ["dynamo", "backup", "--create-s3-if-missing"]
-            )
+            result = runner.invoke(app, ["dynamo", "backup", "--create-s3-if-missing"])
             assert result.exit_code == 0, result.output
             assert "Backup written" in result.output
 
@@ -510,8 +535,10 @@ class TestCreateS3IfMissing:
             result = runner.invoke(
                 app,
                 [
-                    "dynamo", "bootstrap",
-                    "--config-file", str(cfg),
+                    "dynamo",
+                    "bootstrap",
+                    "--config-file",
+                    str(cfg),
                     "--no-include-package",
                     "--create-s3-if-missing",
                 ],
