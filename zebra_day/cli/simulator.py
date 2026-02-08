@@ -31,7 +31,7 @@ def _get_manager():
 
 @sim_app.command("start")
 def sim_start(
-    host: str = typer.Option("127.0.0.1", "--host", "-b", help="Bind address"),
+    host: str = typer.Option("0.0.0.0", "--host", "-b", help="Bind address"),
     zpl_port: int = typer.Option(9100, "--zpl-port", "-z", help="ZPL TCP port (default 9100)"),
     http_port: int = typer.Option(18080, "--http-port", "-p", help="HTTP port (default 18080)"),
     model: str = typer.Option("ZD620-203dpi ZPL", "--model", "-m", help="Printer model string"),
@@ -90,7 +90,7 @@ def sim_start(
 
 @sim_app.command("stop")
 def sim_stop(
-    host: str = typer.Option("127.0.0.1", "--host", "-b", help="Bind address"),
+    host: str = typer.Option("0.0.0.0", "--host", "-b", help="Bind address"),
     zpl_port: int = typer.Option(9100, "--zpl-port", "-z", help="ZPL TCP port"),
     all_printers: bool = typer.Option(False, "--all", "-a", help="Stop all simulators"),
 ) -> None:
