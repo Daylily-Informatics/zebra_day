@@ -144,7 +144,7 @@ def _root_callback(
     """Initialize RuntimeContext for the current invocation."""
     _reset()
     debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
-    xdg_paths = app._cli_core_yo_xdg_paths
+    xdg_paths = app._cli_core_yo_xdg_paths  # type: ignore[attr-defined]
     initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
 
 

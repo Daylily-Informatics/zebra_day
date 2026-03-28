@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from contextlib import asynccontextmanager
 from importlib.resources import files
 from pathlib import Path
 from typing import Literal
@@ -63,11 +64,23 @@ def create_app(
     if auth not in ("none", "cognito"):
         raise ValueError(f"Invalid auth mode: {auth!r}. Must be 'none' or 'cognito'.")
 
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI):
+        import zebra_day.print_mgr as zdpm
+
+        app.state.zp = zdpm.zpl()
+        _log.info(
+            "zebra_day web server starting at %s:8118",
+            app.state.local_ip,
+        )
+        yield
+
     app = FastAPI(
         title="Zebra Day",
         description="Zebra printer fleet management and label printing",
         version=__version__,
         debug=debug,
+        lifespan=_lifespan,
     )
 
     # Expose version to templates via app.state
@@ -123,17 +136,6 @@ def create_app(
 
     app.include_router(ui.router)
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
-
-    @app.on_event("startup")
-    async def startup_event():
-        """Initialize application state on startup."""
-        import zebra_day.print_mgr as zdpm
-
-        app.state.zp = zdpm.zpl()
-        _log.info(
-            "zebra_day web server starting at %s:8118",
-            app.state.local_ip,
-        )
 
     @app.get("/healthz")
     async def healthz():
