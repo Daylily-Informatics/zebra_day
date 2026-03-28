@@ -3,6 +3,7 @@ Tests for the zebra_day CLI commands.
 """
 
 import http.client
+import re
 import socket
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,12 @@ from typer.testing import CliRunner
 from zebra_day.cli import _get_version, app
 
 runner = CliRunner()
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def _normalized_help(text: str) -> str:
+    """Strip terminal formatting so help assertions target real semantics."""
+    return " ".join(_ANSI_ESCAPE_RE.sub("", text).split()).lower()
 
 
 class TestCLIVersion:
@@ -309,12 +316,15 @@ class TestCLIManHelp:
     """Tests for zday man --help output."""
 
     def test_man_help(self):
-        """Test man --help shows expected options."""
+        """man --help should describe the browsing and search affordances."""
         result = runner.invoke(app, ["man", "--help"])
+        help_text = _normalized_help(result.output)
         assert result.exit_code == 0
-        assert "Interactive documentation browser" in result.output
-        assert "--search" in result.output
-        assert "--list" in result.output
+        assert "usage: zday man" in help_text
+        assert "interactive documentation browser" in help_text
+        assert "search all docs for a term" in help_text
+        assert "list available topics" in help_text
+        assert "topic to display" in help_text
 
     def test_man_in_main_help(self):
         """man subcommand appears in top-level help."""
@@ -592,13 +602,18 @@ class TestSimulatorCLI:
         assert "list" in result.output
 
     def test_simulator_start_help(self):
-        """simulator start --help shows options."""
+        """simulator start --help should document key runtime controls."""
         result = runner.invoke(app, ["simulator", "start", "--help"])
+        help_text = _normalized_help(result.output)
         assert result.exit_code == 0
-        assert "--model" in result.output
-        assert "--serial" in result.output
-        assert "--zpl-port" in result.output
-        assert "--http-port" in result.output
+        assert "usage: zday simulator start" in help_text
+        assert "start a simulated zebra printer" in help_text
+        assert "bind address" in help_text
+        assert "printer model string" in help_text
+        assert "serial number" in help_text
+        assert "zpl tcp port" in help_text
+        assert "http port" in help_text
+        assert "run in foreground" in help_text
 
     def test_simulator_list_empty(self):
         """simulator list works when no simulators running."""
