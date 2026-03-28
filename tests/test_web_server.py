@@ -12,11 +12,9 @@ from zebra_day.web.app import create_app
 
 
 @pytest.fixture
-def client():
-    """Create a FastAPI test client with properly initialized state."""
+def client(monkeypatch):
+    """Create a FastAPI test client with lifespan-managed state."""
     app = create_app(debug=True, auth="none")
-    # Manually initialize the zp state since on_event("startup") isn't called
-    # by TestClient unless we use a context manager
     zp = zdpm.zpl()
     # Ensure test printer exists for testing
     zp.create_new_printers_json_with_single_test_printer()
@@ -41,7 +39,7 @@ def client():
         }
         zp.save_printer_json()
 
-    app.state.zp = zp
+    monkeypatch.setattr(zdpm, "zpl", lambda: zp)
     with TestClient(app) as client:
         yield client
 
@@ -55,6 +53,13 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
+
+    def test_readiness_check(self, client):
+        """Test readiness endpoint returns ready after lifespan startup."""
+        response = client.get("/readyz")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ready"
 
 
 class TestAPIListLabs:

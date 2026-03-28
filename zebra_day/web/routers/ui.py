@@ -206,7 +206,7 @@ async def modern_dashboard(request: Request):
         labs=labs,
         stats=stats,
     )
-    return templates.TemplateResponse("modern/dashboard.html", context)
+    return templates.TemplateResponse(request, "modern/dashboard.html", context)
 
 
 @router.get("/printers", response_class=HTMLResponse)
@@ -228,7 +228,7 @@ async def modern_printers(request: Request):
         lab=None,
         ip_root=ip_root,
     )
-    return templates.TemplateResponse("modern/printers.html", context)
+    return templates.TemplateResponse(request, "modern/printers.html", context)
 
 
 @router.get("/printers/{lab}", response_class=HTMLResponse)
@@ -338,7 +338,7 @@ async def modern_printers_by_lab(request: Request, lab: str, live: bool = True):
         ip_root=ip_root,
         live_status=live,
     )
-    return templates.TemplateResponse("modern/printers.html", context)
+    return templates.TemplateResponse(request, "modern/printers.html", context)
 
 
 @router.get("/printers/{lab}/{printer_id}", response_class=HTMLResponse)
@@ -419,7 +419,7 @@ async def modern_printer_detail(request: Request, lab: str, printer_id: str, ref
         printer_config=printer_config,
         live_status=live_status,
     )
-    return templates.TemplateResponse("modern/printer_detail.html", context)
+    return templates.TemplateResponse(request, "modern/printer_detail.html", context)
 
 
 @router.get("/print", response_class=HTMLResponse)
@@ -450,7 +450,7 @@ async def modern_print_request(
         selected_printer=printer,
         selected_template=template,
     )
-    return templates.TemplateResponse("modern/print_request.html", context)
+    return templates.TemplateResponse(request, "modern/print_request.html", context)
 
 
 @router.get("/templates", response_class=HTMLResponse)
@@ -471,7 +471,7 @@ async def modern_templates(request: Request):
         local_package_templates=templates_by_loc.get("local_package", []),
         is_dynamo_backend=_is_dynamo_backend(zp),
     )
-    return templates.TemplateResponse("modern/templates.html", context)
+    return templates.TemplateResponse(request, "modern/templates.html", context)
 
 
 @router.get("/templates/edit", response_class=HTMLResponse)
@@ -519,7 +519,7 @@ async def modern_template_edit(
         labs=list(labs_dict.keys()),
         labs_dict=json.dumps(labs_dict),
     )
-    return templates.TemplateResponse("modern/template_editor.html", context)
+    return templates.TemplateResponse(request, "modern/template_editor.html", context)
 
 
 @router.get("/templates/preview")
@@ -596,7 +596,7 @@ async def modern_config(request: Request):
         config_file_path=config_file_path,
         backend_info=backend_info,
     )
-    return templates.TemplateResponse("modern/config.html", context)
+    return templates.TemplateResponse(request, "modern/config.html", context)
 
 
 @router.get("/config/view", response_class=HTMLResponse)
@@ -616,7 +616,7 @@ async def modern_config_view(request: Request):
         config_yaml=config_yaml,
         mode="view",
     )
-    return templates.TemplateResponse("modern/config_editor.html", context)
+    return templates.TemplateResponse(request, "modern/config_editor.html", context)
 
 
 @router.get("/config/edit", response_class=HTMLResponse)
@@ -637,7 +637,7 @@ async def modern_config_edit(request: Request, error_msg: str | None = None):
         mode="edit",
         error_msg=error_msg,
     )
-    return templates.TemplateResponse("modern/config_editor.html", context)
+    return templates.TemplateResponse(request, "modern/config_editor.html", context)
 
 
 @router.post("/config/save")
@@ -683,7 +683,7 @@ async def modern_config_backups(request: Request):
         title="Configuration Backups",
         backup_files=backup_files,
     )
-    return templates.TemplateResponse("modern/config_backups.html", context)
+    return templates.TemplateResponse(request, "modern/config_backups.html", context)
 
 
 @router.get("/config/new", response_class=HTMLResponse)
@@ -700,7 +700,7 @@ async def modern_config_new(request: Request):
         ip_root=ip_root,
         labs=list(zp.printers.get("labs", {}).keys()),
     )
-    return templates.TemplateResponse("modern/config_new.html", context)
+    return templates.TemplateResponse(request, "modern/config_new.html", context)
 
 
 @router.get("/config/reset")
@@ -913,7 +913,7 @@ async def modern_print_label(
         full_url=full_url,
         png_url=png_url,
     )
-    return templates.TemplateResponse("modern/print_result.html", context)
+    return templates.TemplateResponse(request, "modern/print_result.html", context)
 
 
 @router.post("/save", response_class=HTMLResponse)
@@ -957,7 +957,7 @@ async def modern_save_template(
             error_message=str(e),
         )
 
-    return templates.TemplateResponse("modern/save_result.html", context)
+    return templates.TemplateResponse(request, "modern/save_result.html", context)
 
 
 @router.post("/png_renderer")
