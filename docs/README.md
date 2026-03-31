@@ -9,6 +9,7 @@
 
 ## Historical And Implementation Notes
 
+- [major_refactor.md](major_refactor.md): approved `zebra_day 3.0` refactor and multi-repo implementation handoff
 - [../AWS_DYNAMO_CONFIG_PLAN.md](../AWS_DYNAMO_CONFIG_PLAN.md): DynamoDB backend history and design notes
 - [../HTTPS_BY_DEFAULT_CHANGES.md](../HTTPS_BY_DEFAULT_CHANGES.md): HTTPS-by-default implementation notes
 - [../MODERNIZE.md](../MODERNIZE.md): modernization history
