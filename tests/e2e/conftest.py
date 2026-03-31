@@ -11,9 +11,7 @@ from playwright.sync_api import Browser
 
 from tests.e2e.cognito_test_users import ensure_admin_user, ensure_standard_user
 
-PLAYWRIGHT_PLUGIN = "pytest_playwright.pytest_playwright"
-PLAYWRIGHT_AVAILABLE = importlib.util.find_spec(PLAYWRIGHT_PLUGIN) is not None
-pytest_plugins = (PLAYWRIGHT_PLUGIN,) if PLAYWRIGHT_AVAILABLE else ()
+PLAYWRIGHT_AVAILABLE = importlib.util.find_spec("pytest_playwright.pytest_playwright") is not None
 
 
 def _require_live_e2e_env() -> None:

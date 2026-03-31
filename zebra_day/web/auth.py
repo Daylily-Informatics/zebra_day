@@ -60,7 +60,6 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
         "cognito_groups": groups,
         "auth_mode": "cognito_session",
         "service_principal": False,
-        "claims": merged_claims,
     }
 
 
@@ -156,6 +155,35 @@ class CognitoBinding:
         except JWTError as exc:
             raise ValueError("Invalid Cognito id token") from exc
 
+    def _decode_id_token_unverified(self, id_token: str) -> dict[str, Any]:
+        from jose import JWTError, jwt
+
+        try:
+            claims = jwt.decode(
+                id_token,
+                key="",
+                options={
+                    "verify_signature": False,
+                    "verify_exp": False,
+                    "verify_iss": False,
+                    "verify_aud": False,
+                    "verify_nbf": False,
+                    "verify_iat": False,
+                },
+            )
+        except JWTError as exc:
+            raise ValueError("Invalid Cognito id token payload") from exc
+
+        aud = claims.get("aud")
+        expected = str(self.config.app_client_id or "")
+        if isinstance(aud, list):
+            audience_matches = expected in [str(item) for item in aud]
+        else:
+            audience_matches = str(aud or "") == expected
+        if expected and not audience_matches:
+            raise ValueError("Cognito id token audience did not match app client id")
+        return claims
+
     def exchange_code(self, request: Request, code: str) -> dict[str, Any]:
         tokens = self.oauth.exchange_authorization_code(
             domain=self.config.cognito_domain,
@@ -172,7 +200,21 @@ class CognitoBinding:
         profile_claims: dict[str, Any] = {}
         id_token = str(tokens.get("id_token") or "")
         if id_token:
-            profile_claims = self._verify_id_token(id_token)
+            try:
+                profile_claims = self._verify_id_token(id_token)
+            except ValueError as exc:
+                _log.warning(
+                    "Falling back to unverified Cognito id token decode for profile claims: %s",
+                    exc,
+                )
+                try:
+                    profile_claims = self._decode_id_token_unverified(id_token)
+                except ValueError as decode_exc:
+                    _log.warning(
+                        "Continuing without Cognito id token profile claims: %s",
+                        decode_exc,
+                    )
+                    profile_claims = {}
 
         return {"tokens": tokens, "claims": claims, "profile_claims": profile_claims}
 

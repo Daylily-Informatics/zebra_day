@@ -99,6 +99,79 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
     assert result["profile_claims"]["email"] == "user@example.com"
 
 
+def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
+    oauth = SimpleNamespace(
+        exchange_authorization_code=lambda **kwargs: {
+            "access_token": "access-token",
+            "id_token": "id-token",
+        }
+    )
+    auth_client = SimpleNamespace(
+        verify_token=lambda token: {"sub": "access-sub", "username": "atlas-user"}
+        if token == "access-token"
+        else pytest.fail("expected access token verification")
+    )
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            cognito_domain="example.com",
+            app_client_id="client-id",
+            region="us-west-2",
+            user_pool_id="pool-id",
+        ),
+        auth=auth_client,
+        oauth=oauth,
+        jwks=SimpleNamespace(),
+    )
+    binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    binding._verify_id_token = lambda token: (_ for _ in ()).throw(ValueError("jwt failed"))
+    binding._decode_id_token_unverified = lambda token: {
+        "email": "fallback@example.com",
+        "name": "Fallback User",
+    } if token == "id-token" else pytest.fail("expected id token fallback decode")
+
+    result = binding.exchange_code(object(), "auth-code")
+
+    assert result["claims"]["sub"] == "access-sub"
+    assert result["profile_claims"]["email"] == "fallback@example.com"
+
+
+def test_exchange_code_continues_when_id_token_cannot_be_decoded():
+    oauth = SimpleNamespace(
+        exchange_authorization_code=lambda **kwargs: {
+            "access_token": "access-token",
+            "id_token": "id-token",
+        }
+    )
+    auth_client = SimpleNamespace(
+        verify_token=lambda token: {"sub": "access-sub", "username": "atlas-user"}
+        if token == "access-token"
+        else pytest.fail("expected access token verification")
+    )
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            cognito_domain="example.com",
+            app_client_id="client-id",
+            region="us-west-2",
+            user_pool_id="pool-id",
+        ),
+        auth=auth_client,
+        oauth=oauth,
+        jwks=SimpleNamespace(),
+    )
+    binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    binding._verify_id_token = lambda token: (_ for _ in ()).throw(ValueError("jwt failed"))
+    binding._decode_id_token_unverified = lambda token: (_ for _ in ()).throw(
+        ValueError("payload failed")
+    )
+
+    result = binding.exchange_code(object(), "auth-code")
+
+    assert result["claims"]["sub"] == "access-sub"
+    assert result["profile_claims"] == {}
+
+
 def test_build_user_identity_normalizes_cognito_groups_to_roles():
     settings = SimpleNamespace(
         cognito_group_role_map={
@@ -119,4 +192,3 @@ def test_build_user_identity_normalizes_cognito_groups_to_roles():
 
     assert identity["cognito_groups"] == ["zebra-day-admin"]
     assert identity["roles"] == ["ADMIN", "OPERATOR"]
-    assert identity["claims"]["roles"] == ["ADMIN", "OPERATOR"]
