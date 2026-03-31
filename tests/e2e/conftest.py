@@ -5,13 +5,21 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-from playwright.sync_api import Browser
 
 from tests.e2e.cognito_test_users import ensure_admin_user, ensure_standard_user
 
-PLAYWRIGHT_AVAILABLE = importlib.util.find_spec("pytest_playwright.pytest_playwright") is not None
+if TYPE_CHECKING:
+    from playwright.sync_api import Browser
+
+try:
+    PLAYWRIGHT_AVAILABLE = (
+        importlib.util.find_spec("pytest_playwright.pytest_playwright") is not None
+    )
+except ModuleNotFoundError:
+    PLAYWRIGHT_AVAILABLE = False
 
 
 def _require_live_e2e_env() -> None:
@@ -22,9 +30,7 @@ def _require_live_e2e_env() -> None:
     ]
     if missing:
         pytest.skip(
-            "Live zebra_day E2E tests require "
-            + ", ".join(missing)
-            + " to be set",
+            "Live zebra_day E2E tests require " + ", ".join(missing) + " to be set",
             allow_module_level=False,
         )
 

@@ -1,132 +1,147 @@
-"""Cognito authentication management commands for zebra_day CLI.
-
-This module delegates to daylily-cognito if available, otherwise provides
-basic status, bind/import, and validation commands.
-"""
+"""Cognito/daycog integration commands for zebra_day."""
 
 from __future__ import annotations
 
-import os
-from typing import TYPE_CHECKING
+import subprocess
+from typing import TYPE_CHECKING, Any
 
 import typer
 from cli_core_yo import output
-from rich.console import Console
-from rich.table import Table
+from cli_core_yo.runtime import get_context
+
+from zebra_day.settings import ZebraDaySettings
+from zebra_day.web.auth import load_daycog_contract
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
     from cli_core_yo.spec import CliSpec
 
-console = Console()  # retained for Rich Table rendering
+cognito_app = typer.Typer(help="daycog-backed Cognito contract commands")
 
 
-def _is_cognito_available() -> bool:
-    """Check if daylily-cognito is installed."""
-    try:
-        from daylily_cognito.cli import cognito_app as _  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
+def _runtime_callback_url(settings: ZebraDaySettings) -> str:
+    return f"https://localhost:{settings.port}{settings.callback_path}"
 
 
-def _get_cognito_app() -> typer.Typer:
-    """Get the Cognito CLI app, either from daylily-cognito or a fallback."""
-    if _is_cognito_available():
-        # Import and return the full cognito CLI from daylily-cognito
-        from daylily_cognito.cli import cognito_app
-
-        return cognito_app  # type: ignore[no-any-return]
-    else:
-        # Return a minimal fallback app
-        return _create_fallback_app()
+def _runtime_logout_url(settings: ZebraDaySettings) -> str:
+    return f"https://localhost:{settings.port}/"
 
 
-def _create_fallback_app() -> typer.Typer:
-    """Create a fallback cognito app with basic commands."""
-    app = typer.Typer(
-        help="Cognito authentication management (limited - daylily-cognito not installed)"
+def _run_daycog(args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["daycog", *args],
+        capture_output=True,
+        text=True,
     )
 
-    @app.command("status")
-    def status():
-        """Show current Cognito authentication configuration."""
-        table = Table(title="Cognito Configuration")
-        table.add_column("Variable", style="cyan")
-        table.add_column("Value")
-        table.add_column("Status")
 
-        pool_id = os.environ.get("COGNITO_USER_POOL_ID")
-        client_id = os.environ.get("COGNITO_APP_CLIENT_ID")
-        region = os.environ.get("COGNITO_REGION", os.environ.get("AWS_DEFAULT_REGION"))
+def _status_payload(settings: ZebraDaySettings) -> dict[str, Any]:
+    contract = load_daycog_contract()
+    return {
+        "mode": settings.auth_mode,
+        "deployment_code": settings.deployment_code,
+        "expected_client_name": "zebra-day",
+        "expected_callback_url": _runtime_callback_url(settings),
+        "expected_logout_url": _runtime_logout_url(settings),
+        "region": contract.get("region", ""),
+        "user_pool_id": contract.get("user_pool_id", ""),
+        "app_client_id": contract.get("app_client_id", ""),
+        "domain": contract.get("cognito_domain", ""),
+        "app_client_name": contract.get("client_name", ""),
+        "redirect_uri": contract.get("callback_url", ""),
+        "logout_url": contract.get("logout_url", ""),
+    }
 
-        if pool_id:
-            # Truncate for display
-            display = pool_id[:15] + "..." if len(pool_id) > 15 else pool_id
-            table.add_row("COGNITO_USER_POOL_ID", display, "[green]Set[/green]")
+
+@cognito_app.command("status")
+def status() -> None:
+    settings = ZebraDaySettings.from_context()
+    payload = _status_payload(settings)
+    if get_context().json_mode:
+        output.emit_json(payload)
+        return
+    output.heading("Cognito Contract")
+    output.detail(f"Mode: {payload['mode']}")
+    output.detail(f"Expected client name: {payload['expected_client_name']}")
+    output.detail(f"Pool: {payload['user_pool_id']}")
+    output.detail(f"Region: {payload['region']}")
+    output.detail(f"Client ID: {payload['app_client_id']}")
+    output.detail(f"Domain: {payload['domain']}")
+    output.detail(f"Configured redirect URI: {payload['redirect_uri']}")
+    output.detail(f"Configured logout URL: {payload['logout_url']}")
+
+
+@cognito_app.command("bind")
+def bind() -> None:
+    settings = ZebraDaySettings.from_context()
+    payload = {
+        "client_name": "zebra-day",
+        "callback_url": _runtime_callback_url(settings),
+        "logout_url": _runtime_logout_url(settings),
+    }
+    if get_context().json_mode:
+        output.emit_json(payload)
+        return
+    output.heading("zebra_day Cognito Binding")
+    output.detail(f"App client name: {payload['client_name']}")
+    output.detail(f"Callback URL: {payload['callback_url']}")
+    output.detail(f"Logout URL: {payload['logout_url']}")
+    output.detail("Use daycog to create or update the matching app client.")
+
+
+@cognito_app.command("import")
+def import_context() -> None:
+    payload = _status_payload(ZebraDaySettings.from_context())
+    if get_context().json_mode:
+        output.emit_json(payload)
+        return
+    output.success("Loaded Cognito runtime contract from the active daycog context")
+    output.detail(f"Pool: {payload['user_pool_id']}")
+    output.detail(f"Client name: {payload['app_client_name']}")
+
+
+@cognito_app.command("validate")
+def validate() -> None:
+    settings = ZebraDaySettings.from_context()
+    payload = _status_payload(settings)
+    issues: list[str] = []
+    if payload["app_client_name"] and payload["app_client_name"] != "zebra-day":
+        issues.append("Active app client name is not zebra-day")
+    if payload["redirect_uri"] and payload["redirect_uri"] != payload["expected_callback_url"]:
+        issues.append("Configured redirect URI does not match zebra_day runtime callback URL")
+    if payload["logout_url"] and payload["logout_url"] != payload["expected_logout_url"]:
+        issues.append("Configured logout URL does not match zebra_day runtime logout URL")
+    if issues:
+        if get_context().json_mode:
+            output.emit_json({"ok": False, "issues": issues, **payload})
         else:
-            table.add_row("COGNITO_USER_POOL_ID", "-", "[yellow]Not set[/yellow]")
-
-        if client_id:
-            display = client_id[:15] + "..." if len(client_id) > 15 else client_id
-            table.add_row("COGNITO_APP_CLIENT_ID", display, "[green]Set[/green]")
-        else:
-            table.add_row("COGNITO_APP_CLIENT_ID", "-", "[yellow]Not set[/yellow]")
-
-        if region:
-            table.add_row("COGNITO_REGION", region, "[green]Set[/green]")
-        else:
-            table.add_row("COGNITO_REGION", "-", "[yellow]Not set[/yellow]")
-
-        console.print(table)
-
-        # Summary
-        if pool_id and client_id:
-            output.success("Cognito is configured")
-            output.detail("Start server with: zday gui start --auth cognito")
-        else:
-            output.warning("Cognito is not fully configured")
-            output.detail(
-                "Set environment variables or install daylily-cognito for full management"
-            )
-
-    @app.command("bind")
-    def bind():
-        """Describe the expected daycog binding for zebra_day."""
-        output.heading("zebra_day Cognito Binding")
-        output.detail("App client name: zebra-day")
-        output.detail("Callback URL: https://localhost:8118/auth/callback")
-        output.detail("Logout URL: https://localhost:8118/")
-        output.detail("Primary workflow: daycog setup / daycog config print --json")
-
-    @app.command("import")
-    def import_config():
-        """Describe how zebra_day imports the active daycog context."""
-        output.detail("zebra_day reads the active ~/.config/daycog/config.yaml context at runtime.")
-        output.detail("Use daycog status to confirm the active context before starting the GUI.")
-
-    @app.command("validate")
-    def validate():
-        """Validate that the active daycog context exposes the required values."""
-        missing = []
-        for var in ("COGNITO_USER_POOL_ID", "COGNITO_APP_CLIENT_ID", "COGNITO_DOMAIN"):
-            if not os.environ.get(var):
-                missing.append(var)
-        if missing:
-            output.error("Active auth context is incomplete")
-            for var in missing:
-                output.bullet(var)
-            raise typer.Exit(1)
-        output.success("Active auth context looks complete")
-
-    return app
+            output.error("Cognito contract validation failed")
+            for issue in issues:
+                output.bullet(issue)
+        raise typer.Exit(1)
+    if get_context().json_mode:
+        output.emit_json({"ok": True, **payload})
+        return
+    output.success("Cognito contract validation passed")
 
 
-# Export the cognito app - either the full version from daylily-cognito or the fallback
-cognito_app = _get_cognito_app()
+@cognito_app.command(
+    "daycog",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def daycog_passthrough(ctx: typer.Context) -> None:
+    if not ctx.args:
+        output.error("Missing daycog arguments")
+        raise typer.Exit(1)
+    result = _run_daycog(list(ctx.args))
+    if result.stdout:
+        output.print_text(result.stdout.rstrip())
+    if result.returncode != 0:
+        if result.stderr:
+            output.error(result.stderr.strip())
+        raise typer.Exit(result.returncode)
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    """cli-core-yo plugin: register the cognito command group."""
-    registry.add_typer_app(None, cognito_app, "cognito", "Cognito authentication management")
+    del spec
+    registry.add_typer_app(None, cognito_app, "cognito", "Cognito/daycog integration")

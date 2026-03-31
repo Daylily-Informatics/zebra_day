@@ -68,9 +68,11 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
         }
     )
     auth_client = SimpleNamespace(
-        verify_token=lambda token: {"sub": "access-sub", "username": "atlas-user"}
-        if token == "access-token"
-        else pytest.fail("expected access token verification")
+        verify_token=lambda token: (
+            {"sub": "access-sub", "username": "atlas-user"}
+            if token == "access-token"
+            else pytest.fail("expected access token verification")
+        )
     )
     jwks = SimpleNamespace()
     binding = auth.CognitoBinding(
@@ -86,12 +88,16 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
         jwks=jwks,
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
-    binding._verify_id_token = lambda token: {
-        "sub": "profile-sub",
-        "email": "user@example.com",
-        "name": "Atlas User",
-        "aud": "client-id",
-    } if token == "id-token" else pytest.fail("expected id token verification")
+    binding._verify_id_token = lambda token: (
+        {
+            "sub": "profile-sub",
+            "email": "user@example.com",
+            "name": "Atlas User",
+            "aud": "client-id",
+        }
+        if token == "id-token"
+        else pytest.fail("expected id token verification")
+    )
 
     result = binding.exchange_code(object(), "auth-code")
 
@@ -107,9 +113,11 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
         }
     )
     auth_client = SimpleNamespace(
-        verify_token=lambda token: {"sub": "access-sub", "username": "atlas-user"}
-        if token == "access-token"
-        else pytest.fail("expected access token verification")
+        verify_token=lambda token: (
+            {"sub": "access-sub", "username": "atlas-user"}
+            if token == "access-token"
+            else pytest.fail("expected access token verification")
+        )
     )
     binding = auth.CognitoBinding(
         settings=SimpleNamespace(),
@@ -125,10 +133,14 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
     binding._verify_id_token = lambda token: (_ for _ in ()).throw(ValueError("jwt failed"))
-    binding._decode_id_token_unverified = lambda token: {
-        "email": "fallback@example.com",
-        "name": "Fallback User",
-    } if token == "id-token" else pytest.fail("expected id token fallback decode")
+    binding._decode_id_token_unverified = lambda token: (
+        {
+            "email": "fallback@example.com",
+            "name": "Fallback User",
+        }
+        if token == "id-token"
+        else pytest.fail("expected id token fallback decode")
+    )
 
     result = binding.exchange_code(object(), "auth-code")
 
@@ -144,9 +156,11 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
         }
     )
     auth_client = SimpleNamespace(
-        verify_token=lambda token: {"sub": "access-sub", "username": "atlas-user"}
-        if token == "access-token"
-        else pytest.fail("expected access token verification")
+        verify_token=lambda token: (
+            {"sub": "access-sub", "username": "atlas-user"}
+            if token == "access-token"
+            else pytest.fail("expected access token verification")
+        )
     )
     binding = auth.CognitoBinding(
         settings=SimpleNamespace(),

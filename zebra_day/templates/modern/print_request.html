@@ -5,22 +5,21 @@
 {% block content %}
 <div class="page-header">
     <h1 class="page-title">Print Label</h1>
-    <p class="page-subtitle">Send a label print request to a Zebra printer</p>
+    <p class="page-subtitle">Resolve shared printer defaults from zebra_day, then preview or print.</p>
 </div>
 
-<form id="print-form" action="/_print_label" method="get">
+<form id="print-form">
     <div class="grid grid-2">
-        <!-- Printer Selection -->
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">1. Select Printer</h3>
+                <h3 class="card-title">Printer</h3>
             </div>
             <div class="form-group">
                 <label class="form-label required">Lab</label>
-                <select id="lab-select" name="lab" class="form-control" onchange="updatePrinters()" required>
+                <select id="lab-select" name="lab" class="form-control" required>
                     <option value="">Select a lab...</option>
-                    {% for lab in labs %}
-					<option value="{{ lab }}" {% if selected_lab == lab %}selected{% endif %}>{{ labs_meta.get(lab, {}).get("lab_display_name", lab) }}</option>
+                    {% for lab_name in labs %}
+                    <option value="{{ lab_name }}" {% if selected_lab == lab_name %}selected{% endif %}>{{ lab_name.replace('-', ' ').title() }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -31,85 +30,64 @@
                 </select>
             </div>
             <div class="form-group mb-0">
-                <label class="form-label required">Label Template</label>
-                <select name="label_zpl_style" class="form-control" required>
-                    <option value="">Select a template...</option>
-                    {% if user_templates %}
-                    <optgroup label="User Templates">
-                        {% for template in user_templates %}
-                        <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
-                        {% endfor %}
-                    </optgroup>
-                    {% endif %}
-                    {% if package_templates %}
-                    <optgroup label="Package Templates">
-                        {% for template in package_templates %}
-                        <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
-                        {% endfor %}
-                    </optgroup>
-                    {% endif %}
-                    {% if dynamodb_templates %}
-                    <optgroup label="DynamoDB Templates">
-                        {% for template in dynamodb_templates %}
-                        <option value="{{ template }}" {% if selected_template == template %}selected{% endif %}>{{ template }}</option>
-                        {% endfor %}
-                    </optgroup>
-                    {% endif %}
+                <label class="form-label">Template or Profile</label>
+                <select id="template-select" name="label_zpl_style" class="form-control">
+                    <option value="">Use printer default</option>
+                    {% for template_name in template_names %}
+                    <option value="{{ template_name }}" {% if selected_template == template_name %}selected{% endif %}>{{ template_name }}</option>
+                    {% endfor %}
                 </select>
             </div>
         </div>
 
-        <!-- Label Data -->
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">2. Label Data</h3>
+                <h3 class="card-title">Payload</h3>
             </div>
             <div class="form-group">
                 <label class="form-label">UID Barcode</label>
-                <input type="text" name="uid_barcode" class="form-control" placeholder="Enter barcode value">
+                <input type="text" name="uid_barcode" class="form-control" placeholder="UID barcode">
             </div>
             <div class="grid grid-2" style="gap: var(--spacing-md);">
                 <div class="form-group">
                     <label class="form-label">Alt A</label>
-                    <input type="text" name="alt_a" class="form-control" placeholder="Field A">
+                    <input type="text" name="alt_a" class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Alt B</label>
-                    <input type="text" name="alt_b" class="form-control" placeholder="Field B">
+                    <input type="text" name="alt_b" class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Alt C</label>
-                    <input type="text" name="alt_c" class="form-control" placeholder="Field C">
+                    <input type="text" name="alt_c" class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Alt D</label>
-                    <input type="text" name="alt_d" class="form-control" placeholder="Field D">
+                    <input type="text" name="alt_d" class="form-control">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Alt E</label>
-                    <input type="text" name="alt_e" class="form-control" placeholder="Field E">
+                    <input type="text" name="alt_e" class="form-control">
                 </div>
-                <div class="form-group mb-0">
+                <div class="form-group">
                     <label class="form-label">Alt F</label>
-                    <input type="text" name="alt_f" class="form-control" placeholder="Field F">
+                    <input type="text" name="alt_f" class="form-control">
                 </div>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Copies</label>
+                <input type="number" name="copies" class="form-control" value="1" min="1" max="100">
             </div>
         </div>
     </div>
 
-    <!-- Submit -->
     <div class="card mt-lg">
         <div class="d-flex" style="justify-content: space-between; align-items: center;">
-            <a href="/" class="btn btn-outline">
-                <i class="fas fa-arrow-left"></i> Cancel
-            </a>
+            <a href="/" class="btn btn-outline">Cancel</a>
             <div class="d-flex" style="gap: var(--spacing-md);">
-                <button type="button" class="btn btn-secondary btn-lg" onclick="downloadPNG()">
-                    <i class="fas fa-download"></i> Download PNG
-                </button>
-                <button type="submit" class="btn btn-primary btn-lg" onclick="showLoading('Sending print request...')">
-                    <i class="fas fa-print"></i> Print Label
-                </button>
+                <button type="button" class="btn btn-outline" id="resolve-btn">Resolve</button>
+                <button type="button" class="btn btn-secondary" id="preview-btn">Download PNG</button>
+                <button type="submit" class="btn btn-primary">Print</button>
             </div>
         </div>
     </div>
@@ -118,93 +96,129 @@
 
 {% block extra_scripts %}
 <script>
-    var labsDict = {{ labs_dict | safe }};
-    var selectedPrinter = '{{ selected_printer | default("") }}';
+const labsDict = {{ labs_dict | safe }};
+const selectedPrinter = {{ selected_printer | tojson }};
 
-    function updatePrinters() {
-        var labSelect = document.getElementById('lab-select');
-        var printerSelect = document.getElementById('printer-select');
-        var lab = labSelect.value;
-
-        printerSelect.innerHTML = '<option value="">Select a printer...</option>';
-
-        if (lab && labsDict[lab] && labsDict[lab].printers) {
-            // v2 schema: printers are nested under 'printers' key
-            var printers = labsDict[lab].printers;
-            for (var printerId in printers) {
-                var printerInfo = printers[printerId];
-                var option = document.createElement('option');
-                option.value = printerId;
-                // Display friendly name if available, otherwise use ID
-                option.text = printerInfo.printer_name || printerId;
-                if (printerId === selectedPrinter) {
-                    option.selected = true;
-                }
-                printerSelect.appendChild(option);
-            }
+function populatePrinters() {
+    const lab = document.getElementById('lab-select').value;
+    const printerSelect = document.getElementById('printer-select');
+    printerSelect.innerHTML = '<option value="">Select a printer...</option>';
+    const printers = labsDict?.[lab]?.printers || {};
+    Object.keys(printers).sort().forEach((printerId) => {
+        const printer = printers[printerId];
+        const option = document.createElement('option');
+        option.value = printerId;
+        option.textContent = printer.printer_name || printerId;
+        if (printerId === selectedPrinter) {
+            option.selected = true;
         }
-    }
-
-    // Initialize printers if lab is pre-selected
-    document.addEventListener('DOMContentLoaded', function() {
-        var labSelect = document.getElementById('lab-select');
-        if (labSelect.value) {
-            updatePrinters();
-        }
+        printerSelect.appendChild(option);
     });
+}
 
-    async function downloadPNG() {
-        var form = document.getElementById('print-form');
-        var template = form.querySelector('select[name="label_zpl_style"]').value;
+function formPayload() {
+    const form = document.getElementById('print-form');
+    const formData = new FormData(form);
+    return {
+        lab: formData.get('lab'),
+        printer: formData.get('printer'),
+        label_zpl_style: formData.get('label_zpl_style') || null,
+        uid_barcode: formData.get('uid_barcode') || '',
+        alt_a: formData.get('alt_a') || '',
+        alt_b: formData.get('alt_b') || '',
+        alt_c: formData.get('alt_c') || '',
+        alt_d: formData.get('alt_d') || '',
+        alt_e: formData.get('alt_e') || '',
+        alt_f: formData.get('alt_f') || '',
+        copies: Number(formData.get('copies') || '1'),
+    };
+}
 
-        if (!template) {
-            showToast('error', 'Error', 'Please select a label template');
+async function resolvePrint() {
+    showLoading('Resolving print request...');
+    try {
+        const response = await fetch('/api/v1/print/resolve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formPayload()),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Resolve failed', payload.detail || 'Unknown error');
             return;
         }
-
-        showLoading('Rendering PNG...');
-
-        try {
-            var response = await fetch('/api/v1/render/png', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    template: template,
-                    uid_barcode: form.querySelector('input[name="uid_barcode"]').value || '',
-                    alt_a: form.querySelector('input[name="alt_a"]').value || '',
-                    alt_b: form.querySelector('input[name="alt_b"]').value || '',
-                    alt_c: form.querySelector('input[name="alt_c"]').value || '',
-                    alt_d: form.querySelector('input[name="alt_d"]').value || '',
-                    alt_e: form.querySelector('input[name="alt_e"]').value || '',
-                    alt_f: form.querySelector('input[name="alt_f"]').value || ''
-                })
-            });
-
-            hideLoading();
-
-            if (!response.ok) {
-                var error = await response.json();
-                showToast('error', 'Render Failed', error.detail || 'Unknown error');
-                return;
-            }
-
-            // Download the PNG file
-            var blob = await response.blob();
-            var url = window.URL.createObjectURL(blob);
-            var a = document.createElement('a');
-            a.href = url;
-            a.download = template + '_label.png';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
-
-            showToast('success', 'Success', 'PNG downloaded');
-        } catch (e) {
-            hideLoading();
-            showToast('error', 'Error', 'Failed to render PNG: ' + e.message);
-        }
+        showToast('success', 'Resolved', `${payload.printer.printer_name || payload.printer_id} -> ${payload.template_name || payload.label_style || 'printer default'}`);
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Resolve failed', error.message || 'Unknown error');
     }
+}
+
+async function downloadPreview() {
+    showLoading('Rendering PNG...');
+    try {
+        const payload = formPayload();
+        const response = await fetch('/api/v1/render/png', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                template: payload.label_zpl_style,
+                uid_barcode: payload.uid_barcode,
+                alt_a: payload.alt_a,
+                alt_b: payload.alt_b,
+                alt_c: payload.alt_c,
+                alt_d: payload.alt_d,
+                alt_e: payload.alt_e,
+                alt_f: payload.alt_f,
+            }),
+        });
+        hideLoading();
+        if (!response.ok) {
+            const errorPayload = await response.json();
+            showToast('error', 'Preview failed', errorPayload.detail || 'Unknown error');
+            return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${payload.label_zpl_style || 'label'}_preview.png`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        anchor.remove();
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Preview failed', error.message || 'Unknown error');
+    }
+}
+
+document.getElementById('lab-select')?.addEventListener('change', populatePrinters);
+document.getElementById('resolve-btn')?.addEventListener('click', resolvePrint);
+document.getElementById('preview-btn')?.addEventListener('click', downloadPreview);
+document.getElementById('print-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    showLoading('Submitting print job...');
+    try {
+        const response = await fetch('/api/v1/print', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formPayload()),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Print failed', payload.detail || 'Unknown error');
+            return;
+        }
+        showToast('success', 'Print submitted', payload.message || 'Print request sent.');
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Print failed', error.message || 'Unknown error');
+    }
+});
+
+document.addEventListener('DOMContentLoaded', populatePrinters);
 </script>
 {% endblock %}
-

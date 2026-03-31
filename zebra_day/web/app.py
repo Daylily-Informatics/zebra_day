@@ -9,7 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -21,9 +21,9 @@ from zebra_day.client import ZebraDayClient
 from zebra_day.logging_config import get_logger
 from zebra_day.observability import ZebraDayObservability
 from zebra_day.settings import ZebraDaySettings
-from zebra_day.web.auth import build_user_identity
 from zebra_day.web.auth import (
     CognitoAuthMiddleware,
+    build_user_identity,
     setup_cognito_auth,
     setup_session_auth,
 )
@@ -86,19 +86,22 @@ def create_app(
     resolved_settings = settings or ZebraDaySettings.from_context()
     if auth is not None:
         resolved_settings = ZebraDaySettings.from_context(resolved_settings.deployment_code)
-        object.__setattr__(resolved_settings, "auth_mode", auth)  # type: ignore[misc]
+        object.__setattr__(resolved_settings, "auth_mode", auth)
 
     @asynccontextmanager
     async def _lifespan(app: FastAPI):
         if not hasattr(app.state, "zebra_day") or app.state.zebra_day is None:
             app.state.zebra_day = client or ZebraDayClient(resolved_settings)
-        app.state.zp = app.state.zebra_day._legacy_engine()
-        _log.info("zebra_day web server starting at %s:%s", app.state.local_ip, resolved_settings.port)
+        _log.info(
+            "zebra_day web server starting at %s:%s",
+            app.state.local_ip,
+            resolved_settings.port,
+        )
         yield
 
     app = FastAPI(
         title="zebra_day",
-        description="Zebra printer fleet management and label printing",
+        description="TapDB-backed Zebra printer fleet management and label printing",
         version=__version__,
         debug=debug,
         docs_url=None,
@@ -117,6 +120,7 @@ def create_app(
     cognito_binding = None
     if resolved_settings.auth_mode == "cognito":
         cognito_binding = setup_cognito_auth(app, resolved_settings)
+
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CognitoAuthMiddleware,
@@ -127,9 +131,6 @@ def create_app(
     app.state.cognito_auth = cognito_binding
 
     app.mount("/static", StaticFiles(directory=str(_STATIC_PATH)), name="static")
-    pkg_files_dir = _PKG_PATH / "files"
-    pkg_files_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/files", StaticFiles(directory=str(pkg_files_dir)), name="files")
     generated_dir = resolved_settings.cache_dir / "generated"
     generated_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/generated", StaticFiles(directory=str(generated_dir)), name="generated")
@@ -151,7 +152,9 @@ def create_app(
 
     @app.get("/readyz")
     async def readyz():
-        return {"status": "ready" if getattr(app.state, "zebra_day", None) is not None else "not_ready"}
+        return {
+            "status": "ready" if getattr(app.state, "zebra_day", None) is not None else "not_ready"
+        }
 
     @app.get("/health")
     async def health(request: Request):
@@ -268,18 +271,22 @@ def create_app(
                 "auth": {
                     "mode": resolved_settings.auth_mode,
                     "cognito_configured": binding is not None,
-                    "cognito_domain": str(getattr(getattr(binding, "config", None), "cognito_domain", "") or ""),
-                    "user_pool_id": str(getattr(getattr(binding, "config", None), "user_pool_id", "") or ""),
+                    "cognito_domain": str(
+                        getattr(getattr(binding, "config", None), "cognito_domain", "") or ""
+                    ),
+                    "user_pool_id": str(
+                        getattr(getattr(binding, "config", None), "user_pool_id", "") or ""
+                    ),
                     "app_client_id_present": bool(
                         getattr(getattr(binding, "config", None), "app_client_id", "")
                     ),
-                    "recent": [],
-                    "status_counts": {},
                     "sessions": {
                         "supported": True,
                         "active_session_count": 1 if request.session.get("user_data") else 0,
                         "recent_user_count": 1 if request.session.get("user_data") else 0,
-                        "observed_at": app.state.observability.base_frame(request, status="ok")["observed_at"],
+                        "observed_at": app.state.observability.base_frame(request, status="ok")[
+                            "observed_at"
+                        ],
                     },
                 }
             },
@@ -298,12 +305,13 @@ def create_app(
         expected = str(request.session.get("oauth_state") or "")
         if expected and state and expected != state:
             return RedirectResponse(url="/auth/error?reason=state_mismatch", status_code=302)
-        binding = app.state.cognito_auth
         try:
-            result = binding.exchange_code(request, code)
-        except (HTTPException, ValueError) as exc:
+            result = app.state.cognito_auth.exchange_code(request, code)
+        except ValueError as exc:
             _log.warning("Cognito callback failed: %s", exc)
-            return RedirectResponse(url="/auth/error?reason=token_validation_failed", status_code=302)
+            return RedirectResponse(
+                url="/auth/error?reason=token_validation_failed", status_code=302
+            )
         claims = dict(result.get("claims") or {})
         profile_claims = dict(result.get("profile_claims") or {})
         merged_claims = dict(claims)
@@ -311,18 +319,26 @@ def create_app(
             if value not in ("", None, []):
                 merged_claims[key] = value
         request.session["user_data"] = build_user_identity(merged_claims, resolved_settings)
-        return RedirectResponse(url=str(request.session.pop("post_login_redirect", "/")), status_code=302)
+        return RedirectResponse(
+            url=str(request.session.pop("post_login_redirect", "/")), status_code=302
+        )
 
     @app.get("/auth/logout", name="auth_logout")
     async def auth_logout(request: Request):
         request.session.clear()
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url="/", status_code=302)
-        return RedirectResponse(url=app.state.cognito_auth.build_logout_url(request), status_code=302)
+        return RedirectResponse(
+            url=app.state.cognito_auth.build_logout_url(request), status_code=302
+        )
 
     @app.get("/auth/error", response_class=HTMLResponse)
     async def auth_error(request: Request, reason: str = "auth_failed"):
-        title, message, status_code = _AUTH_ERROR_REASONS.get(reason, _AUTH_ERROR_REASONS["auth_failed"])
+        from zebra_day.web.routers import ui
+
+        title, message, status_code = _AUTH_ERROR_REASONS.get(
+            reason, _AUTH_ERROR_REASONS["auth_failed"]
+        )
         context = ui.get_modern_context(
             request,
             active_page="",
@@ -347,7 +363,9 @@ def create_app(
         )
         if resolved_settings.auth_mode == "cognito":
             schema["paths"] = {
-                path: value for path, value in schema.get("paths", {}).items() if path not in _STRUCTURED_PATHS
+                path: value
+                for path, value in schema.get("paths", {}).items()
+                if path not in _STRUCTURED_PATHS
             }
         return schema
 

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
-from playwright.sync_api import Page, expect
+try:
+    from playwright.sync_api import expect
+except ModuleNotFoundError:
+    expect = None
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page
 
 
 def perform_login(page: Page, *, base_url: str, email: str, password: str) -> None:
     page.goto(f"{base_url}/auth/login", wait_until="domcontentloaded")
-    user_input = page.locator(
-        "input[name='username']:visible, input[type='email']:visible"
-    ).first
+    user_input = page.locator("input[name='username']:visible, input[type='email']:visible").first
     pass_input = page.locator(
         "input[name='password']:visible, input[type='password']:visible"
     ).first
@@ -54,9 +59,7 @@ def assert_auth_error_page(page: Page, *, base_url: str, reason: str, title: str
 
 
 def expect_cognito_login_page(page: Page) -> None:
-    user_input = page.locator(
-        "input[name='username']:visible, input[type='email']:visible"
-    ).first
+    user_input = page.locator("input[name='username']:visible, input[type='email']:visible").first
     expect(user_input).to_be_visible(timeout=30000)
 
 

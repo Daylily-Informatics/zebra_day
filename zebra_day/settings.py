@@ -133,9 +133,9 @@ class ZebraDaySettings:
     default_http_port: int | None
 
     @classmethod
-    def from_context(cls, deployment: str | None = None) -> "ZebraDaySettings":
+    def from_context(cls, deployment: str | None = None) -> ZebraDaySettings:
         deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
-        config_path = xdg.get_config_file_path()
+        config_path = Path(os.environ.get("ZEBRA_DAY_CONFIG_PATH") or xdg.get_config_file_path())
         merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
         file_payload = _load_yaml(config_path)
 
@@ -161,14 +161,7 @@ class ZebraDaySettings:
         env_name = str(os.environ.get("TAPDB_ENV") or tapdb.get("env") or "dev").strip() or "dev"
         tapdb_config_path = Path(
             os.environ.get("TAPDB_CONFIG_PATH")
-            or (
-                Path.home()
-                / ".config"
-                / "tapdb"
-                / client_id
-                / database_name
-                / "tapdb-config.yaml"
-            )
+            or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
         )
 
         return cls(

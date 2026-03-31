@@ -56,7 +56,6 @@ dev = [
     "pytest-playwright>=0.4.4",
     "ipython>=8.16.0",
     "playwright>=1.40.0",
-    "moto[dynamodb,s3]>=5.0.0",
 ]
 lint = [
     "ruff>=0.1.0",
@@ -85,11 +84,7 @@ Repository = "https://github.com/Daylily-Informatics/zebra_day.git"
 Issues = "https://github.com/Daylily-Informatics/zebra_day/issues"
 
 [project.scripts]
-# Primary CLI entry point
 zday = "zebra_day.cli:main"
-# Deprecated aliases (kept for backward compatibility)
-zday_quickstart = "zebra_day.print_mgr:main"
-zday_start = "zebra_day.print_mgr:zday_start"
 
 [tool.setuptools.packages.find]
 where = ["."]

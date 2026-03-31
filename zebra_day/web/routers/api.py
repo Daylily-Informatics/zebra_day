@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -13,6 +12,40 @@ from zebra_day import paths as xdg
 from zebra_day.client import PrinterRecord
 
 router = APIRouter()
+
+
+class PrinterInfo(BaseModel):
+    printer_id: str
+    lab: str
+    ip_address: str
+    printer_name: str = ""
+    lab_location: str = ""
+    manufacturer: str = "zebra"
+    model: str = ""
+    serial: str = ""
+    label_profiles: list[str] = Field(default_factory=list)
+    default_label_profile: str = ""
+    print_method: str = "socket"
+    notes: str = ""
+    lsmc_euid: str = ""
+    state: str = "Unknown"
+    status: str = "active"
+    discovery_source: str = ""
+    euid: str = ""
+
+
+class TemplateInfo(BaseModel):
+    template_name: str
+    zpl_content: str
+    source: str = "user"
+    euid: str = ""
+
+
+class LabelProfileInfo(BaseModel):
+    profile_name: str
+    template_name: str = ""
+    managed_by: str = ""
+    euid: str = ""
 
 
 class PrintRequest(BaseModel):
@@ -33,34 +66,18 @@ class PrintRequest(BaseModel):
 class PrintResponse(BaseModel):
     success: bool
     message: str
-    png_url: str | None = None
+    zpl_content: str = ""
 
 
-class PrinterInfo(BaseModel):
-    id: str
-    ip_address: str
-    printer_name: str | None = None
-    lab_location: str | None = None
-    manufacturer: str = "zebra"
-    model: str = ""
-    serial: str = ""
-    label_zpl_styles: list[str] = Field(default_factory=list)
-    default_label_style: str | None = None
-    print_method: str = "socket"
-    notes: str | None = ""
-    lsmc_euid: str = ""
-    state: str = "Unknown"
-    euid: str = ""
-
-
-class LabInfo(BaseModel):
-    id: str
-    lab_name: str
-    lab_display_name: str
-    lab_description: str
-    network_stub: str
-    available_locations: list[str]
-    printers: list[PrinterInfo]
+class ResolvePrintResponse(BaseModel):
+    lab: str
+    printer_id: str
+    printer_ip: str
+    printer: PrinterInfo
+    template_name: str = ""
+    label_style: str = ""
+    zpl_content: str
+    copies: int
 
 
 class RenderRequest(BaseModel):
@@ -78,7 +95,13 @@ class RenderRequest(BaseModel):
 class RenderResponse(BaseModel):
     success: bool
     message: str
+    zpl_content: str
     png_url: str
+
+
+class DiscoverRequest(BaseModel):
+    ip_stub: str
+    scan_http_port: int | None = None
 
 
 class TemplateSaveRequest(BaseModel):
@@ -86,56 +109,17 @@ class TemplateSaveRequest(BaseModel):
     zpl_content: str
 
 
-class TemplateSaveResponse(BaseModel):
-    success: bool
-    path: str
-    filename: str
-
-
 def _client(request: Request):
     return request.app.state.zebra_day
 
 
 def _printer_info(record: PrinterRecord) -> PrinterInfo:
-    profiles = list(record.label_profiles or [])
-    return PrinterInfo(
-        id=record.printer_id,
-        ip_address=record.ip_address,
-        printer_name=record.printer_name or None,
-        lab_location=record.lab_location or None,
-        manufacturer=record.manufacturer,
-        model=record.model,
-        serial=record.serial,
-        label_zpl_styles=profiles,
-        default_label_style=record.default_label_profile or (profiles[0] if profiles else None),
-        print_method=record.print_method,
-        notes=record.notes,
-        lsmc_euid=record.lsmc_euid,
-        state=record.state,
-        euid=record.euid,
-    )
+    return PrinterInfo(**record.to_payload())
 
 
 @router.get("/labs", response_model=list[str])
 async def list_labs(request: Request) -> list[str]:
-    return _client(request).list_labs()
-
-
-@router.get("/labs/{lab}", response_model=LabInfo)
-async def get_lab(request: Request, lab: str) -> LabInfo:
-    printers = _client(request).list_printers(lab)
-    if not printers and lab not in _client(request).list_labs():
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-    title = lab.replace("-", " ").title()
-    return LabInfo(
-        id=lab,
-        lab_name=title,
-        lab_display_name=title,
-        lab_description="",
-        network_stub="",
-        available_locations=[],
-        printers=[_printer_info(item) for item in printers],
-    )
+    return list(_client(request).list_labs())
 
 
 @router.get("/labs/{lab}/printers", response_model=list[PrinterInfo])
@@ -145,72 +129,106 @@ async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
     return [_printer_info(item) for item in _client(request).list_printers(lab)]
 
 
+@router.get("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
+async def get_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
+    printer = _client(request).get_printer(printer_id, lab=lab)
+    if printer is None:
+        raise HTTPException(status_code=404, detail=f"Printer not found: {lab}/{printer_id}")
+    return _printer_info(printer)
+
+
+@router.patch("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
+async def patch_printer(
+    request: Request,
+    lab: str,
+    printer_id: str,
+    payload: dict[str, Any],
+) -> PrinterInfo:
+    try:
+        updated = _client(request).update_printer_metadata(lab, printer_id, **payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _printer_info(updated)
+
+
+@router.post("/labs/{lab}/discover", response_model=list[PrinterInfo])
+async def discover_lab_printers(
+    request: Request,
+    lab: str,
+    payload: DiscoverRequest,
+) -> list[PrinterInfo]:
+    rows = _client(request).discover_printers(
+        ip_stub=payload.ip_stub,
+        lab=lab,
+        scan_http_port=payload.scan_http_port,
+    )
+    return [_printer_info(item) for item in rows]
+
+
+@router.post("/labs/{lab}/printers/{printer_id}/sync", response_model=PrinterInfo)
+async def sync_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
+    try:
+        updated = _client(request).sync_printer_metadata(printer_id, lab)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _printer_info(updated)
+
+
 @router.get("/templates", response_model=list[str])
 async def list_templates(request: Request) -> list[str]:
-    return _client(request).list_templates()
+    return list(_client(request).list_templates())
 
 
-@router.post("/templates", response_model=TemplateSaveResponse)
-async def save_template(request: Request, payload: TemplateSaveRequest) -> TemplateSaveResponse:
+@router.get("/templates/{template_name}", response_model=TemplateInfo)
+async def get_template(request: Request, template_name: str) -> TemplateInfo:
+    template = _client(request).get_template(template_name)
+    if template is None:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_name}")
+    return TemplateInfo(**template)
+
+
+@router.post("/templates", response_model=TemplateInfo)
+async def save_template(request: Request, payload: TemplateSaveRequest) -> TemplateInfo:
     raw_name = payload.filename.strip()
     if not raw_name:
         raise HTTPException(status_code=400, detail="filename is required")
     if "/" in raw_name or "\\" in raw_name:
         raise HTTPException(status_code=400, detail="filename must be a simple filename")
     stem = raw_name[:-4] if raw_name.endswith(".zpl") else raw_name
-    _client(request).repository.upsert_template(stem, payload.zpl_content, source="user")
-    return TemplateSaveResponse(
-        success=True,
-        path=f"tapdb://{stem}",
-        filename=f"{stem}.zpl",
-    )
+    _client(request).save_template(stem, payload.zpl_content, source="user")
+    template = _client(request).get_template(stem)
+    assert template is not None
+    return TemplateInfo(**template)
 
 
 @router.delete("/templates/{template_name}")
 async def delete_template(request: Request, template_name: str) -> dict[str, Any]:
-    existing = _client(request).repository.get_template(template_name)
-    if existing is None:
-        raise HTTPException(status_code=404, detail="Template not found")
-    _client(request).repository.upsert_template(template_name, "", source="deleted")
+    try:
+        _client(request).delete_template(template_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"success": True, "message": "Template deleted"}
 
 
-@router.post("/print", response_model=PrintResponse)
-async def print_label(request: Request, print_req: PrintRequest) -> PrintResponse:
-    rate_limiter = request.app.state.print_rate_limiter
-    client_ip = request.client.host if request.client else "unknown"
-    allowed, reason = await rate_limiter.acquire(client_ip)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=reason)
-    try:
-        _client(request).print_label(
-            lab=print_req.lab,
-            printer=print_req.printer,
-            label_zpl_style=print_req.label_zpl_style,
-            zpl_content=print_req.zpl_content,
-            uid_barcode=print_req.uid_barcode,
-            alt_a=print_req.alt_a,
-            alt_b=print_req.alt_b,
-            alt_c=print_req.alt_c,
-            alt_d=print_req.alt_d,
-            alt_e=print_req.alt_e,
-            alt_f=print_req.alt_f,
-            copies=print_req.copies,
-            client_ip=client_ip,
-        )
-        return PrintResponse(success=True, message="Print request sent successfully")
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    finally:
-        rate_limiter.release()
+@router.get("/label-profiles", response_model=list[LabelProfileInfo])
+async def list_label_profiles(request: Request) -> list[LabelProfileInfo]:
+    return [LabelProfileInfo(**item) for item in _client(request).list_label_profiles()]
+
+
+@router.get("/label-profiles/{profile_name}", response_model=LabelProfileInfo)
+async def get_label_profile(request: Request, profile_name: str) -> LabelProfileInfo:
+    payload = _client(request).get_label_profile(profile_name)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Label profile not found: {profile_name}")
+    return LabelProfileInfo(**payload)
 
 
 @router.post("/render", response_model=RenderResponse)
 async def render_label(request: Request, render_req: RenderRequest) -> RenderResponse:
     if not render_req.template and not render_req.zpl_content:
-        raise HTTPException(status_code=400, detail="Either 'template' or 'zpl_content' must be provided")
+        raise HTTPException(
+            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
+        )
     zpl_string, png_url = _client(request).render_label(
         template=render_req.template,
         zpl_content=render_req.zpl_content,
@@ -222,7 +240,12 @@ async def render_label(request: Request, render_req: RenderRequest) -> RenderRes
         alt_e=render_req.alt_e,
         alt_f=render_req.alt_f,
     )
-    return RenderResponse(success=bool(zpl_string), message="PNG rendered successfully", png_url=png_url)
+    return RenderResponse(
+        success=True,
+        message="PNG rendered successfully",
+        zpl_content=zpl_string,
+        png_url=png_url,
+    )
 
 
 @router.post("/render/png")
@@ -243,6 +266,82 @@ async def render_label_png(request: Request, render_req: RenderRequest):
     return FileResponse(path=str(path), media_type="image/png", filename=filename)
 
 
+@router.post("/print/resolve", response_model=ResolvePrintResponse)
+async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePrintResponse:
+    try:
+        resolved = _client(request).resolve_print_request(
+            lab=print_req.lab,
+            printer=print_req.printer,
+            label_zpl_style=print_req.label_zpl_style,
+            zpl_content=print_req.zpl_content,
+            uid_barcode=print_req.uid_barcode,
+            alt_a=print_req.alt_a,
+            alt_b=print_req.alt_b,
+            alt_c=print_req.alt_c,
+            alt_d=print_req.alt_d,
+            alt_e=print_req.alt_e,
+            alt_f=print_req.alt_f,
+            copies=print_req.copies,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ResolvePrintResponse(
+        lab=str(resolved["lab"]),
+        printer_id=str(resolved["printer_id"]),
+        printer_ip=str(resolved["printer_ip"]),
+        printer=PrinterInfo(**dict(resolved["printer"])),
+        template_name=str(resolved.get("template_name") or ""),
+        label_style=str(resolved.get("label_style") or ""),
+        zpl_content=str(resolved["zpl_content"]),
+        copies=int(resolved["copies"]),
+    )
+
+
+@router.post("/print", response_model=PrintResponse)
+async def print_label(request: Request, print_req: PrintRequest) -> PrintResponse:
+    rate_limiter = request.app.state.print_rate_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, reason = await rate_limiter.acquire(client_ip)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=reason)
+    try:
+        zpl_string = _client(request).submit_print_job(
+            lab=print_req.lab,
+            printer=print_req.printer,
+            label_zpl_style=print_req.label_zpl_style,
+            zpl_content=print_req.zpl_content,
+            uid_barcode=print_req.uid_barcode,
+            alt_a=print_req.alt_a,
+            alt_b=print_req.alt_b,
+            alt_c=print_req.alt_c,
+            alt_d=print_req.alt_d,
+            alt_e=print_req.alt_e,
+            alt_f=print_req.alt_f,
+            copies=print_req.copies,
+            client_ip=client_ip,
+        )
+        return PrintResponse(
+            success=True, message="Print request sent successfully", zpl_content=zpl_string
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        rate_limiter.release()
+
+
 @router.get("/config")
-async def get_config(request: Request) -> dict[str, Any]:
-    return _client(request)._legacy_config()
+async def get_runtime_config(request: Request) -> dict[str, Any]:
+    settings = request.app.state.settings
+    summary = dict(_client(request).runtime_summary())
+    summary.update(
+        {
+            "auth_mode": settings.auth_mode,
+            "internal_api_key_configured": bool(settings.internal_api_key),
+            "config_path": str(settings.config_path),
+        }
+    )
+    return summary

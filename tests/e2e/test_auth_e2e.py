@@ -1,24 +1,38 @@
 from __future__ import annotations
 
+import importlib.util
+from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlparse
 
-import importlib.util
-
 import pytest
-from playwright.sync_api import Page, expect
+
+try:
+    from playwright.sync_api import expect
+except ModuleNotFoundError:
+    expect = None
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page
 
 from tests.e2e.auth_helpers import (
     assert_auth_error_page,
-    assert_authenticated_page,
     expect_cognito_login_page,
     perform_login,
     perform_logout,
 )
 
+
+def _playwright_available() -> bool:
+    try:
+        return importlib.util.find_spec("pytest_playwright.pytest_playwright") is not None
+    except ModuleNotFoundError:
+        return False
+
+
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.skipif(
-        importlib.util.find_spec("pytest_playwright.pytest_playwright") is None,
+        not _playwright_available(),
         reason="pytest-playwright is not installed",
     ),
 ]
@@ -60,31 +74,27 @@ def test_admin_user_login_round_trip(
 def test_standard_user_logout_round_trip(standard_page: Page, base_url: str):
     perform_logout(standard_page, base_url=base_url)
     current_url = standard_page.url
-    assert (
-        current_url.startswith(f"{base_url}/auth/login")
-        or "amazoncognito.com" in current_url
-    ), f"Unexpected logout landing URL: {current_url}"
+    assert current_url.startswith(f"{base_url}/auth/login") or "amazoncognito.com" in current_url, (
+        f"Unexpected logout landing URL: {current_url}"
+    )
     standard_page.goto(f"{base_url}/printers", wait_until="domcontentloaded")
     current_url = standard_page.url
-    assert (
-        current_url.startswith(f"{base_url}/auth/login")
-        or "amazoncognito.com" in current_url
-    ), f"Unexpected protected-route logout URL: {current_url}"
+    assert current_url.startswith(f"{base_url}/auth/login") or "amazoncognito.com" in current_url, (
+        f"Unexpected protected-route logout URL: {current_url}"
+    )
 
 
 def test_admin_user_logout_round_trip(admin_page: Page, base_url: str):
     perform_logout(admin_page, base_url=base_url)
     current_url = admin_page.url
-    assert (
-        current_url.startswith(f"{base_url}/auth/login")
-        or "amazoncognito.com" in current_url
-    ), f"Unexpected logout landing URL: {current_url}"
+    assert current_url.startswith(f"{base_url}/auth/login") or "amazoncognito.com" in current_url, (
+        f"Unexpected logout landing URL: {current_url}"
+    )
     admin_page.goto(f"{base_url}/admin", wait_until="domcontentloaded")
     current_url = admin_page.url
-    assert (
-        current_url.startswith(f"{base_url}/auth/login")
-        or "amazoncognito.com" in current_url
-    ), f"Unexpected protected-route logout URL: {current_url}"
+    assert current_url.startswith(f"{base_url}/auth/login") or "amazoncognito.com" in current_url, (
+        f"Unexpected protected-route logout URL: {current_url}"
+    )
 
 
 def test_token_validation_error_uses_dedicated_error_page(anonymous_page: Page, base_url: str):

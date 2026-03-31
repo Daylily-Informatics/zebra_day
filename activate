@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # zebra_day activation entrypoint.
 #
-# Source this file from the repository root:
-#   source ./activate
+# Source from the repository root:
+#   source ./activate <deploy-name>
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Error: this script must be sourced, not executed."
-    echo "Usage: source ./activate"
+    echo "Usage: source ./activate <deploy-name>"
     exit 1
 fi
 
-_zebra_day_activate_dir() {
+_zday_script_path() {
     if [[ -n "${ZSH_VERSION:-}" ]]; then
         printf '%s\n' "${(%):-%x}"
     elif [[ -n "${BASH_SOURCE[0]:-}" ]]; then
@@ -20,26 +20,179 @@ _zebra_day_activate_dir() {
     fi
 }
 
-_ZEBRA_DAY_ACTIVATE_PATH="$(_zebra_day_activate_dir)"
-ZEBRA_DAY_PROJECT_ROOT="$(cd "$(dirname "${_ZEBRA_DAY_ACTIVATE_PATH}")" && pwd)"
-export ZEBRA_DAY_PROJECT_ROOT
-export _ZEBRA_DAY_ACTIVE=1
+_ZDAY_SCRIPT_PATH="$(_zday_script_path)"
+ZEBRA_DAY_PROJECT_ROOT="$(cd "$(dirname "${_ZDAY_SCRIPT_PATH}")" && pwd)"
+unset -f _zday_script_path
+unset _ZDAY_SCRIPT_PATH
 
-_zebra_day_deployment="${ZEBRA_DAY_DEPLOYMENT_CODE:-${DEPLOYMENT_CODE:-${LSMC_DEPLOYMENT_CODE:-local}}}"
-export ZEBRA_DAY_DEPLOYMENT_CODE="${_zebra_day_deployment}"
+_GREEN='\033[0;32m'
+_YELLOW='\033[1;33m'
+_BLUE='\033[0;34m'
+_CYAN='\033[0;36m'
+_NC='\033[0m'
+_ZDAY_ENV_BASE="ZEBRA_DAY"
+
+_zday_sanitize_deployment_code() {
+    local raw_value="$1"
+    local sanitized=""
+    sanitized="$(printf '%s' "$raw_value" | LC_ALL=C sed -E 's/[^A-Za-z0-9-]+/-/g; s/^-+//; s/-+$//')"
+    if [[ -z "$sanitized" ]]; then
+        sanitized="local"
+    fi
+    printf '%s\n' "$sanitized"
+}
+
+_zday_validate_deploy_name() {
+    local deploy_name="$1"
+    if [[ ! "$deploy_name" =~ ^[A-Za-z0-9-]{2,24}$ ]]; then
+        echo -e "  ${_YELLOW}✗${_NC} deploy-name must match ^[A-Za-z0-9-]{2,24}$"
+        return 1
+    fi
+}
+
+_zday_config_path() {
+    local xdg_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local deployment_code="$1"
+    printf '%s/zebra_day/zebra-day-config-%s.yaml\n' "$xdg_config_home" "$deployment_code"
+}
+
+_zday_tapdb_config_path() {
+    local deployment_code="$1"
+    local client_id="$2"
+    local xdg_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+    printf '%s/tapdb/%s/zebra-day-%s/tapdb-config.yaml\n' "$xdg_config_home" "$client_id" "$deployment_code"
+}
+
+_zday_tapdb_template_path() {
+    local deployment_code="$1"
+    local database_name="$2"
+    local config_dir="${ZEBRA_DAY_PROJECT_ROOT}/config"
+    local primary="${config_dir}/tapdb-config-${database_name}.yaml"
+    if [[ -f "$primary" ]]; then
+        printf '%s\n' "$primary"
+        return 0
+    fi
+    local suffix="-${deployment_code}"
+    if [[ "$database_name" == *"$suffix" ]]; then
+        local base_name="${database_name%"$suffix"}"
+        local fallback="${config_dir}/tapdb-config-${base_name}.yaml"
+        if [[ -f "$fallback" ]]; then
+            printf '%s\n' "$fallback"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+_zday_prepare_tapdb_config_path() {
+    local deployment_code="$1"
+    local client_id="$2"
+    local database_name="$3"
+    local explicit_path="${TAPDB_CONFIG_PATH:-}"
+    local user_path="$(_zday_tapdb_config_path "$deployment_code" "$client_id")"
+
+    if [[ -n "$explicit_path" ]]; then
+        printf '%s\n' "$explicit_path"
+        return 0
+    fi
+    if [[ -f "$user_path" ]]; then
+        chmod 600 "$user_path" 2>/dev/null || true
+        printf '%s\n' "$user_path"
+        return 0
+    fi
+
+    local template_path=""
+    template_path="$(_zday_tapdb_template_path "$deployment_code" "$database_name" 2>/dev/null || true)"
+    if [[ -n "$template_path" && -f "$template_path" ]]; then
+        mkdir -p "$(dirname "${user_path}")" || return 1
+        cp "$template_path" "$user_path" || return 1
+        chmod 600 "$user_path" || return 1
+    fi
+    printf '%s\n' "$user_path"
+}
+
+_zday_install_editable_repo() {
+    local label="$1"
+    local repo_root="$2"
+    if [[ -z "$repo_root" || ! -d "$repo_root" ]]; then
+        return 0
+    fi
+    echo -e "  ${_CYAN}→${_NC} Installing ${label} from ${repo_root}"
+    python -m pip install --no-deps -e "$repo_root" -q || return 1
+}
+
+if [[ "$#" -ne 1 ]]; then
+    echo -e "  ${_YELLOW}✗${_NC} zebra_day activation requires exactly one deploy-name."
+    echo "Usage: source ./activate <deploy-name>"
+    return 1
+fi
+
+_zday_deployment_code="$1"
+if ! _zday_validate_deploy_name "${_zday_deployment_code}"; then
+    return 1
+fi
+_zday_deployment_code="$(_zday_sanitize_deployment_code "${_zday_deployment_code}")"
+export ZEBRA_DAY_DEPLOYMENT_CODE="${_zday_deployment_code}"
+export DEPLOYMENT_CODE="${_zday_deployment_code}"
+export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
+export ZEBRA_DAY_PROJECT_ROOT
+export ZEBRA_DAY_ACTIVE=1
+_ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
 export TAPDB_CLIENT_ID="${TAPDB_CLIENT_ID:-zebra-day}"
-export TAPDB_DATABASE_NAME="${TAPDB_DATABASE_NAME:-zebra-day-${_zebra_day_deployment}}"
+export TAPDB_DATABASE_NAME="${TAPDB_DATABASE_NAME:-zebra-day-${_zday_deployment_code}}"
+export TAPDB_ENV="${TAPDB_ENV:-dev}"
+export TAPDB_CONFIG_PATH="${TAPDB_CONFIG_PATH:-$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${TAPDB_CLIENT_ID}" "${TAPDB_DATABASE_NAME}")}"
+export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
+
+echo -e "${_BLUE}Activating zebra_day environment...${_NC}"
+
+if ! command -v conda >/dev/null 2>&1; then
+    echo -e "  ${_YELLOW}✗${_NC} conda is required for zebra_day activation."
+    return 1
+fi
+
+source "$(conda info --base)/etc/profile.d/conda.sh" 2>/dev/null || true
+
+if conda info --envs | grep -q "${_ZDAY_ENV_NAME}"; then
+    echo -e "  ${_GREEN}✓${_NC} Activating conda environment: ${_ZDAY_ENV_NAME}"
+else
+    echo -e "  ${_CYAN}→${_NC} Creating conda environment: ${_ZDAY_ENV_NAME}"
+    conda create -y -n "${_ZDAY_ENV_NAME}" python=3.12 pip || return 1
+fi
+
+conda activate "${_ZDAY_ENV_NAME}" || return 1
+
+if [[ "${CONDA_DEFAULT_ENV:-}" != "${_ZDAY_ENV_NAME}" ]]; then
+    echo -e "  ${_YELLOW}✗${_NC} Failed to activate ${_ZDAY_ENV_NAME}"
+    return 1
+fi
+
+echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
+python -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[auth]" -q || return 1
 
 if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" ]]; then
-    export PYTHONPATH="${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb:${PYTHONPATH:-}"
+    _zday_install_editable_repo "daylily-tapdb" "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" || return 1
 fi
 
 if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" ]]; then
-    export PYTHONPATH="${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito:${PYTHONPATH:-}"
+    _zday_install_editable_repo "daylily-cognito" "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" || return 1
 fi
 
-. "${ZEBRA_DAY_PROJECT_ROOT}/zday_activate" "$@"
+mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
+mkdir -p "$(dirname "${TAPDB_CONFIG_PATH}")" || return 1
 
-unset -f _zebra_day_activate_dir
-unset _ZEBRA_DAY_ACTIVATE_PATH
-unset _zebra_day_deployment
+hash -r 2>/dev/null || true
+
+echo -e "  ${_GREEN}✓${_NC} Deployment: ${_zday_deployment_code}"
+echo -e "  ${_GREEN}✓${_NC} CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV}"
+echo -e "  ${_GREEN}✓${_NC} Config path: ${ZEBRA_DAY_CONFIG_PATH}"
+echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${TAPDB_CONFIG_PATH}"
+echo -e "  ${_GREEN}✓${_NC} Runtime namespace: ${TAPDB_CLIENT_ID}/${TAPDB_DATABASE_NAME}"
+echo
+echo "  Next:"
+echo "    zday config init"
+echo "    zday config status"
+echo "    zday gui start"
+
+unset _zday_deployment_code
+unset _ZDAY_ENV_NAME

@@ -4,29 +4,22 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">
-        {% if lab %}
-            {{ lab_display_name | default(lab_name | default(lab)) }} Printers
-        {% else %}
-            All Printers
-        {% endif %}
-    </h1>
-    <p class="page-subtitle">View and manage Zebra printers</p>
+    <h1 class="page-title">{% if lab %}{{ lab_display_name | default(lab) }}{% else %}Printer Fleet{% endif %}</h1>
+    <p class="page-subtitle">Curated printers and discovery candidates stored in TapDB.</p>
 </div>
 
-<!-- Labs Navigation -->
 {% if not lab and labs %}
 <div class="card mb-lg">
     <div class="card-header">
-        <h3 class="card-title">Select a Lab</h3>
+        <h3 class="card-title">Labs</h3>
     </div>
     <div class="grid grid-4">
-        {% for lab_name in labs %}
-        <a href="/printers/{{ lab_name }}" class="action-card">
+        {% for item in labs %}
+        <a href="/printers/{{ item }}" class="action-card">
             <i class="fas fa-building"></i>
             <div>
-	                <strong>{{ (labs_meta | default({})).get(lab_name, {}).get("lab_display_name", lab_name) }}</strong>
-                <small class="text-muted d-block">View printers</small>
+                <strong>{{ item.replace('-', ' ').title() }}</strong>
+                <small class="text-muted d-block">{{ item }}</small>
             </div>
         </a>
         {% endfor %}
@@ -34,214 +27,121 @@
 </div>
 {% endif %}
 
-<!-- Lab Details -->
-{% if lab %}
-<div class="card mb-lg">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-building"></i> Lab Details</h3>
-    </div>
-    <div class="card-body">
-        <div class="grid grid-3">
-            <div>
-                <div class="text-muted">Lab Key</div>
-                <div><strong>{{ lab }}</strong></div>
-            </div>
-            <div>
-                <div class="text-muted">Display Name</div>
-                <div><strong>{{ lab_display_name | default(lab_name | default(lab)) }}</strong></div>
-            </div>
-            <div>
-                <div class="text-muted">Network Stub</div>
-                <div><strong>{{ network_stub | default("—") }}</strong></div>
-            </div>
-        </div>
-        {% if lab_description %}
-        <div class="mt-md">
-            <div class="text-muted">Description</div>
-            <div>{{ lab_description }}</div>
-        </div>
-        {% endif %}
-    </div>
-</div>
-{% endif %}
-
-<!-- Printers Table -->
-{% if printers %}
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Printers{% if lab %} in {{ lab_display_name | default(lab_name | default(lab)) }}{% endif %}</h3>
-        <div>
-            {% if live_status %}
-            <a href="/printers/{{ lab }}?live=0" class="btn btn-outline btn-sm" title="Disable live printer queries">
-                <i class="fas fa-heartbeat"></i> Live
-            </a>
-            {% else %}
-            <a href="/printers/{{ lab }}?live=1" class="btn btn-outline btn-sm" title="Enable live printer queries">
-                <i class="fas fa-eye-slash"></i> Static
-            </a>
-            {% endif %}
-            <a href="/printers/{{ lab }}?live=1" class="btn btn-outline btn-sm" title="Refresh live status">
-                <i class="fas fa-sync"></i> Refresh
-            </a>
-            <a href="/config?action=scan&lab={{ lab | default('') }}" class="btn btn-outline btn-sm">
-                <i class="fas fa-search"></i> Rescan Network
-            </a>
-        </div>
+        <h3 class="card-title">{% if lab %}{{ lab }} printers{% else %}All printers{% endif %}</h3>
+        <a href="/print" class="btn btn-outline btn-sm">Print Label</a>
     </div>
-    <div class="table-container" style="box-shadow: none;">
-        <table class="table" style="font-size: 0.85rem;">
+    {% if printers %}
+    <div class="table-container" style="box-shadow:none;">
+        <table class="table">
             <thead>
                 <tr>
-                    <th>ID / Name</th>
-                    <th>Hardware</th>
+                    <th>Printer</th>
                     <th>Network</th>
+                    <th>Hardware</th>
+                    <th>Defaults</th>
                     <th>Status</th>
-                    <th>State</th>
-                    <th>LSMC EUID</th>
-                    <th>Label Styles</th>
-                    <th style="width: 100px;">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for printer in printers %}
                 <tr>
                     <td>
-                        <strong>{{ printer.name }}</strong>
-                        {% if printer.id != printer.name %}
-                        <br><small class="text-muted">ID: {{ printer.id }}</small>
-                        {% endif %}
+                        <strong>{{ printer.printer_name or printer.printer_id }}</strong>
+                        <br><small class="text-muted">{{ printer.lab }}/{{ printer.printer_id }}</small>
+                    </td>
+                    <td>
+                        <code>{{ printer.ip_address }}</code>
                         {% if printer.lab_location %}
-                        <br><span class="badge badge-info" style="font-size: 0.7rem;">{{ printer.lab_location }}</span>
-                        {% endif %}
-                    </td>
-                    <td style="font-size: 0.8rem;">
-                        <span title="Manufacturer">{{ printer.manufacturer | default('zebra') | title }}</span>
-                        <span title="Model">{{ printer.model | default('—') }}</span>
-                        <br><small class="text-muted" title="Serial">SN: {{ printer.serial | default('—') }}</small>
-                        <br><small class="text-muted" title="Print Method">{{ printer.print_method | default('socket') }}</small>
-                    </td>
-                    <td>
-                        {% if printer.ip_address != 'dl_png' %}
-                        <a href="http://{{ printer.ip_address }}" target="_blank" title="Open printer web interface">{{ printer.ip_address }}</a>
-                        {% else %}
-                        <span class="text-muted">{{ printer.ip_address }}</span>
-                        {% endif %}
-                        {% if live_status and printer.firmware %}
-                        <br><small class="text-muted" title="Firmware">FW: {{ printer.firmware }}</small>
-                        {% endif %}
-                        {% if live_status and printer.label_count is not none %}
-                        <br><small class="text-muted" title="Labels printed">{{ printer.label_count }} labels</small>
+                        <br><small class="text-muted">{{ printer.lab_location }}</small>
                         {% endif %}
                     </td>
                     <td>
-                        {# Status = Network reachability only (online/offline) #}
-                        {% if printer.status == 'online' %}
-                        <span class="badge badge-success"><i class="fas fa-wifi"></i> Online</span>
-                        {% elif printer.status == 'offline' %}
-                        <span class="badge badge-error"><i class="fas fa-times-circle"></i> Offline</span>
-                        {% elif printer.status == 'na' %}
-                        <span class="badge badge-info"><i class="fas fa-minus-circle"></i> N/A</span>
-                        {% else %}
-                        <span class="badge"><i class="fas fa-question-circle"></i> Unknown</span>
-                        {% endif %}
+                        {{ printer.manufacturer | title }} {{ printer.model or "" }}
+                        <br><small class="text-muted">SN {{ printer.serial or "unknown" }}</small>
                     </td>
                     <td>
-                        {# State = Operational status (Ready/Paused/Error/Offline/Unknown) #}
-                        {% if printer.state == 'Ready' %}
-                        <span class="badge badge-success"><i class="fas fa-check-circle"></i> Ready</span>
-                        {% elif printer.state == 'Paused' %}
-                        <span class="badge badge-warning"><i class="fas fa-pause-circle"></i> Paused</span>
-                        {% elif printer.state == 'Error' %}
-                        <span class="badge badge-error"><i class="fas fa-exclamation-triangle"></i> Error
-                            {% if printer.paper_out %}(Paper){% endif %}
-                            {% if printer.ribbon_out %}(Ribbon){% endif %}
-                            {% if printer.head_up %}(Head){% endif %}
-                        </span>
-                        {% elif printer.state == 'Offline' %}
-                        <span class="badge" style="background: var(--color-gray-600);"><i class="fas fa-power-off"></i> Offline</span>
-                        {% else %}
-                        <span class="badge"><i class="fas fa-question-circle"></i> Unknown</span>
-                        {% endif %}
+                        <strong>{{ printer.default_label_profile or "none" }}</strong>
+                        <br><small class="text-muted">{{ ", ".join(printer.label_profiles) or "no profiles" }}</small>
                     </td>
                     <td>
-                        {% if printer.lsmc_euid %}
-                        <code style="font-size: 0.8rem;">{{ printer.lsmc_euid }}</code>
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% for style in printer.label_zpl_styles[:2] %}
-                        <span class="badge badge-primary" style="font-size: 0.7rem;">{{ style }}</span>
-                        {% endfor %}
-                        {% if printer.label_zpl_styles | length > 2 %}
-                        <span class="text-muted" style="font-size: 0.75rem;">+{{ printer.label_zpl_styles | length - 2 }}</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <a href="/printers/{{ lab }}/{{ printer.id }}" class="btn btn-sm btn-outline" title="View details">
-                            <i class="fas fa-info-circle"></i>
-                        </a>
-                        <a href="/print?lab={{ lab }}&printer={{ printer.id }}" class="btn btn-sm btn-primary" title="Print label">
-                            <i class="fas fa-print"></i>
-                        </a>
+                        <span class="badge">{{ printer.status or "unknown" }}</span>
+                        <br><small class="text-muted">{{ printer.state or "Unknown" }}</small>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
-{% elif lab %}
-<div class="card">
+    {% else %}
     <div class="empty-state">
         <i class="fas fa-print"></i>
-        <p>No printers found in {{ lab }}</p>
-        <a href="/config?action=scan&lab={{ lab }}" class="btn btn-primary">
-            <i class="fas fa-wifi"></i> Scan Network
-        </a>
+        <p>No printers found{% if lab %} in {{ lab }}{% endif %}.</p>
     </div>
+    {% endif %}
 </div>
-{% endif %}
 
-<!-- Scan Network Card -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h3 class="card-title">Scan Network for Printers</h3>
+        <h3 class="card-title">Discovery</h3>
     </div>
-	    <form action="/config/scan" method="get" class="grid grid-5" onsubmit="return startNetworkScan(event, this)">
+    <form id="scan-form" class="grid grid-4">
         <div class="form-group mb-0">
-            <label class="form-label">IP Range</label>
-            <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
+            <label class="form-label">Lab</label>
+            <input id="scan-lab" class="form-control" value="{{ lab | default('default') }}" required>
         </div>
         <div class="form-group mb-0">
-            <label class="form-label">Lab Name</label>
-            <input type="text" name="lab" class="form-control" list="lab_names" value="{{ lab | default('') }}" placeholder="Enter lab name">
-            <datalist id="lab_names">
-                {% for lab_name in labs %}
-                <option value="{{ lab_name }}">
-                {% endfor %}
-            </datalist>
+            <label class="form-label">IP Stub</label>
+            <input id="scan-ip-stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" required>
         </div>
-	        <div class="form-group mb-0">
-	            <label class="form-label">Scan Wait</label>
-	            <select name="scan_wait" class="form-control">
-	                <option value="0.15">0.15s</option>
-	                <option value="0.25">0.25s</option>
-	                <option value="0.5" selected>0.5s</option>
-	                <option value="1.0">1.0s</option>
-	            </select>
-	        </div>
         <div class="form-group mb-0">
             <label class="form-label">HTTP Port</label>
-            <input type="number" name="scan_http_port" class="form-control" placeholder="optional" min="1" max="65535">
+            <input id="scan-http-port" class="form-control" type="number" min="1" max="65535" placeholder="optional">
         </div>
-        <div class="form-group mb-0" style="display: flex; align-items: flex-end;">
+        <div class="form-group mb-0" style="display:flex;align-items:flex-end;">
             <button type="submit" class="btn btn-primary">
-                <i class="fas fa-search"></i> Scan Network
+                <i class="fas fa-search"></i> Scan
             </button>
         </div>
     </form>
+    <p class="text-muted mt-md">Discovery writes observations and draft printers directly into TapDB. Default scan wait is {{ scan_wait }}s.</p>
 </div>
 {% endblock %}
 
+{% block extra_scripts %}
+<script>
+document.getElementById('scan-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const lab = document.getElementById('scan-lab').value.trim();
+    const ipStub = document.getElementById('scan-ip-stub').value.trim();
+    const httpPortRaw = document.getElementById('scan-http-port').value.trim();
+    if (!lab || !ipStub) {
+        showToast('error', 'Missing values', 'Lab and IP stub are required.');
+        return;
+    }
+    showLoading('Scanning network...');
+    try {
+        const response = await fetch(`/api/v1/labs/${encodeURIComponent(lab)}/discover`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ip_stub: ipStub,
+                scan_http_port: httpPortRaw ? Number(httpPortRaw) : null,
+            }),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Scan failed', payload.detail || 'Unknown error');
+            return;
+        }
+        showToast('success', 'Scan complete', `Discovered ${payload.length} printer(s).`);
+        window.location.href = `/printers/${encodeURIComponent(lab)}`;
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Scan failed', error.message || 'Unknown error');
+    }
+});
+</script>
+{% endblock %}

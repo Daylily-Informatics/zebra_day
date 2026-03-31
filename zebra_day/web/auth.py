@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import ipaddress
 import secrets
-from urllib.parse import quote, urlsplit, urlunsplit
 from collections.abc import Callable
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
+from urllib.parse import quote, urlsplit, urlunsplit
 
-from fastapi import HTTPException
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -41,6 +41,10 @@ STRUCTURED_PATHS = {
 LOCAL_DOCS_PATHS = {"/openapi.json", "/docs", "/api/docs", "/redoc", "/api/redoc"}
 
 
+def _clean(value: Any) -> str:
+    return str(value or "").strip()
+
+
 def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> dict[str, Any]:
     merged_claims = dict(claims)
     groups = parse_groups(merged_claims.get("cognito:groups"))
@@ -48,13 +52,12 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
     merged_claims["cognito_groups"] = groups
     merged_claims["roles"] = roles
     return {
-        "sub": str(merged_claims.get("sub") or merged_claims.get("username") or ""),
-        "email": str(merged_claims.get("email") or ""),
-        "name": str(
+        "sub": _clean(merged_claims.get("sub") or merged_claims.get("username")),
+        "email": _clean(merged_claims.get("email")),
+        "name": _clean(
             merged_claims.get("name")
             or merged_claims.get("cognito:username")
             or merged_claims.get("username")
-            or ""
         ),
         "roles": roles,
         "cognito_groups": groups,
@@ -64,7 +67,6 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
 
 
 def is_cognito_available() -> bool:
-    """Check if daylily-cognito can be resolved."""
     try:
         import_from_sibling("daylily_cognito", "daylily-cognito")
         return True
@@ -73,12 +75,42 @@ def is_cognito_available() -> bool:
 
 
 def get_cognito_import_error() -> str | None:
-    """Return the import failure reason, if any."""
     try:
         import_from_sibling("daylily_cognito", "daylily-cognito")
         return None
     except ImportError as exc:
         return str(exc)
+
+
+def load_daycog_contract() -> dict[str, str]:
+    """Load the active daycog context values."""
+    config_mod = import_from_sibling("daylily_cognito.config", "daylily-cognito")
+    values = config_mod.get_context_values()
+    if not values:
+        raise ValueError("No active daycog context found in ~/.config/daycog/config.yaml")
+
+    contract = {
+        "region": _clean(values.get("COGNITO_REGION") or values.get("AWS_REGION")),
+        "user_pool_id": _clean(values.get("COGNITO_USER_POOL_ID")),
+        "app_client_id": _clean(values.get("COGNITO_APP_CLIENT_ID")),
+        "aws_profile": _clean(values.get("AWS_PROFILE")),
+        "cognito_domain": _clean(values.get("COGNITO_DOMAIN")),
+        "client_name": _clean(values.get("COGNITO_CLIENT_NAME")),
+        "callback_url": _clean(
+            values.get("COGNITO_CALLBACK_URL")
+            or values.get("COGNITO_REDIRECT_URI")
+            or values.get("COGNITO_REDIRECT_URL")
+        ),
+        "logout_url": _clean(values.get("COGNITO_LOGOUT_URL")),
+    }
+    missing = [
+        key
+        for key in ("region", "user_pool_id", "app_client_id", "cognito_domain")
+        if not contract[key]
+    ]
+    if missing:
+        raise ValueError(f"Active daycog context is missing required values: {', '.join(missing)}")
+    return contract
 
 
 @dataclass
@@ -94,12 +126,8 @@ class CognitoBinding:
         hostname = parts.hostname or ""
         if hostname not in {"127.0.0.1", "0.0.0.0", "::1"}:
             return value
-
         port = parts.port
-        if port is None:
-            netloc = "localhost"
-        else:
-            netloc = f"localhost:{port}"
+        netloc = "localhost" if port is None else f"localhost:{port}"
         return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
     def redirect_uri(self, request: Request) -> str:
@@ -111,35 +139,40 @@ class CognitoBinding:
     def build_login_url(self, request: Request) -> str:
         state = secrets.token_urlsafe(24)
         request.session["oauth_state"] = state
-        return self.oauth.build_authorization_url(
-            domain=self.config.cognito_domain,
-            client_id=self.config.app_client_id,
-            redirect_uri=self.redirect_uri(request),
-            state=state,
+        return str(
+            self.oauth.build_authorization_url(
+                domain=self.config.cognito_domain,
+                client_id=self.config.app_client_id,
+                redirect_uri=self.redirect_uri(request),
+                state=state,
+            )
         )
 
     def build_logout_url(self, request: Request) -> str:
-        return self.oauth.build_logout_url(
-            domain=self.config.cognito_domain,
-            client_id=self.config.app_client_id,
-            logout_uri=self.logout_uri(request),
+        return str(
+            self.oauth.build_logout_url(
+                domain=self.config.cognito_domain,
+                client_id=self.config.app_client_id,
+                logout_uri=self.logout_uri(request),
+            )
         )
 
     def _verify_id_token(self, id_token: str) -> dict[str, Any]:
         from jose import JWTError, jwt
 
-        kid = str(jwt.get_unverified_header(id_token).get("kid") or "")
+        kid = _clean(jwt.get_unverified_header(id_token).get("kid"))
         if not kid:
             raise ValueError("Cognito id token is missing a kid header")
 
         cache = getattr(self.auth, "_jwks_cache", None)
         if cache is None:
             cache = self.jwks.JWKSCache(self.config.region, self.config.user_pool_id)
-
         key = cache.get_key(kid)
-        issuer = f"https://cognito-idp.{self.config.region}.amazonaws.com/{self.config.user_pool_id}"
+        issuer = (
+            f"https://cognito-idp.{self.config.region}.amazonaws.com/{self.config.user_pool_id}"
+        )
         try:
-            return jwt.decode(
+            claims = jwt.decode(
                 id_token,
                 key=key,
                 algorithms=["RS256"],
@@ -154,6 +187,7 @@ class CognitoBinding:
             )
         except JWTError as exc:
             raise ValueError("Invalid Cognito id token") from exc
+        return dict(claims)
 
     def _decode_id_token_unverified(self, id_token: str) -> dict[str, Any]:
         from jose import JWTError, jwt
@@ -173,16 +207,7 @@ class CognitoBinding:
             )
         except JWTError as exc:
             raise ValueError("Invalid Cognito id token payload") from exc
-
-        aud = claims.get("aud")
-        expected = str(self.config.app_client_id or "")
-        if isinstance(aud, list):
-            audience_matches = expected in [str(item) for item in aud]
-        else:
-            audience_matches = str(aud or "") == expected
-        if expected and not audience_matches:
-            raise ValueError("Cognito id token audience did not match app client id")
-        return claims
+        return dict(claims)
 
     def exchange_code(self, request: Request, code: str) -> dict[str, Any]:
         tokens = self.oauth.exchange_authorization_code(
@@ -191,14 +216,13 @@ class CognitoBinding:
             code=code,
             redirect_uri=self.redirect_uri(request),
         )
-        access_token = str(tokens.get("access_token") or "")
+        access_token = _clean(tokens.get("access_token"))
         if not access_token:
             raise ValueError("Cognito token exchange did not return an access token")
 
-        claims = self.auth.verify_token(access_token)
-
+        claims = dict(self.auth.verify_token(access_token))
         profile_claims: dict[str, Any] = {}
-        id_token = str(tokens.get("id_token") or "")
+        id_token = _clean(tokens.get("id_token"))
         if id_token:
             try:
                 profile_claims = self._verify_id_token(id_token)
@@ -215,12 +239,10 @@ class CognitoBinding:
                         decode_exc,
                     )
                     profile_claims = {}
-
         return {"tokens": tokens, "claims": claims, "profile_claims": profile_claims}
 
 
 def setup_session_auth(app, settings: ZebraDaySettings) -> None:
-    """Install session middleware on the app."""
     secret = (
         __import__("os").environ.get("ZEBRA_DAY_SESSION_SECRET")
         or f"zebra-day-{settings.deployment_code}-dev-secret"
@@ -235,7 +257,7 @@ def setup_session_auth(app, settings: ZebraDaySettings) -> None:
 
 
 def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
-    """Create a Cognito binding from the active daycog context or legacy env."""
+    """Create a Cognito binding from the active daycog context."""
     if not is_cognito_available():
         raise ImportError(
             "daylily-cognito is required for Cognito authentication. "
@@ -244,38 +266,39 @@ def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
     daycog = import_from_sibling("daylily_cognito", "daylily-cognito")
     oauth = import_from_sibling("daylily_cognito.oauth", "daylily-cognito")
     jwks = import_from_sibling("daylily_cognito.jwks", "daylily-cognito")
-    config = daycog.CognitoConfig.from_legacy_env()
+    contract = load_daycog_contract()
+    config = SimpleNamespace(**contract)
     auth = daycog.CognitoAuth(
         region=config.region,
         user_pool_id=config.user_pool_id,
         app_client_id=config.app_client_id,
-        profile=config.aws_profile,
+        profile=_clean(config.aws_profile) or None,
     )
-    if not getattr(config, "cognito_domain", None):
-        raise ValueError("Active daycog context is missing COGNITO_DOMAIN")
     return CognitoBinding(settings=settings, config=config, auth=auth, oauth=oauth, jwks=jwks)
 
 
 def _has_internal_api_key(request: Request) -> bool:
-    expected = _clean(getattr(request.app.state, "settings", None).internal_api_key if hasattr(getattr(request.app.state, "settings", None), "internal_api_key") else "")
+    settings = getattr(request.app.state, "settings", None)
+    expected = _clean(getattr(settings, "internal_api_key", ""))
     if not expected:
         return False
-    auth_header = str(request.headers.get("authorization") or "")
+    auth_header = _clean(request.headers.get("authorization"))
     if not auth_header.lower().startswith("bearer "):
         return False
     token = auth_header.split(" ", 1)[1].strip()
     return token == expected
 
 
-def _clean(value: Any) -> str:
-    return str(value or "").strip()
-
-
 def _is_public(request: Request) -> bool:
     path = request.url.path
     if path in PUBLIC_PATHS or path in AUTH_PATHS:
         return True
-    return path.startswith("/static") or path.startswith("/files") or path.startswith("/generated") or path.startswith("/etc")
+    return (
+        path.startswith("/static")
+        or path.startswith("/files")
+        or path.startswith("/generated")
+        or path.startswith("/etc")
+    )
 
 
 def _is_loopback_request(request: Request) -> bool:
@@ -292,19 +315,21 @@ def _requires_json_response(request: Request) -> bool:
     path = request.url.path
     if path.startswith("/api/") or path in STRUCTURED_PATHS:
         return True
-    accept = str(request.headers.get("accept") or "").lower()
+    accept = _clean(request.headers.get("accept")).lower()
     return "application/json" in accept and "text/html" not in accept
 
 
 def _session_user(request: Request) -> dict[str, Any] | None:
     user = request.session.get("user_data")
-    return user if isinstance(user, dict) else None
+    return dict(user) if isinstance(user, dict) else None
 
 
 class CognitoAuthMiddleware(BaseHTTPMiddleware):
     """Session-or-token auth middleware."""
 
-    def __init__(self, app, cognito_auth: CognitoBinding | None, settings: ZebraDaySettings) -> None:
+    def __init__(
+        self, app, cognito_auth: CognitoBinding | None, settings: ZebraDaySettings
+    ) -> None:
         super().__init__(app)
         self.cognito_auth = cognito_auth
         self.settings = settings
@@ -325,7 +350,7 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
             return await call_next(request)  # type: ignore[no-any-return]
 
-        auth_header = str(request.headers.get("authorization") or "")
+        auth_header = _clean(request.headers.get("authorization"))
         if self.cognito_auth and auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1].strip()
             try:

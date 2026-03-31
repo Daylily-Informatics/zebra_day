@@ -1,120 +1,95 @@
-<img src="zebra_day/imgs/bar_red.png" alt="zebra_day header">
-
-[![Release](https://img.shields.io/github/v/release/Daylily-Informatics/zebra_day?style=flat-square&label=release)](https://github.com/Daylily-Informatics/zebra_day/releases/latest)
-[![Tag](https://img.shields.io/github/v/tag/Daylily-Informatics/zebra_day?style=flat-square&label=tag)](https://github.com/Daylily-Informatics/zebra_day/tags)
-[![CI](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml/badge.svg)](https://github.com/Daylily-Informatics/zebra_day/actions/workflows/main.yaml)
-
 # zebra_day
 
-`zebra_day` is a Python library, CLI, simulator, and FastAPI web UI for managing Zebra printer fleets and serving ZPL print workflows. It is designed for local-lab use first, but it can also run with shared DynamoDB-backed configuration and S3 backups when multiple machines need the same printer and template inventory.
+`zebra_day` is a Python library, CLI, simulator, and FastAPI web service for managing Zebra printer fleets and serving ZPL print workflows. Shared fleet state, templates, label profiles, observations, and print jobs now live in `daylily-tapdb` only.
 
-zebra_day owns:
-- printer discovery and fleet configuration
-- ZPL template storage and preview/edit flows
-- print submission and printer status surfaces
-- local-file and DynamoDB-backed config backends
-- simulator support for testing without physical printers
+## What Changed
 
-zebra_day does not own:
-- broader LIMS object truth
-- shipment or accessioning workflow authority
-- non-Zebra printing ecosystems
+- TapDB is the only supported shared datastore.
+- `source ./activate <deploy-name>` is the only supported repo activation path.
+- The service/admin runtime uses direct TapDB access through `ZebraDayClient`.
+- Downstream Python applications should use `ZebraDayApiClient` against a running zebra_day API.
+- Cognito is the default auth mode. `--no-auth` remains the explicit runtime override.
 
-## Component View
+Removed in this major cut:
 
-```mermaid
-flowchart LR
-    CLI["zday CLI"] --> Core["zebra_day core"]
-    Web["web UI + API"] --> Core
-    Py["Python package"] --> Core
-    Core --> Local["local YAML + template files"]
-    Core --> Dynamo["optional DynamoDB + S3 backup"]
-    Core --> Printers["Zebra printers over ZPL"]
-    Core --> Sim["printer simulator"]
-```
+- local fleet/config files as runtime state
+- DynamoDB and S3 runtime support
+- `print_mgr.zpl()` and package-root helper shims
+- `zday_start`, `zday_quickstart`, and `zday dynamo`
 
-## Prerequisites
-
-- Python 3.10+
-- network reachability to one or more Zebra printers for live use
-- optional mkcert for HTTPS-by-default local GUI
-- optional AWS credentials for DynamoDB/S3-backed shared configuration
-
-## Getting Started
-
-### Quickstart
+## Quickstart
 
 ```bash
-source ./zday_activate
-zday bootstrap
+source ./activate local
+zday config init
+zday config status
 zday gui start
 ```
 
-The default GUI port is `8118`. If local certificates are available, HTTPS is used by default.
+The default GUI port is `8118`. HTTPS is enabled automatically when local certs are available.
 
-## Architecture
+## Runtime Model
 
-### Technology
-
-- Python package and CLI built on `cli-core-yo`
-- FastAPI + Jinja2 web UI
-- ZPL over TCP for printer communication
-- optional DynamoDB + S3 backend for shared configuration
-
-### Core Config Model
-
-The repo centers on:
-
-- labs
-- printers
-- label styles/templates
-- backend selection (`local` or `dynamodb`)
-- simulator and discovery metadata
-
-### Runtime Shape
-
-- CLI: `zday`
-- key areas: bootstrap, gui, printer, template, config, env, simulator, dynamo, auth
-- API/UI run through the same web app with HTML and JSON route surfaces
-
-## Cost Estimates
-
-Approximate only.
-
-- Local workstation use: near-zero cloud cost and only the cost of the host machine.
-- Shared DynamoDB mode: usually low monthly cloud cost unless you add substantial S3 backup churn or run many always-on hosts.
-- Production-like always-on hosting costs more than the printer-config backend itself.
-
-## Development Notes
-
-- Canonical local activation path: `source ./zday_activate`
-- HTTPS is the default posture when certs are present
-- Local-file configuration remains the default; DynamoDB mode is opt-in
-
-Useful checks:
-
-```bash
-source ./zday_activate
-zday --help
-pytest tests/ -q
-ruff check zebra_day tests
+```mermaid
+flowchart LR
+    CLI["zday CLI"] --> Service["zebra_day service/runtime"]
+    GUI["FastAPI + Jinja UI"] --> Service
+    APIClient["ZebraDayApiClient"] --> API["zebra_day HTTP API"]
+    API --> Service
+    Service --> TapDB["daylily-tapdb namespace"]
+    Service --> Printers["Zebra printers over TCP 9100"]
+    Simulator["simulator"] --> Printers
 ```
 
-## Sandboxing
+## Python Usage
 
-- Safe: docs work, simulator use, tests, `zday --help`, and local config/template editing
-- Requires network access: live printer discovery and print submission
-- Requires extra care: DynamoDB/S3-backed shared config changes and any public-facing deployment posture
+Direct service/admin usage:
 
-## Current Docs
+```python
+from zebra_day import ZebraDayClient, ZebraDaySettings
 
-- [Docs index](docs/README.md)
-- [Hardware guide](zebra_day/docs/hardware_config_guide.md)
-- [Programmatic guide](zebra_day/docs/programatic_guide.md)
-- [Web UI guide](zebra_day/docs/zebra_day_ui_guide.md)
+settings = ZebraDaySettings.from_context("local")
+client = ZebraDayClient(settings)
+printers = client.list_printers("default")
+```
 
-## References
+Downstream app usage:
 
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Amazon DynamoDB](https://docs.aws.amazon.com/dynamodb/)
-- [ZPL Programming Guide](https://www.zebra.com/us/en/support-downloads/knowledge-articles/ait/zpl-zbi2-pm.html)
+```python
+from zebra_day import ZebraDayApiClient
+
+with ZebraDayApiClient("https://localhost:8118", api_key="internal-token") as client:
+    printers = client.list_printers("default")
+    client.submit_print_job(
+        lab="default",
+        printer="printer-1",
+        label_zpl_style="tube_2inX1in",
+        uid_barcode="SAMPLE-001",
+    )
+```
+
+## CLI Surface
+
+- `zday gui ...`: start, stop, restart, and inspect the GUI server
+- `zday printer ...`: list, scan, and sync printers
+- `zday template ...`: list, show, save, preview, and delete templates
+- `zday tapdb ...`: pass through to TapDB lifecycle commands
+- `zday cognito ...`: inspect or validate the daycog-backed auth contract
+- `zday users ...`: manage Cognito group membership for operator/admin roles
+- `zday logs ...`: inspect zebra_day GUI logs
+
+## Docs
+
+- [docs/README.md](docs/README.md)
+- [zebra_day/docs/programatic_guide.md](zebra_day/docs/programatic_guide.md)
+- [zebra_day/docs/zebra_day_ui_guide.md](zebra_day/docs/zebra_day_ui_guide.md)
+- [docs/tapdb_hard_migration_plan.md](docs/tapdb_hard_migration_plan.md)
+
+## Development Checks
+
+```bash
+ruff check zebra_day tests
+ruff format --check zebra_day tests
+mypy zebra_day --ignore-missing-imports
+pytest tests/ -v --tb=short
+```

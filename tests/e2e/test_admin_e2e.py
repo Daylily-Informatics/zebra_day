@@ -1,16 +1,32 @@
 from __future__ import annotations
 
 import importlib.util
+from typing import TYPE_CHECKING
 
 import pytest
-from playwright.sync_api import Page, expect
+
+try:
+    from playwright.sync_api import expect
+except ModuleNotFoundError:
+    expect = None
+
+if TYPE_CHECKING:
+    from playwright.sync_api import Page
 
 from tests.e2e.auth_helpers import assert_auth_error_page, assert_authenticated_page
+
+
+def _playwright_available() -> bool:
+    try:
+        return importlib.util.find_spec("pytest_playwright.pytest_playwright") is not None
+    except ModuleNotFoundError:
+        return False
+
 
 pytestmark = [
     pytest.mark.e2e,
     pytest.mark.skipif(
-        importlib.util.find_spec("pytest_playwright.pytest_playwright") is None,
+        not _playwright_available(),
         reason="pytest-playwright is not installed",
     ),
 ]
