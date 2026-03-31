@@ -1,13 +1,10 @@
-"""
-Middleware for the zebra_day FastAPI application.
-
-Provides request logging and rate limiting functionality.
-"""
+"""Middleware for zebra_day request logging and observability."""
 
 from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from collections import defaultdict
 from collections.abc import Callable
 
@@ -29,11 +26,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request and log structured data."""
         start_time = time.perf_counter()
+        request_id = request.headers.get("x-request-id") or str(uuid.uuid4())
+        correlation_id = request.headers.get("x-correlation-id") or request_id
+        request.state.request_id = request_id
+        request.state.correlation_id = correlation_id
 
         # Extract client info
         client_ip = request.client.host if request.client else "unknown"
         method = request.method
         path = request.url.path
+        route = request.scope.get("route")
+        path_template = getattr(route, "path", path)
+        request.state.path_template = path_template
         str(request.query_params) if request.query_params else ""
 
         # Extract relevant parameters for print operations
@@ -87,6 +91,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         else:
             _log.info("Request completed", extra=log_context)
 
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Correlation-ID"] = correlation_id
+        observability = getattr(request.app.state, "observability", None)
+        if observability is not None:
+            observability.record_route(path_template)
         return response  # type: ignore[no-any-return]
 
 

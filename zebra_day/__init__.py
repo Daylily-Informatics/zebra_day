@@ -38,6 +38,7 @@ from zebra_day.exceptions import (
     ZPLRenderError,
 )
 from zebra_day.logging_config import configure_logging, get_logger
+from zebra_day.settings import ZebraDaySettings
 
 __all__ = [
     "__version__",
@@ -62,28 +63,29 @@ __all__ = [
 ]
 
 
-# Module-level singleton for zpl instance
-_zpl_instance = None
+# Module-level singleton for zebra_day client
+_client_instance = None
+
+
+def _get_client():
+    """Get or create the module-level zebra_day client."""
+    global _client_instance
+    if _client_instance is None:
+        from zebra_day.client import ZebraDayClient
+
+        _client_instance = ZebraDayClient(ZebraDaySettings.from_context())
+    return _client_instance
 
 
 def _get_zpl():
-    """Get or create the module-level zpl instance.
-
-    Returns:
-        A zpl instance from print_mgr module.
-    """
-    global _zpl_instance
-    if _zpl_instance is None:
-        from zebra_day import print_mgr
-
-        _zpl_instance = print_mgr.zpl()
-    return _zpl_instance
+    """Back-compat shim returning a legacy engine snapshot."""
+    return _get_client()._legacy_engine()
 
 
 def _reset_zpl():
     """Reset the module-level zpl instance (useful for testing)."""
-    global _zpl_instance
-    _zpl_instance = None
+    global _client_instance
+    _client_instance = None
 
 
 def query_labs() -> list[str]:
@@ -97,8 +99,7 @@ def query_labs() -> list[str]:
         >>> zd.query_labs()
         ['default', 'lab-2']
     """
-    zp = _get_zpl()
-    return list(zp.printers.get("labs", {}).keys())
+    return _get_client().list_labs()
 
 
 def query_printers(lab: str) -> dict[str, dict[str, Any]]:
@@ -119,12 +120,10 @@ def query_printers(lab: str) -> dict[str, dict[str, Any]]:
         >>> zd.query_printers('default')
         {'192.168.1.100': {'ip_address': '192.168.1.100', 'model': 'ZD620', ...}}
     """
-    zp = _get_zpl()
-    labs = zp.printers.get("labs", {})
-    if lab not in labs:
-        raise KeyError(f"Lab '{lab}' not found. Available labs: {list(labs.keys())}")
-    result: dict[str, dict[str, Any]] = labs[lab].get("printers", {})
-    return result
+    printers = _get_client().list_printers(lab)
+    if not printers and lab not in _get_client().list_labs():
+        raise KeyError(f"Lab '{lab}' not found. Available labs: {_get_client().list_labs()}")
+    return {printer.printer_id: printer.to_legacy_dict() for printer in printers}
 
 
 def scan(ip_stub: str = "192.168.1", lab: str = "default") -> None:
@@ -149,8 +148,7 @@ def scan(ip_stub: str = "192.168.1", lab: str = "default") -> None:
             f"ip_stub must not end with a trailing dot: '{ip_stub}'. "
             f"Use '{ip_stub.rstrip('.')}' instead."
         )
-    zp = _get_zpl()
-    zp.probe_zebra_printers_add_to_printers_json(ip_stub=ip_stub, lab=lab)
+    _get_client().discover_printers(ip_stub=ip_stub, lab=lab)
 
 
 def print_zpl(
@@ -196,10 +194,9 @@ def print_zpl(
         ...     alt_a='Patient Name'
         ... )
     """
-    zp = _get_zpl()
-    result: str = zp.print_zpl(
+    result: str = _get_client().print_label(
         lab=lab,
-        printer_name=printer_name,
+        printer=printer_name,
         label_zpl_style=label_zpl_style,
         uid_barcode=uid_barcode,
         alt_a=alt_a,
@@ -251,7 +248,7 @@ def start_gui(host: str = "0.0.0.0", port: int = 8118, https: bool = True) -> No
         host=host,
         port=port,
         reload=False,
-        auth="none",
+        auth="cognito",
         ssl_certfile=ssl_certfile if https else None,
         ssl_keyfile=ssl_keyfile if https else None,
     )

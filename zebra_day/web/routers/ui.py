@@ -30,6 +30,7 @@ from fastapi.responses import (
 import zebra_day.cmd_mgr as zdcm
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
+from zebra_day.rbac import ADMIN_ALLOWED_ROLES, has_any_role
 
 _log = get_logger(__name__)
 
@@ -56,12 +57,28 @@ def get_template_context(request: Request, **kwargs) -> dict:
 
 def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dict:
     """Build common template context for modern templates."""
+    user = getattr(request.state, "user", {}) or {}
+    settings = request.app.state.settings
+    repository = getattr(getattr(request.app.state, "zebra_day", None), "repository", None)
+    storage_mode = type(repository).__name__.replace("FleetRepository", "").replace("Repository", "")
+    if not storage_mode:
+        storage_mode = "unknown"
     return {
         "request": request,
         "active_page": active_page,
         "local_ip": request.app.state.local_ip,
         "version": getattr(request.app.state, "version", "unknown"),
         "cache_bust": str(int(time.time())),
+        "auth_mode": settings.auth_mode,
+        "auth_enabled": settings.auth_mode != "none",
+        "is_authenticated": bool(user),
+        "user_name": str(user.get("name") or user.get("email") or user.get("sub") or ""),
+        "user_roles": list(user.get("roles") or []),
+        "is_admin": has_any_role(list(user.get("roles") or []), ADMIN_ALLOWED_ROLES),
+        "service_principal": bool(user.get("service_principal", False)),
+        "storage_mode": storage_mode.lower(),
+        "tapdb_namespace": settings.tapdb_database_name,
+        "deployment_code": settings.deployment_code,
         **kwargs,
     }
 
@@ -207,6 +224,39 @@ async def modern_dashboard(request: Request):
         stats=stats,
     )
     return templates.TemplateResponse(request, "modern/dashboard.html", context)
+
+
+@router.get("/admin", response_class=HTMLResponse)
+async def modern_admin(request: Request):
+    """Modern admin and observability overview."""
+    user = getattr(request.state, "user", {}) or {}
+    if not has_any_role(list(user.get("roles") or []), ADMIN_ALLOWED_ROLES):
+        return RedirectResponse(url="/auth/error?reason=not_authorized", status_code=302)
+    templates = request.app.state.templates
+    client = request.app.state.zebra_day
+    settings = request.app.state.settings
+    context = get_modern_context(
+        request,
+        active_page="admin",
+        labs=client.list_labs(),
+        printer_count=sum(len(client.list_printers(lab)) for lab in client.list_labs()),
+        template_count=len(client.list_templates()),
+        auth_summary={
+            "mode": settings.auth_mode,
+            "enabled": settings.auth_mode != "none",
+            "has_internal_api_key": bool(settings.internal_api_key),
+        },
+        observability_links=[
+            "/health",
+            "/obs_services",
+            "/api_health",
+            "/endpoint_health",
+            "/db_health",
+            "/my_health",
+            "/auth_health",
+        ],
+    )
+    return templates.TemplateResponse(request, "modern/admin.html", context)
 
 
 @router.get("/printers", response_class=HTMLResponse)

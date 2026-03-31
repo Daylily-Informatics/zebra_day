@@ -1,16 +1,16 @@
-"""zebra_day CLI - Zebra Printer Fleet Management CLI using cli-core-yo."""
+"""zebra_day CLI using the Atlas-style activate/config contract."""
 
 from __future__ import annotations
 
 import os
 
 import typer
-import yaml
 from cli_core_yo.app import create_app
 from cli_core_yo.runtime import _reset, initialize
-from cli_core_yo.spec import CliSpec, ConfigSpec, PluginSpec, XdgSpec
+from cli_core_yo.spec import CliSpec, ConfigSpec, EnvSpec, PluginSpec, XdgSpec
 
 from zebra_day import paths as xdg
+from zebra_day.settings import ZebraDaySettings, build_default_config_template, validate_settings_yaml
 
 
 def _get_version() -> str:
@@ -21,51 +21,6 @@ def _get_version() -> str:
         return version("zebra_day")
     except Exception:
         return "dev"
-
-
-def _validate_zday_config(content: str) -> list[str]:
-    """Validate zebra_day configuration YAML.
-
-    Conforms to cli-core-yo ConfigSpec.validator signature:
-    takes file content as string, returns list of error strings.
-    """
-    try:
-        config = yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        return [f"YAML parse error: {e}"]
-
-    if not isinstance(config, dict):
-        return ["Root YAML object must be a mapping"]
-
-    errors: list[str] = []
-    schema_version = str(config.get("schema_version", ""))
-
-    if not schema_version:
-        errors.append("Missing 'schema_version' field")
-    elif schema_version not in {"2.0.0", "2.1.0"}:
-        errors.append(f"Unknown schema version: {schema_version}")
-
-    if "labs" not in config:
-        errors.append("Missing 'labs' field")
-    elif not isinstance(config["labs"], dict):
-        errors.append("'labs' must be a dictionary")
-    else:
-        for lab_id, lab_data in config["labs"].items():
-            if not isinstance(lab_data, dict):
-                errors.append(f"Lab '{lab_id}' must be a dictionary")
-                continue
-            if "lab_name" not in lab_data:
-                errors.append(f"Lab '{lab_id}' missing 'lab_name' field")
-            if schema_version == "2.1.0":
-                for req_key in ("lab_display_name", "lab_description", "network_stub"):
-                    if req_key not in lab_data:
-                        errors.append(f"Lab '{lab_id}' missing '{req_key}' field")
-            if "printers" not in lab_data:
-                errors.append(f"Lab '{lab_id}' missing 'printers' field")
-
-    return errors
-
-
 def _zday_info_hook() -> list[tuple[str, str]]:
     """Provide zebra_day-specific info rows for the built-in info command.
 
@@ -77,15 +32,12 @@ def _zday_info_hook() -> list[tuple[str, str]]:
         ("Logs Dir", str(xdg.get_logs_dir())),
     ]
 
-    # Config file (YAML preferred, JSON fallback)
-    yaml_cfg = xdg.get_config_file_path()
-    json_cfg = xdg.get_legacy_json_config_path()
-    if yaml_cfg.exists():
-        rows.append(("Config File", str(yaml_cfg)))
-    elif json_cfg.exists():
-        rows.append(("Config File", f"{json_cfg} (legacy JSON)"))
-    else:
-        rows.append(("Config File", f"not found ({yaml_cfg})"))
+    settings = ZebraDaySettings.from_context()
+    rows.append(("Deployment", settings.deployment_code))
+    rows.append(("Config File", str(settings.config_path)))
+    rows.append(("TapDB Config", str(settings.tapdb_config_path)))
+    rows.append(("TapDB Namespace", settings.tapdb_database_name))
+    rows.append(("Auth Mode", settings.auth_mode))
 
     # GUI server
     pid_file = xdg.get_state_dir() / "gui.pid"
@@ -108,23 +60,26 @@ spec = CliSpec(
     dist_name="zebra_day",
     root_help="Zebra printer fleet management and ZPL print API",
     xdg=XdgSpec(
-        app_dir_name="zebra_day",
+        app_dir_name=xdg.get_app_dir_name(),
         legacy_macos_config_dir="~/Library/Preferences/zebra_day",
         legacy_copy_files=["zebra-day-config.yaml", "printer_config.json"],
     ),
     config=ConfigSpec(
-        primary_filename="zebra-day-config.yaml",
-        template_resource=("zebra_day", "etc/zebra-day-config-template.yaml"),
-        validator=_validate_zday_config,
+        primary_filename=xdg.get_config_filename(),
+        template_bytes=build_default_config_template(),
+        validator=validate_settings_yaml,
     ),
-    env=None,  # Custom env group via plugin (Option C)
+    env=EnvSpec(
+        active_env_var="_ZEBRA_DAY_ACTIVE",
+        project_root_env_var="ZEBRA_DAY_PROJECT_ROOT",
+        activate_script_name="activate",
+        deactivate_script_name="zebra_day_deactivate",
+    ),
     plugins=PluginSpec(
         explicit=[
             "zebra_day.cli.gui.register",
             "zebra_day.cli.printer.register",
             "zebra_day.cli.template.register",
-            "zebra_day.cli.env.register",
-            "zebra_day.cli.dynamo.register",
             "zebra_day.cli.man.register",
             "zebra_day.cli.cognito.register",
             "zebra_day.cli.root_commands.register",

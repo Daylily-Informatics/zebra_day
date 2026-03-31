@@ -6,7 +6,29 @@
 <!-- Page Header -->
 <div class="page-header">
     <h1 class="page-title">Zebra Day Dashboard</h1>
-    <p class="page-subtitle">Zebra printer and label template management</p>
+    <p class="page-subtitle">Modernized printer fleet control plane with API-driven UI, auth-aware routing, and shared fleet state</p>
+</div>
+
+<div class="card mb-xl">
+    <div class="card-header">
+        <h3 class="card-title">Platform Status</h3>
+    </div>
+    <div class="grid grid-2">
+        <div class="action-card" style="pointer-events:none;">
+            <i class="fas fa-database"></i>
+            <div>
+                <strong>{{ storage_mode | upper }}</strong>
+                <small class="text-muted d-block">Active fleet persistence layer</small>
+            </div>
+        </div>
+        <div class="action-card" style="pointer-events:none;">
+            <i class="fas fa-user-shield"></i>
+            <div>
+                <strong>{{ auth_mode | upper }}</strong>
+                <small class="text-muted d-block">Current web authentication mode</small>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Stats Grid -->
@@ -137,9 +159,16 @@
 <!-- API Documentation -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h3 class="card-title">API Documentation</h3>
+        <h3 class="card-title">Ops And APIs</h3>
     </div>
     <div class="grid grid-2">
+        <a href="/admin" class="action-card">
+            <i class="fas fa-shield-halved"></i>
+            <div>
+                <strong>Admin Console</strong>
+                <small class="text-muted d-block">Auth, storage, and observability entrypoint</small>
+            </div>
+        </a>
         <a href="/docs" target="_blank" class="action-card">
             <i class="fas fa-book-open"></i>
             <div>
@@ -157,4 +186,3 @@
     </div>
 </div>
 {% endblock %}
-

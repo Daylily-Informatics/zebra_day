@@ -131,7 +131,17 @@ def _resolve_ssl_paths(
 def start(
     port: int = typer.Option(8118, "--port", "-p", help="Port to run the server on"),
     host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind to"),
-    auth: str = typer.Option("none", "--auth", "-a", help="Authentication mode: none or cognito"),
+    auth: str = typer.Option(
+        "cognito",
+        "--auth",
+        "-a",
+        help="Authentication mode: cognito (default) or none",
+    ),
+    no_auth: bool = typer.Option(
+        False,
+        "--no-auth",
+        help="Disable authentication for backward compatibility",
+    ),
     reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload (foreground)"),
     background: bool = typer.Option(
         True, "--background/--foreground", "-b/-f", help="Run in background"
@@ -152,6 +162,9 @@ def start(
     Use --no-https to force HTTP mode.
     """
     _ensure_dirs()
+
+    if no_auth:
+        auth = "none"
 
     # Validate auth option
     if auth not in ("none", "cognito"):
@@ -183,6 +196,7 @@ def start(
             for var in missing:
                 output.bullet(var)
             raise typer.Exit(1)
+        output.detail("Use 'zday cognito status' to verify the active daycog context.")
         output.success("Cognito authentication enabled")
 
     # Resolve SSL paths with automatic generation

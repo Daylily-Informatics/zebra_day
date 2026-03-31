@@ -1,7 +1,7 @@
 """Cognito authentication management commands for zebra_day CLI.
 
 This module delegates to daylily-cognito if available, otherwise provides
-basic status and info commands.
+basic status, bind/import, and validation commands.
 """
 
 from __future__ import annotations
@@ -91,42 +91,34 @@ def _create_fallback_app() -> typer.Typer:
                 "Set environment variables or install daylily-cognito for full management"
             )
 
-    @app.command("info")
-    def info():
-        """Display information about Cognito setup requirements."""
-        output.heading("Cognito Authentication Setup")
-        output.print_text("To enable Cognito authentication for zebra_day:\n")
+    @app.command("bind")
+    def bind():
+        """Describe the expected daycog binding for zebra_day."""
+        output.heading("zebra_day Cognito Binding")
+        output.detail("App client name: zebra-day")
+        output.detail("Callback URL: https://localhost:8118/auth/callback")
+        output.detail("Logout URL: https://localhost:8118/")
+        output.detail("Primary workflow: daycog setup / daycog config print --json")
 
-        output.print_text("1. Install auth dependencies:")
-        output.detail('pip install -e ".[auth]"')
+    @app.command("import")
+    def import_config():
+        """Describe how zebra_day imports the active daycog context."""
+        output.detail("zebra_day reads the active ~/.config/daycog/config.yaml context at runtime.")
+        output.detail("Use daycog status to confirm the active context before starting the GUI.")
 
-        output.print_text("\n2. Set environment variables:")
-        output.detail("export COGNITO_USER_POOL_ID=your-pool-id")
-        output.detail("export COGNITO_APP_CLIENT_ID=your-client-id")
-        output.detail("export COGNITO_REGION=us-west-2  # optional")
-
-        output.print_text("\n3. Start server with authentication:")
-        output.detail("zday gui start --auth cognito")
-
-        if not _is_cognito_available():
-            output.detail(
-                "For full Cognito management (create, teardown), install daylily-cognito:"
-            )
-            output.detail("  pip install daylily-cognito")
-
-    @app.command("create")
-    def create():
-        """Create/configure a Cognito user pool (requires daylily-cognito)."""
-        output.warning("This command requires daylily-cognito")
-        output.detail('Install with: pip install -e ".[auth]"')
-        raise typer.Exit(1)
-
-    @app.command("teardown")
-    def teardown():
-        """Remove Cognito configuration (requires daylily-cognito)."""
-        output.warning("This command requires daylily-cognito")
-        output.detail('Install with: pip install -e ".[auth]"')
-        raise typer.Exit(1)
+    @app.command("validate")
+    def validate():
+        """Validate that the active daycog context exposes the required values."""
+        missing = []
+        for var in ("COGNITO_USER_POOL_ID", "COGNITO_APP_CLIENT_ID", "COGNITO_DOMAIN"):
+            if not os.environ.get(var):
+                missing.append(var)
+        if missing:
+            output.error("Active auth context is incomplete")
+            for var in missing:
+                output.bullet(var)
+            raise typer.Exit(1)
+        output.success("Active auth context looks complete")
 
     return app
 

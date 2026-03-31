@@ -1,0 +1,35 @@
+{% extends "modern/base.html" %}
+
+{% block title %}{{ error_title }} - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title" data-testid="auth-error-title">{{ error_title }}</h1>
+    <p class="page-subtitle">Authentication and authorization issues are isolated to this page so zebra_day never falls back to the dashboard on auth failures.</p>
+</div>
+
+<div class="card" data-testid="auth-error-card">
+    <div class="card-header">
+        <h3 class="card-title">Access Review</h3>
+    </div>
+    <p><strong>Reason:</strong> <code>{{ error_reason }}</code></p>
+    <p>{{ error_message }}</p>
+    <p class="text-muted">HTTP status: {{ error_status_code }}</p>
+    <div class="quick-actions">
+        <a href="/auth/login" class="action-card" data-testid="auth-error-login">
+            <i class="fas fa-right-to-bracket"></i>
+            <div>
+                <strong>Retry Login</strong>
+                <small class="text-muted d-block">Start a new Cognito sign-in attempt</small>
+            </div>
+        </a>
+        <a href="/" class="action-card" data-testid="auth-error-home">
+            <i class="fas fa-house"></i>
+            <div>
+                <strong>Return Home</strong>
+                <small class="text-muted d-block">Go back to the zebra_day landing page</small>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

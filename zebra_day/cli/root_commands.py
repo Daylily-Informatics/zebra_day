@@ -11,6 +11,8 @@ from cli_core_yo import output
 from cli_core_yo.runtime import get_context
 
 from zebra_day import paths as xdg
+from zebra_day.client import ZebraDayClient
+from zebra_day.settings import ZebraDaySettings
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -39,6 +41,7 @@ def _status_callback() -> None:
         "gui_server": {"running": False, "pid": None, "url": None},
         "printers": {"configured": 0, "labs": []},
         "config": {"exists": False, "path": None},
+        "tapdb": {"config_path": "", "namespace": ""},
     }
 
     # Check GUI server
@@ -54,21 +57,18 @@ def _status_callback() -> None:
             pass
 
     # Check printer config
-    printer_cfg = xdg.get_printer_config_path()
-    status_data["config"]["path"] = str(printer_cfg)
-    if printer_cfg.exists():
-        status_data["config"]["exists"] = True
-        try:
-            import zebra_day.print_mgr as zdpm
-
-            zp = zdpm.zpl()
-            if hasattr(zp, "printers") and "labs" in zp.printers:
-                labs = list(zp.printers["labs"].keys())
-                status_data["printers"]["labs"] = labs
-                total_printers = sum(len(list(zp.printers["labs"][lab].keys())) for lab in labs)
-                status_data["printers"]["configured"] = total_printers
-        except Exception:
-            pass
+    settings = ZebraDaySettings.from_context()
+    status_data["config"]["path"] = str(settings.config_path)
+    status_data["config"]["exists"] = settings.config_path.exists()
+    status_data["tapdb"]["config_path"] = str(settings.tapdb_config_path)
+    status_data["tapdb"]["namespace"] = settings.tapdb_database_name
+    try:
+        client = ZebraDayClient(settings)
+        labs = client.list_labs()
+        status_data["printers"]["labs"] = labs
+        status_data["printers"]["configured"] = sum(len(client.list_printers(lab)) for lab in labs)
+    except Exception:
+        pass
 
     if get_context().json_mode:
         output.emit_json(status_data)
@@ -87,6 +87,7 @@ def _status_callback() -> None:
         output.success("Config: Loaded")
         output.detail(f"Printers: {status_data['printers']['configured']}")
         output.detail(f"Labs: {', '.join(status_data['printers']['labs']) or 'none'}")
+        output.detail(f"TapDB: {status_data['tapdb']['namespace']}")
     else:
         output.warning("Config: Not found")
         output.detail("Run 'zday bootstrap' to initialize")
@@ -172,19 +173,15 @@ def _bootstrap_callback(
                 output.detail(f"Scanned {checked}/{total} addresses")
 
         try:
-            import zebra_day.print_mgr as zdpm
-
-            zp = zdpm.zpl()
-            zp.probe_zebra_printers_add_to_printers_json(
+            client = ZebraDayClient(ZebraDaySettings.from_context())
+            printers = client.discover_printers(
                 ip_stub=ip_stub,
+                lab="default",
+                scan_http_port=None,
                 progress_callback=_scan_progress,
             )
-
-            if hasattr(zp, "printers") and "labs" in zp.printers:
-                for lab in zp.printers["labs"]:
-                    printers_in_lab = len(list(zp.printers["labs"][lab].keys()))
-                    printers_found += printers_in_lab
-                    labs.append(lab)
+            printers_found = len(printers)
+            labs = sorted({printer.lab for printer in printers})
 
             output.success(f"Scan complete: {printers_found} printer(s) found")
             if labs:

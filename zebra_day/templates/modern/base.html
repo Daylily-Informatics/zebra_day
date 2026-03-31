@@ -38,6 +38,14 @@
                         <li><a href="/templates" class="nav-link {% if active_page == 'templates' %}active{% endif %}"><i class="fas fa-file-code"></i> Templates</a></li>
                         <li><a href="/print" class="nav-link {% if active_page == 'print' %}active{% endif %}"><i class="fas fa-tag"></i> Print Label</a></li>
                         <li><a href="/config" class="nav-link {% if active_page == 'config' %}active{% endif %}"><i class="fas fa-cog"></i> Config</a></li>
+                        <li><a href="/admin" class="nav-link {% if active_page == 'admin' %}active{% endif %}"><i class="fas fa-shield-halved"></i> Admin</a></li>
+                        {% if auth_enabled %}
+                        {% if is_authenticated %}
+                        <li><a href="/auth/logout" class="nav-link"><i class="fas fa-right-from-bracket"></i> Logout</a></li>
+                        {% else %}
+                        <li><a href="/auth/login" class="nav-link"><i class="fas fa-right-to-bracket"></i> Login</a></li>
+                        {% endif %}
+                        {% endif %}
                     </ul>
                 </nav>
             </div>
@@ -72,6 +80,29 @@
     <!-- Main content -->
     <main class="main">
         <div class="container">
+            <section class="card mb-lg" style="padding: 1rem 1.25rem;">
+                <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+                    <div>
+                        <strong>Deployment:</strong> {{ deployment_code | default('local') }}
+                        <span class="footer-sep">•</span>
+                        <strong>Storage:</strong> {{ storage_mode | upper }}
+                        <span class="footer-sep">•</span>
+                        <strong>Auth:</strong> {{ auth_mode | upper }}
+                    </div>
+                    <div>
+                        {% if auth_enabled and is_authenticated %}
+                        <span><i class="fas fa-user-check"></i> {{ user_name or 'authenticated' }}</span>
+                        {% elif auth_enabled %}
+                        <span><i class="fas fa-user-lock"></i> sign-in required</span>
+                        {% else %}
+                        <span><i class="fas fa-triangle-exclamation"></i> compatibility mode: no auth</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-muted" style="margin-top:0.5rem;">
+                    TapDB namespace: {{ tapdb_namespace | default('unconfigured') }}
+                </div>
+            </section>
             {% block content %}{% endblock %}
         </div>
     </main>
@@ -86,6 +117,7 @@
                     <span>IP: {{ local_ip | default('unknown') }}</span>
                 </div>
                 <div class="footer-links">
+                    <a href="/admin"><i class="fas fa-shield-halved"></i> Admin</a>
                     <a href="/docs" target="_blank"><i class="fas fa-book"></i> API Docs</a>
                     <a href="https://github.com/Daylily-Informatics/zebra_day" target="_blank"><i class="fab fa-github"></i> GitHub</a>
                 </div>
@@ -104,4 +136,3 @@
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>
-

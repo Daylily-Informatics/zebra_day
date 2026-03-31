@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# zebra_day activation entrypoint.
+#
+# Source this file from the repository root:
+#   source ./activate
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "Error: this script must be sourced, not executed."
+    echo "Usage: source ./activate"
+    exit 1
+fi
+
+_zebra_day_activate_dir() {
+    if [[ -n "${ZSH_VERSION:-}" ]]; then
+        printf '%s\n' "${(%):-%x}"
+    elif [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+        printf '%s\n' "${BASH_SOURCE[0]}"
+    else
+        printf '%s\n' "$0"
+    fi
+}
+
+_ZEBRA_DAY_ACTIVATE_PATH="$(_zebra_day_activate_dir)"
+ZEBRA_DAY_PROJECT_ROOT="$(cd "$(dirname "${_ZEBRA_DAY_ACTIVATE_PATH}")" && pwd)"
+export ZEBRA_DAY_PROJECT_ROOT
+export _ZEBRA_DAY_ACTIVE=1
+
+_zebra_day_deployment="${ZEBRA_DAY_DEPLOYMENT_CODE:-${DEPLOYMENT_CODE:-${LSMC_DEPLOYMENT_CODE:-local}}}"
+export ZEBRA_DAY_DEPLOYMENT_CODE="${_zebra_day_deployment}"
+export TAPDB_CLIENT_ID="${TAPDB_CLIENT_ID:-zebra-day}"
+export TAPDB_DATABASE_NAME="${TAPDB_DATABASE_NAME:-zebra-day-${_zebra_day_deployment}}"
+
+if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" ]]; then
+    export PYTHONPATH="${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb:${PYTHONPATH:-}"
+fi
+
+if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" ]]; then
+    export PYTHONPATH="${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito:${PYTHONPATH:-}"
+fi
+
+. "${ZEBRA_DAY_PROJECT_ROOT}/zday_activate" "$@"
+
+unset -f _zebra_day_activate_dir
+unset _ZEBRA_DAY_ACTIVATE_PATH
+unset _zebra_day_deployment

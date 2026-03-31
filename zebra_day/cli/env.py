@@ -31,7 +31,7 @@ def _find_project_root() -> Path | None:
     # Search upward from current directory
     current = Path.cwd()
     while current != current.parent:
-        if (current / "pyproject.toml").exists() and (current / "zday_activate").exists():
+        if (current / "pyproject.toml").exists() and (current / "activate").exists():
             return current
         current = current.parent
     return None
@@ -51,7 +51,7 @@ def activate():
         output.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
-    activate_script = project_root / "zday_activate"
+    activate_script = project_root / "activate"
 
     if not activate_script.exists():
         output.error(f"Activation script not found: {activate_script}")
@@ -76,7 +76,7 @@ def deactivate():
     the command you need to run.
     """
     # Check if environment is active
-    if not os.environ.get("_ZDAY_ACTIVE"):
+    if not os.environ.get("_ZEBRA_DAY_ACTIVE"):
         output.warning("zebra_day environment is not active")
         return
 
@@ -86,13 +86,13 @@ def deactivate():
         # Fallback: just tell them to run deactivate
         console.print(
             Panel.fit(
-                "[cyan]source zday_deactivate[/cyan]\n[dim]or[/dim]\n[cyan]deactivate[/cyan]",
+                "[cyan]source zebra_day_deactivate[/cyan]\n[dim]or[/dim]\n[cyan]deactivate[/cyan]",
                 title="Run one of these commands to deactivate",
                 border_style="yellow",
             )
         )
     else:
-        deactivate_script = project_root / "zday_deactivate"
+        deactivate_script = project_root / "zebra_day_deactivate"
         console.print(
             Panel.fit(
                 f"[cyan]source {deactivate_script}[/cyan]",
@@ -108,7 +108,7 @@ def deactivate():
 @env_app.command("status")
 def status():
     """Show current environment status."""
-    is_active = bool(os.environ.get("_ZDAY_ACTIVE"))
+    is_active = bool(os.environ.get("_ZEBRA_DAY_ACTIVE"))
     project_root = os.environ.get("ZDAY_PROJECT_ROOT", "")
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
     config_path = str(xdg.get_config_file_path())
@@ -142,8 +142,8 @@ def reset():
         output.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
-    activate_script = project_root / "zday_activate"
-    deactivate_script = project_root / "zday_deactivate"
+    activate_script = project_root / "activate"
+    deactivate_script = project_root / "zebra_day_deactivate"
 
     if not activate_script.exists():
         output.error(f"Activation script not found: {activate_script}")

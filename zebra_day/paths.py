@@ -1,21 +1,4 @@
-"""
-XDG Base Directory specification support for zebra_day.
-
-This module provides cross-platform paths for configuration, state, cache, and data
-following the XDG Base Directory specification on Linux/macOS.
-
-XDG Base Directory Specification:
-- XDG_CONFIG_HOME: User configuration files (~/.config)
-- XDG_DATA_HOME: User data files (~/.local/share)
-- XDG_STATE_HOME: User state files (~/.local/state) - logs, history
-- XDG_CACHE_HOME: User cache files (~/.cache)
-
-On all platforms, we default to XDG locations (e.g. ~/.config) for config.
-
-Legacy note (macOS): older versions used ~/Library/Preferences/zebra_day for
-configuration. We still provide helpers to locate legacy paths so callers can
-migrate forward to XDG.
-"""
+"""Deployment-scoped XDG paths for zebra_day."""
 
 from __future__ import annotations
 
@@ -25,6 +8,40 @@ import sys
 from pathlib import Path
 
 APP_NAME = "zebra_day"
+APP_SLUG = "zebra-day"
+DEFAULT_DEPLOYMENT_CODE = "local"
+
+
+def sanitize_deployment_code(value: str | None) -> str:
+    """Normalize deployment names into safe path components."""
+    raw = str(value or "").strip()
+    if not raw:
+        return DEFAULT_DEPLOYMENT_CODE
+    sanitized = "".join(
+        ch if ch.isalnum() or ch in {".", "_", "-"} else "-"
+        for ch in raw
+    ).strip("-")
+    return sanitized or DEFAULT_DEPLOYMENT_CODE
+
+
+def get_deployment_code() -> str:
+    """Resolve the active deployment code from the supported env vars."""
+    return sanitize_deployment_code(
+        os.environ.get("ZEBRA_DAY_DEPLOYMENT_CODE")
+        or os.environ.get("DEPLOYMENT_CODE")
+        or os.environ.get("LSMC_DEPLOYMENT_CODE")
+        or DEFAULT_DEPLOYMENT_CODE
+    )
+
+
+def get_app_dir_name() -> str:
+    """Return the deployment-scoped XDG directory name."""
+    return f"{APP_SLUG}-{get_deployment_code()}"
+
+
+def get_config_filename() -> str:
+    """Return the deployment-scoped config filename."""
+    return f"{APP_SLUG}-config-{get_deployment_code()}.yaml"
 
 
 def _maybe_copy_file(src: Path, dst: Path) -> bool:
@@ -70,7 +87,7 @@ def get_config_dir() -> Path:
     """
     # Cross-platform default: XDG (~/.config) unless XDG_CONFIG_HOME is set.
     base = _get_xdg_dir("XDG_CONFIG_HOME", Path.home() / ".config")
-    config_dir = base / APP_NAME
+    config_dir = base / get_app_dir_name()
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
 
@@ -104,12 +121,12 @@ def get_data_dir() -> Path:
         Path to zebra_day data directory (created if needed)
     """
     if sys.platform == "darwin":
-        fallback = Path.home() / "Library" / "Application Support" / APP_NAME
+        fallback = Path.home() / "Library" / "Application Support" / get_app_dir_name()
     else:
-        fallback = Path.home() / ".local" / "share" / APP_NAME
+        fallback = Path.home() / ".local" / "share" / get_app_dir_name()
 
     base = _get_xdg_dir("XDG_DATA_HOME", fallback.parent)
-    data_dir = base / APP_NAME if "XDG_DATA_HOME" in os.environ else fallback
+    data_dir = base / get_app_dir_name() if "XDG_DATA_HOME" in os.environ else fallback
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
@@ -121,12 +138,12 @@ def get_state_dir() -> Path:
         Path to zebra_day state directory (created if needed)
     """
     if sys.platform == "darwin":
-        fallback = Path.home() / "Library" / "Logs" / APP_NAME
+        fallback = Path.home() / "Library" / "Logs" / get_app_dir_name()
     else:
-        fallback = Path.home() / ".local" / "state" / APP_NAME
+        fallback = Path.home() / ".local" / "state" / get_app_dir_name()
 
     base = _get_xdg_dir("XDG_STATE_HOME", fallback.parent)
-    state_dir = base / APP_NAME if "XDG_STATE_HOME" in os.environ else fallback
+    state_dir = base / get_app_dir_name() if "XDG_STATE_HOME" in os.environ else fallback
     state_dir.mkdir(parents=True, exist_ok=True)
     return state_dir
 
@@ -138,12 +155,12 @@ def get_cache_dir() -> Path:
         Path to zebra_day cache directory (created if needed)
     """
     if sys.platform == "darwin":
-        fallback = Path.home() / "Library" / "Caches" / APP_NAME
+        fallback = Path.home() / "Library" / "Caches" / get_app_dir_name()
     else:
-        fallback = Path.home() / ".cache" / APP_NAME
+        fallback = Path.home() / ".cache" / get_app_dir_name()
 
     base = _get_xdg_dir("XDG_CACHE_HOME", fallback.parent)
-    cache_dir = base / APP_NAME if "XDG_CACHE_HOME" in os.environ else fallback
+    cache_dir = base / get_app_dir_name() if "XDG_CACHE_HOME" in os.environ else fallback
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -155,7 +172,7 @@ def get_config_file_path() -> Path:
     Returns:
         Path to zebra-day-config.yaml in XDG config directory
     """
-    target = get_config_dir() / "zebra-day-config.yaml"
+    target = get_config_dir() / get_config_filename()
     _maybe_migrate_legacy_macos_config_file(target)
     return target
 

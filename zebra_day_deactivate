@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "Error: this script must be sourced, not executed."
+    echo "Usage: source ./zebra_day_deactivate"
+    exit 1
+fi
+
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/zday_deactivate"
+unset _ZEBRA_DAY_ACTIVE
+unset ZEBRA_DAY_PROJECT_ROOT
