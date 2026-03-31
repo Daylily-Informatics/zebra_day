@@ -38,8 +38,8 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "pydantic>=2.0.0",
     "python-multipart>=0.0.6",
-    "cli-core-yo>=0.3.1",
-    "daylily-tapdb==3.0.11",
+    "cli-core-yo>=0.3.2",
+    "daylily-tapdb==3.0.12",
     "typer>=0.21.0,<0.22.0",
     "rich>=14.0.0,<15.0.0",
     "pillow>=10.0.0",
@@ -70,7 +70,7 @@ aws = [
     "boto3>=1.26.0",
 ]
 auth = [
-    "daylily-cognito==0.1.32",
+    "daylily-cognito==0.1.33",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.26.0",
 ]
