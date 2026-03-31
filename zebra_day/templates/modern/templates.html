@@ -4,45 +4,31 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">ZPL Templates</h1>
-    <p class="page-subtitle">Manage label templates and styles</p>
+    <h1 class="page-title">Shared Templates</h1>
+    <p class="page-subtitle">Manage TapDB template records and label-profile defaults.</p>
 </div>
 
 <div class="grid grid-2">
-    <!-- User Templates -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-user text-success"></i> User Templates
-            </h3>
-            <span class="badge badge-success">{{ user_templates | length }}</span>
+            <h3 class="card-title">Template Inventory</h3>
+            <span class="badge">{{ template_names | length }}</span>
         </div>
-        <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
-            <i class="fas fa-folder"></i> ~/.config/zebra_day/label_styles/
-        </p>
-        {% if user_templates %}
-        <div class="table-container" style="box-shadow: none;">
+        {% if template_names %}
+        <div class="table-container" style="box-shadow:none;">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Template Name</th>
-                        <th>Actions</th>
+                        <th>Name</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for template in user_templates %}
+                    {% for template_name in template_names %}
                     <tr>
+                        <td><strong>{{ template_name }}</strong></td>
                         <td>
-                            <i class="fas fa-file-code text-muted"></i>
-                            <strong>{{ template }}</strong>
-                        </td>
-                        <td>
-                            <a href="/templates/edit?filename={{ template }}" class="btn btn-sm btn-outline">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="/templates/preview?filename={{ template }}" class="btn btn-sm btn-primary">
-                                <i class="fas fa-eye"></i> Preview
-                            </a>
+                            <button class="btn btn-sm btn-outline" onclick="loadTemplate('{{ template_name }}')">Open</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -52,47 +38,30 @@
         {% else %}
         <div class="empty-state">
             <i class="fas fa-file-code"></i>
-            <p>No user templates yet</p>
-            <small class="text-muted">Edit a package template and save to create a user template</small>
+            <p>No templates stored in TapDB yet.</p>
         </div>
         {% endif %}
     </div>
 
-    <!-- Package Templates -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-box text-info"></i> Package Templates
-            </h3>
-            <span class="badge badge-info">{{ package_templates | length }}</span>
+            <h3 class="card-title">Label Profiles</h3>
+            <span class="badge">{{ label_profiles | length }}</span>
         </div>
-        <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
-            <i class="fas fa-folder"></i> Built-in templates shipped with zebra_day
-        </p>
-        {% if package_templates %}
-        <div class="table-container" style="box-shadow: none;">
+        {% if label_profiles %}
+        <div class="table-container" style="box-shadow:none;">
             <table class="table">
                 <thead>
                     <tr>
-                        <th>Template Name</th>
-                        <th>Actions</th>
+                        <th>Profile</th>
+                        <th>Template</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for template in package_templates %}
+                    {% for profile in label_profiles %}
                     <tr>
-                        <td>
-                            <i class="fas fa-file-alt text-muted"></i>
-                            <strong>{{ template }}</strong>
-                        </td>
-                        <td>
-                            <a href="/templates/edit?filename={{ template }}" class="btn btn-sm btn-outline">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="/templates/preview?filename={{ template }}" class="btn btn-sm btn-primary">
-                                <i class="fas fa-eye"></i> Preview
-                            </a>
-                        </td>
+                        <td><strong>{{ profile.profile_name }}</strong></td>
+                        <td>{{ profile.template_name or "unbound" }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -100,203 +69,129 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <i class="fas fa-box"></i>
-            <p>No package templates found</p>
+            <i class="fas fa-layer-group"></i>
+            <p>No label profiles stored in TapDB yet.</p>
         </div>
         {% endif %}
     </div>
 </div>
 
-{% if dynamodb_templates %}
-<!-- DynamoDB Templates -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h3 class="card-title">
-            <i class="fas fa-cloud text-warning"></i> DynamoDB Templates
-        </h3>
-        <span class="badge badge-warning">{{ dynamodb_templates | length }}</span>
+        <h3 class="card-title">Edit Template</h3>
     </div>
-    <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
-        <i class="fas fa-database"></i> Templates stored in AWS DynamoDB
-    </p>
-    <div class="table-container" style="box-shadow: none;">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Template Name</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for template in dynamodb_templates %}
-                <tr>
-                    <td>
-                        <i class="fas fa-cloud text-muted"></i>
-                        <strong>{{ template }}</strong>
-                    </td>
-                    <td>
-                        <a href="/templates/edit?filename={{ template }}" class="btn btn-sm btn-outline">
-                            <i class="fas fa-edit"></i> Edit
-                        </a>
-                        <a href="/templates/preview?filename={{ template }}" class="btn btn-sm btn-primary">
-                            <i class="fas fa-eye"></i> Preview
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-
-{% if is_dynamo_backend and (local_user_templates or local_package_templates) %}
-<!-- Import Local Templates to DynamoDB -->
-<div class="card mt-lg">
-    <div class="card-header">
-        <h3 class="card-title">
-            <i class="fas fa-upload text-info"></i> Import Local Templates to DynamoDB
-        </h3>
-    </div>
-    <p class="text-muted" style="padding: 0 var(--spacing-md); font-size: 0.85rem;">
-        <i class="fas fa-info-circle"></i>
-        Select local templates to copy into DynamoDB. Templates already in DynamoDB will be skipped.
-    </p>
-    <div style="padding: var(--spacing-md);">
-        <div style="margin-bottom: var(--spacing-sm);">
-            <label style="cursor:pointer; margin-right:var(--spacing-md);">
-                <input type="checkbox" id="import-select-all" onchange="toggleImportAll(this.checked)">
-                <strong>Select All</strong>
-            </label>
-            <button class="btn btn-sm btn-primary" id="import-btn" onclick="importSelectedTemplates()" disabled>
-                <i class="fas fa-cloud-upload-alt"></i> Import Selected to DynamoDB
-            </button>
-            <span id="import-status" style="margin-left:var(--spacing-sm);"></span>
+    <form id="template-form">
+        <div class="form-group">
+            <label class="form-label">Template Name</label>
+            <input id="template-name" class="form-control" placeholder="tube_2inX1in" required>
         </div>
-        <div class="table-container" style="box-shadow: none;">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th style="width:40px;"></th>
-                        <th>Template Name</th>
-                        <th>Source</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for template in local_user_templates %}
-                    <tr>
-                        <td><input type="checkbox" class="import-cb" value="{{ template }}" onchange="updateImportBtn()"></td>
-                        <td>
-                            <i class="fas fa-user text-success"></i>
-                            {{ template }}
-                        </td>
-                        <td><span class="badge badge-success">user</span></td>
-                    </tr>
-                    {% endfor %}
-                    {% for template in local_package_templates %}
-                    <tr>
-                        <td><input type="checkbox" class="import-cb" value="{{ template }}" onchange="updateImportBtn()"></td>
-                        <td>
-                            <i class="fas fa-box text-info"></i>
-                            {{ template }}
-                        </td>
-                        <td><span class="badge badge-info">package</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="form-group">
+            <label class="form-label">ZPL Content</label>
+            <textarea id="template-zpl" class="form-control" rows="14" placeholder="^XA^FO30,30^FDHello^FS^XZ" required></textarea>
         </div>
-    </div>
-    <div id="import-results" style="padding: 0 var(--spacing-md) var(--spacing-md);"></div>
-</div>
-{% endif %}
-
-<!-- Format Keys Reference -->
-<div class="card mt-lg">
-    <div class="card-header">
-        <h3 class="card-title">Template Format Keys</h3>
-    </div>
-    <p class="text-muted mb-lg">Use these placeholders in your ZPL templates to insert dynamic data:</p>
-    <div class="grid grid-4">
-        <div><code>{uid_barcode}</code> - Barcode value</div>
-        <div><code>{alt_a}</code> - Custom field A</div>
-        <div><code>{alt_b}</code> - Custom field B</div>
-        <div><code>{alt_c}</code> - Custom field C</div>
-        <div><code>{alt_d}</code> - Custom field D</div>
-        <div><code>{alt_e}</code> - Custom field E</div>
-        <div><code>{alt_f}</code> - Custom field F</div>
-        <div><code>{rec_date}</code> - Record date</div>
-    </div>
+        <div class="d-flex" style="gap:var(--spacing-md);">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn btn-outline" onclick="deleteTemplate()">Delete</button>
+            <button type="button" class="btn btn-outline" onclick="previewTemplate()">Preview PNG</button>
+        </div>
+    </form>
+    <p class="text-muted mt-md">This editor writes directly to TapDB through the same API contract used by downstream Python clients.</p>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
-{% if is_dynamo_backend %}
 <script>
-function toggleImportAll(checked) {
-    document.querySelectorAll('.import-cb').forEach(cb => { cb.checked = checked; });
-    updateImportBtn();
-}
-
-function updateImportBtn() {
-    const checked = document.querySelectorAll('.import-cb:checked');
-    const btn = document.getElementById('import-btn');
-    btn.disabled = checked.length === 0;
-    btn.innerHTML = checked.length
-        ? '<i class="fas fa-cloud-upload-alt"></i> Import ' + checked.length + ' to DynamoDB'
-        : '<i class="fas fa-cloud-upload-alt"></i> Import Selected to DynamoDB';
-    const all = document.querySelectorAll('.import-cb');
-    const selectAll = document.getElementById('import-select-all');
-    if (selectAll) selectAll.checked = all.length > 0 && checked.length === all.length;
-}
-
-async function importSelectedTemplates() {
-    const checked = Array.from(document.querySelectorAll('.import-cb:checked'));
-    const names = checked.map(cb => cb.value);
-    if (names.length === 0) return;
-
-    const btn = document.getElementById('import-btn');
-    const resultsDiv = document.getElementById('import-results');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
-
+async function loadTemplate(name) {
+    showLoading('Loading template...');
     try {
-        const resp = await fetch('/api/v1/templates/import-to-dynamo', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({templates: names})
-        });
-        const data = await resp.json();
-        if (!resp.ok) {
-            showToast('error', 'Import Failed', data.detail || 'Unknown error');
+        const response = await fetch(`/api/v1/templates/${encodeURIComponent(name)}`);
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Load failed', payload.detail || 'Unknown error');
             return;
         }
+        document.getElementById('template-name').value = payload.template_name;
+        document.getElementById('template-zpl').value = payload.zpl_content;
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Load failed', error.message || 'Unknown error');
+    }
+}
 
-        let html = '';
-        if (data.imported.length) {
-            html += '<div style="padding:0.5rem 0.75rem;background:rgba(34,197,94,0.1);border:1px solid var(--color-success);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-check-circle text-success"></i> <strong>Imported:</strong> ' + data.imported.join(', ') + '</div>';
+document.getElementById('template-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const filename = document.getElementById('template-name').value.trim();
+    const zplContent = document.getElementById('template-zpl').value;
+    showLoading('Saving template...');
+    try {
+        const response = await fetch('/api/v1/templates', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filename, zpl_content: zplContent}),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Save failed', payload.detail || 'Unknown error');
+            return;
         }
-        if (data.skipped.length) {
-            html += '<div style="padding:0.5rem 0.75rem;background:rgba(245,158,11,0.1);border:1px solid var(--color-warning);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-forward text-warning"></i> <strong>Skipped (already in DynamoDB):</strong> ' + data.skipped.join(', ') + '</div>';
-        }
-        if (data.errors.length) {
-            html += '<div style="padding:0.5rem 0.75rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);margin-bottom:0.5rem;"><i class="fas fa-exclamation-triangle text-error"></i> <strong>Errors:</strong> ' + data.errors.join('; ') + '</div>';
-        }
-        if (resultsDiv) resultsDiv.innerHTML = html;
+        showToast('success', 'Saved', `Template ${payload.template_name} saved.`);
+        window.location.reload();
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Save failed', error.message || 'Unknown error');
+    }
+});
 
-        if (data.imported.length) {
-            showToast('success', 'Import Complete', data.imported.length + ' template(s) imported to DynamoDB.');
-            setTimeout(() => window.location.reload(), 1500);
-        } else if (data.skipped.length && !data.errors.length) {
-            showToast('info', 'Nothing to Import', 'All selected templates already exist in DynamoDB.');
+async function deleteTemplate() {
+    const name = document.getElementById('template-name').value.trim();
+    if (!name) {
+        showToast('error', 'Missing name', 'Load or enter a template first.');
+        return;
+    }
+    showLoading('Deleting template...');
+    try {
+        const response = await fetch(`/api/v1/templates/${encodeURIComponent(name)}`, {method: 'DELETE'});
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Delete failed', payload.detail || 'Unknown error');
+            return;
         }
-    } catch (e) {
-        showToast('error', 'Import Failed', e.message || 'Network error');
-    } finally {
-        btn.disabled = false;
-        updateImportBtn();
+        showToast('success', 'Deleted', `Template ${name} deleted.`);
+        window.location.reload();
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Delete failed', error.message || 'Unknown error');
+    }
+}
+
+async function previewTemplate() {
+    const name = document.getElementById('template-name').value.trim();
+    const zplContent = document.getElementById('template-zpl').value;
+    if (!name && !zplContent) {
+        showToast('error', 'Missing content', 'Load or enter a template first.');
+        return;
+    }
+    showLoading('Rendering preview...');
+    try {
+        const response = await fetch('/api/v1/render', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({template: name || null, zpl_content: zplContent || null}),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Preview failed', payload.detail || 'Unknown error');
+            return;
+        }
+        window.open(payload.png_url, '_blank');
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Preview failed', error.message || 'Unknown error');
     }
 }
 </script>
-{% endif %}
 {% endblock %}

@@ -3,16 +3,16 @@
 ## What This Repo Is
 
 `zebra_day` is a Python library + CLI + web GUI for managing fleets of Zebra label printers.
-It speaks ZPL over TCP (port 9100), provides a FastAPI web UI, and optionally stores
-config in AWS DynamoDB with S3 backups.
+It speaks ZPL over TCP (port 9100), provides a FastAPI web UI, and stores shared fleet state,
+templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 
 ## Architecture Quick Reference
 
 | Layer | Key Files | Notes |
 |-------|-----------|-------|
 | CLI | `zebra_day/cli/__init__.py` | Built on `cli-core-yo` (`create_app(spec)` + plugin `register()` pattern) |
-| Core | `zebra_day/print_mgr.py`, `zebra_day/cmd_mgr.py` | `zpl()` class, ZPL TCP communication |
-| Backends | `zebra_day/backends/` | `ConfigBackend` protocol → `LocalBackend` (files) or `DynamoBackend` (AWS) |
+| Core | `zebra_day/client.py`, `zebra_day/printer_protocol.py`, `zebra_day/cmd_mgr.py` | TapDB-backed domain logic, remote API client, and raw printer protocol helpers |
+| Storage | `zebra_day/client.py`, `config/tapdb_templates/` | TapDB is the only supported shared datastore |
 | Web | `zebra_day/web/` | FastAPI app, Jinja2 templates in `zebra_day/templates/modern/` |
 | Simulator | `zebra_day/simulator.py` | Mock ZPL printer for testing (TCP 9100 + HTTP) |
 | Paths | `zebra_day/paths.py` | XDG Base Directory helpers |
@@ -28,8 +28,7 @@ config in AWS DynamoDB with S3 backups.
 ## Testing
 
 - **Framework**: `pytest` + `pytest-cov`
-- **Test files**: `tests/test_*.py` (13 files, 334+ tests)
-- **AWS mocks**: Use `moto[dynamodb,s3]` — never real AWS credentials in tests
+- **Coverage focus**: TapDB-backed runtime paths, auth flows, CLI surface, and Playwright E2E auth coverage
 - **Run all**: `pytest tests/ -v --tb=short`
 - **Run one file**: `pytest tests/test_cli.py -v`
 - **Linting**: `ruff check zebra_day tests && ruff format --check zebra_day tests`
@@ -46,9 +45,9 @@ pytest tests/ -v --tb=short
 
 ## Config Format
 
-- Printer fleet config is **YAML** (`zebra-day-config.yaml`) for historical reasons.
-- All new config/data interchange should prefer **JSON**.
-- DynamoDB stores config as JSON-encoded strings.
+- Deployment runtime config is **YAML** and deployment-scoped by filename.
+- Shared fleet state is stored in TapDB only.
+- JSON is the preferred interchange format for APIs and TapDB seed assets.
 
 ## Network Scanner
 
@@ -72,11 +71,14 @@ pytest tests/ -v --tb=short
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ZEBRA_DAY_CONFIG_BACKEND` | `local` | `local` or `dynamodb` |
-| `ZEBRA_DAY_DYNAMO_TABLE` | `zebra-day-config` | DynamoDB table name |
-| `ZEBRA_DAY_DYNAMO_REGION` | `us-west-2` | AWS region |
-| `ZEBRA_DAY_S3_BACKUP_BUCKET` | _(none)_ | Required for dynamodb backend |
-| `AWS_PROFILE` | _(none)_ | Never pass `"default"` explicitly |
+| `ZEBRA_DAY_DEPLOYMENT_CODE` | `local` | Active deployment name |
+| `ZEBRA_DAY_AUTH_MODE` | `cognito` | Runtime auth mode override; `none` is supported via global `--no-auth` |
+| `TAPDB_CLIENT_ID` | `zebra-day` | TapDB client namespace |
+| `TAPDB_DATABASE_NAME` | `zebra-day-<deployment>` | TapDB database namespace |
+| `TAPDB_ENV` | `dev` | TapDB environment selector |
+| `TAPDB_CONFIG_PATH` | deployment derived | Required TapDB config file path |
+| `INTERNAL_API_KEY` | _(none)_ | Optional bearer token for machine API clients |
+| `AWS_PROFILE` | _(none)_ | Used for daycog/Cognito admin commands; never pass `"default"` explicitly |
 
 ## Do NOT
 

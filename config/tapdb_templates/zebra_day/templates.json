@@ -1,0 +1,101 @@
+{
+  "$comment": "Canonical zebra_day TapDB template pack",
+  "templates": [
+    {
+      "name": "zebra_day Printer",
+      "polymorphic_discriminator": "equipment_template",
+      "category": "zebra-day",
+      "type": "fleet",
+      "subtype": "printer",
+      "version": "1.0",
+      "instance_prefix": "ZDP",
+      "instance_polymorphic_identity": "equipment_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "fleet"
+      }
+    },
+    {
+      "name": "zebra_day Label Profile",
+      "polymorphic_discriminator": "data_template",
+      "category": "zebra-day",
+      "type": "labels",
+      "subtype": "profile",
+      "version": "1.0",
+      "instance_prefix": "ZLP",
+      "instance_polymorphic_identity": "data_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "labels"
+      }
+    },
+    {
+      "name": "zebra_day Label Template",
+      "polymorphic_discriminator": "data_template",
+      "category": "zebra-day",
+      "type": "labels",
+      "subtype": "template",
+      "version": "1.0",
+      "instance_prefix": "ZLT",
+      "instance_polymorphic_identity": "data_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "labels"
+      }
+    },
+    {
+      "name": "zebra_day Printer Observation",
+      "polymorphic_discriminator": "data_template",
+      "category": "zebra-day",
+      "type": "fleet",
+      "subtype": "printer-observation",
+      "version": "1.0",
+      "instance_prefix": "ZPO",
+      "instance_polymorphic_identity": "data_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "fleet"
+      }
+    },
+    {
+      "name": "zebra_day Metadata Drift",
+      "polymorphic_discriminator": "data_template",
+      "category": "zebra-day",
+      "type": "fleet",
+      "subtype": "metadata-drift",
+      "version": "1.0",
+      "instance_prefix": "ZMD",
+      "instance_polymorphic_identity": "data_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "fleet"
+      }
+    },
+    {
+      "name": "zebra_day Print Job",
+      "polymorphic_discriminator": "action_template",
+      "category": "zebra-day",
+      "type": "printing",
+      "subtype": "print-job",
+      "version": "1.0",
+      "instance_prefix": "ZPJ",
+      "instance_polymorphic_identity": "action_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "printing"
+      }
+    }
+  ]
+}

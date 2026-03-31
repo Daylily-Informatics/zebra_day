@@ -61,7 +61,7 @@ jobs:
 
       - name: Smoke test - Core imports
         run: |
-          python -c "import zebra_day.print_mgr; print('print_mgr: OK')"
+          python -c "import zebra_day.client; print('client: OK')"
           python -c "import zebra_day.cli; print('cli: OK')"
           python -c "import zebra_day.paths; print('paths: OK')"
           python -c "from zebra_day.web.app import create_app; print('web.app: OK')"

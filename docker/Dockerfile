@@ -8,4 +8,4 @@ RUN DEBIAN_FRONTEND=noninteractive apt update --silent && \
 
 EXPOSE 8118
 
-CMD ["zday_start"]
+CMD ["zday", "--no-auth", "gui", "start", "--host", "0.0.0.0", "--port", "8118", "--foreground", "--no-https"]

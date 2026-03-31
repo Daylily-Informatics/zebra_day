@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "Error: this script must be sourced, not executed."
+    echo "Usage: source ./zebra_day_deactivate"
+    exit 1
+fi
+
+if type conda >/dev/null 2>&1; then
+    source "$(conda info --base)/etc/profile.d/conda.sh" 2>/dev/null || true
+fi
+
+if [[ -n "${CONDA_DEFAULT_ENV:-}" ]]; then
+    conda deactivate 2>/dev/null || true
+fi
+
+unset ZEBRA_DAY_ACTIVE
+unset ZEBRA_DAY_PROJECT_ROOT
+unset ZEBRA_DAY_DEPLOYMENT_CODE
+unset DEPLOYMENT_CODE
+unset LSMC_DEPLOYMENT_CODE
+unset ZEBRA_DAY_CONFIG_PATH
+unset TAPDB_CLIENT_ID
+unset TAPDB_DATABASE_NAME
+unset TAPDB_ENV
+unset TAPDB_CONFIG_PATH

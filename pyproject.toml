@@ -35,9 +35,11 @@ dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "jinja2>=3.1.0",
+    "itsdangerous>=2.2.0",
     "pydantic>=2.0.0",
     "python-multipart>=0.0.6",
     "cli-core-yo>=0.2.1",
+    "daylily-tapdb>=0.0.0",
     "typer>=0.21.0,<0.22.0",
     "rich>=14.0.0,<15.0.0",
     "pillow>=10.0.0",
@@ -51,9 +53,9 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.0.0",
+    "pytest-playwright>=0.4.4",
     "ipython>=8.16.0",
     "playwright>=1.40.0",
-    "moto[dynamodb,s3]>=5.0.0",
 ]
 lint = [
     "ruff>=0.1.0",
@@ -82,11 +84,7 @@ Repository = "https://github.com/Daylily-Informatics/zebra_day.git"
 Issues = "https://github.com/Daylily-Informatics/zebra_day/issues"
 
 [project.scripts]
-# Primary CLI entry point
 zday = "zebra_day.cli:main"
-# Deprecated aliases (kept for backward compatibility)
-zday_quickstart = "zebra_day.print_mgr:main"
-zday_start = "zebra_day.print_mgr:zday_start"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -115,6 +113,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "e2e: live Playwright/Cognito browser tests",
+]
 
 [tool.ruff]
 line-length = 100

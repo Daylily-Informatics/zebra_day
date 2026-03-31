@@ -1,8 +1,7 @@
-"""Root-level commands (status, bootstrap) — cli-core-yo plugin."""
+"""Root-level zebra_day commands."""
 
 from __future__ import annotations
 
-import os
 import socket
 from typing import TYPE_CHECKING, Any
 
@@ -10,7 +9,8 @@ import typer
 from cli_core_yo import output
 from cli_core_yo.runtime import get_context
 
-from zebra_day import paths as xdg
+from zebra_day.client import ZebraDayClient
+from zebra_day.settings import ZebraDaySettings, build_default_config_template
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -18,226 +18,163 @@ if TYPE_CHECKING:
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    """Register root-level status and bootstrap commands."""
+    del spec
     registry.add_command(
         None,
         "status",
         _status_callback,
-        help_text="Show printer fleet status, network connectivity, and service health.",
+        help_text="Show zebra_day runtime, TapDB, and GUI status.",
     )
     registry.add_command(
         None,
         "bootstrap",
         _bootstrap_callback,
-        help_text="Initialize configuration, scan for printers, and setup first-time environment.",
+        help_text="Create deployment config and optionally scan for printers.",
     )
 
 
-def _status_callback() -> None:
-    """Show printer fleet status, network connectivity, and service health."""
-    status_data: dict[str, dict[str, Any]] = {
-        "gui_server": {"running": False, "pid": None, "url": None},
-        "printers": {"configured": 0, "labs": []},
-        "config": {"exists": False, "path": None},
-    }
+def _derive_ip_stub() -> str:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        probe.connect(("8.8.8.8", 80))
+        local_ip = probe.getsockname()[0]
+    return ".".join(local_ip.split(".")[:-1])
 
-    # Check GUI server
-    pid_file = xdg.get_state_dir() / "gui.pid"
+
+def _status_callback() -> None:
+    settings = ZebraDaySettings.from_context()
+    pid_file = settings.state_dir / "gui.pid"
+    gui_data: dict[str, Any] = {"running": False, "pid": None}
     if pid_file.exists():
         try:
-            pid = int(pid_file.read_text().strip())
-            os.kill(pid, 0)
-            status_data["gui_server"]["running"] = True
-            status_data["gui_server"]["pid"] = pid
-            status_data["gui_server"]["url"] = "http://0.0.0.0:8118"
+            pid = int(pid_file.read_text(encoding="utf-8").strip())
+            gui_data = {"running": True, "pid": pid}
         except (ValueError, ProcessLookupError, PermissionError):
-            pass
+            pid_file.unlink(missing_ok=True)
 
-    # Check printer config
-    printer_cfg = xdg.get_printer_config_path()
-    status_data["config"]["path"] = str(printer_cfg)
-    if printer_cfg.exists():
-        status_data["config"]["exists"] = True
-        try:
-            import zebra_day.print_mgr as zdpm
+    status_data: dict[str, Any] = {
+        "deployment_code": settings.deployment_code,
+        "config_path": str(settings.config_path),
+        "config_exists": settings.config_path.exists(),
+        "auth_mode": settings.auth_mode,
+        "tapdb": {
+            "config_path": str(settings.tapdb_config_path),
+            "config_exists": settings.tapdb_config_path.exists(),
+            "client_id": settings.tapdb_client_id,
+            "database_name": settings.tapdb_database_name,
+            "env": settings.tapdb_env,
+        },
+        "gui": gui_data,
+    }
 
-            zp = zdpm.zpl()
-            if hasattr(zp, "printers") and "labs" in zp.printers:
-                labs = list(zp.printers["labs"].keys())
-                status_data["printers"]["labs"] = labs
-                total_printers = sum(len(list(zp.printers["labs"][lab].keys())) for lab in labs)
-                status_data["printers"]["configured"] = total_printers
-        except Exception:
-            pass
+    error_text = ""
+    try:
+        client = ZebraDayClient(settings)
+        status_data["fleet"] = {
+            "labs": client.list_labs(),
+            "printer_count": len(client.list_printers()),
+            "template_count": len(client.list_templates()),
+            "label_profile_count": len(client.list_label_profiles()),
+        }
+    except Exception as exc:
+        error_text = str(exc)
+        status_data["fleet"] = {
+            "labs": [],
+            "printer_count": 0,
+            "template_count": 0,
+            "label_profile_count": 0,
+            "error": error_text,
+        }
 
     if get_context().json_mode:
         output.emit_json(status_data)
+        if error_text:
+            raise typer.Exit(1)
         return
 
-    # Human-readable output
-    output.heading("Service Status")
-    if status_data["gui_server"]["running"]:
-        output.success(f"GUI Server: Running (PID {status_data['gui_server']['pid']})")
-        output.detail(f"URL: {status_data['gui_server']['url']}")
+    output.heading("zebra_day Status")
+    output.detail(f"Deployment: {settings.deployment_code}")
+    output.detail(f"Config: {settings.config_path}")
+    output.detail(f"TapDB config: {settings.tapdb_config_path}")
+    output.detail(
+        f"TapDB namespace: {settings.tapdb_client_id}/{settings.tapdb_database_name} ({settings.tapdb_env})"
+    )
+    output.detail(f"Auth mode: {settings.auth_mode}")
+    if status_data["gui"]["running"]:
+        output.success(f"GUI server running (PID {status_data['gui']['pid']})")
     else:
-        output.detail("GUI Server: Not running")
+        output.warning("GUI server is not running")
 
-    output.heading("Printer Fleet")
-    if status_data["config"]["exists"]:
-        output.success("Config: Loaded")
-        output.detail(f"Printers: {status_data['printers']['configured']}")
-        output.detail(f"Labs: {', '.join(status_data['printers']['labs']) or 'none'}")
-    else:
-        output.warning("Config: Not found")
-        output.detail("Run 'zday bootstrap' to initialize")
+    if error_text:
+        output.error(f"TapDB unavailable: {error_text}")
+        raise typer.Exit(1)
+
+    output.success("TapDB connection verified")
+    output.detail(f"Labs: {', '.join(status_data['fleet']['labs']) or 'none'}")
+    output.detail(f"Printers: {status_data['fleet']['printer_count']}")
+    output.detail(f"Templates: {status_data['fleet']['template_count']}")
+    output.detail(f"Label profiles: {status_data['fleet']['label_profile_count']}")
 
 
 def _bootstrap_callback(
     ip_stub: str | None = typer.Option(
-        None, "--ip-stub", "-i", help="IP stub for printer scan (e.g., 192.168.1)"
+        None,
+        "--ip-stub",
+        help="IP stub to scan after config creation, e.g. 192.168.1",
     ),
-    skip_scan: bool = typer.Option(False, "--skip-scan", "-s", help="Skip printer network scan"),
-    silent_scan: bool = typer.Option(
-        False, "--silent-scan", help="Suppress per-IP scan output (show summary only)"
-    ),
+    lab: str = typer.Option("default", "--lab", help="Lab name for discovered printers"),
+    skip_scan: bool = typer.Option(False, "--skip-scan", help="Do not scan for printers"),
 ) -> None:
-    """Initialize configuration, scan for printers, and setup first-time environment.
+    settings = ZebraDaySettings.from_context()
+    config_created = False
+    if not settings.config_path.exists():
+        settings.config_path.parent.mkdir(parents=True, exist_ok=True)
+        settings.config_path.write_bytes(build_default_config_template(settings.deployment_code))
+        config_created = True
 
-    This is the recommended first-time setup command. It will:
-    1. Create XDG configuration directories
-    2. Initialize printer configuration
-    3. Scan the network for Zebra printers (unless --skip-scan)
+    result: dict[str, Any] = {
+        "deployment_code": settings.deployment_code,
+        "config_path": str(settings.config_path),
+        "config_created": config_created,
+        "tapdb_config_path": str(settings.tapdb_config_path),
+        "tapdb_config_exists": settings.tapdb_config_path.exists(),
+        "lab": lab,
+        "discovered_printers": [],
+    }
 
-    By default the scan prints each IP as it is probed and details for every
-    printer discovered.  Use --silent-scan to suppress per-IP output and only
-    show the final summary.
-    """
-    json_mode = get_context().json_mode
-
-    config_dir = str(xdg.get_config_dir())
-    data_dir = str(xdg.get_data_dir())
-    printers_found = 0
-    labs: list[str] = []
-
-    # output.* primitives auto-suppress in json_mode
-    output.heading("zebra_day Bootstrap")
-    output.success("Config directory: " + config_dir)
-    output.success("Data directory: " + data_dir)
-
-    if skip_scan:
-        output.detail("Skipping printer scan (--skip-scan)")
-    else:
-        # Determine IP stub
-        if not ip_stub:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                local_ip = s.getsockname()[0]
-                s.close()
-                ip_stub = ".".join(local_ip.split(".")[:-1])
-            except Exception:
-                ip_stub = "192.168.1"
-
-        if ip_stub.endswith("."):
-            output.error(
-                f"ip-stub must not end with a trailing dot: '{ip_stub}'. "
-                f"Use '{ip_stub.rstrip('.')}' instead."
-            )
-            raise typer.Exit(1)
-
-        output.action(f"Scanning network for Zebra printers ({ip_stub}.*)...")
-        if silent_scan:
-            output.detail("This may take a few minutes...")
-
-        # Build progress callback for verbose (non-silent) scan output
-        verbose_scan = not json_mode and not silent_scan
-
-        def _scan_progress(event: dict) -> None:
-            if not verbose_scan:
-                return
-            kind = event.get("kind")
-            if kind == "checking":
-                checked = event.get("checked", 0)
-                total = event.get("total", 255)
-                ip_addr = event.get("ip", "")
-                output.print_text(f"  [{checked + 1}/{total}] Probing {ip_addr}...")
-            elif kind == "found":
-                ip_addr = event.get("ip", "")
-                model = event.get("model", "Unknown")
-                serial = event.get("serial", "Unknown")
-                output.success(f"Found printer at {ip_addr}  model={model}  serial={serial}")
-            elif kind == "done":
-                checked = event.get("checked", 0)
-                total = event.get("total", 255)
-                output.detail(f"Scanned {checked}/{total} addresses")
-
-        try:
-            import zebra_day.print_mgr as zdpm
-
-            zp = zdpm.zpl()
-            zp.probe_zebra_printers_add_to_printers_json(
-                ip_stub=ip_stub,
-                progress_callback=_scan_progress,
-            )
-
-            if hasattr(zp, "printers") and "labs" in zp.printers:
-                for lab in zp.printers["labs"]:
-                    printers_in_lab = len(list(zp.printers["labs"][lab].keys()))
-                    printers_found += printers_in_lab
-                    labs.append(lab)
-
-            output.success(f"Scan complete: {printers_found} printer(s) found")
-            if labs:
-                output.detail(f"Labs: {', '.join(labs)}")
-        except Exception as e:
-            output.warning(f"Scan error: {e}")
-
-    # Generate HTTPS certificates if mkcert is available
-    certs_generated = False
-    cert_path_str = None
-
-    output.action("Checking HTTPS certificates...")
-
-    try:
-        from zebra_day import mkcert
-
-        if not mkcert.is_mkcert_installed():
-            output.warning("mkcert not installed")
-            output.detail(
-                "Install with: brew install mkcert (macOS) or sudo apt install mkcert (Ubuntu)"
-            )
-        elif not mkcert.is_ca_installed():
-            output.warning("mkcert CA not installed")
-            output.detail("Run: mkcert -install (one-time, requires password)")
-        elif mkcert.certificates_exist():
-            output.success(f"Certificates exist: {mkcert.CERT_FILE}")
-            certs_generated = True
-            cert_path_str = str(mkcert.CERT_FILE)
+    if not settings.tapdb_config_path.exists():
+        message = (
+            f"TapDB config is required. Create {settings.tapdb_config_path} before using zebra_day."
+        )
+        if get_context().json_mode:
+            result["error"] = message
+            output.emit_json(result)
         else:
-            output.detail("Generating certificates...")
-            if mkcert.generate_certificates():
-                output.success(f"Certificates generated: {mkcert.CERT_FILE}")
-                certs_generated = True
-                cert_path_str = str(mkcert.CERT_FILE)
-            else:
-                output.warning("Failed to generate certificates")
-    except Exception as e:
-        output.warning(f"Certificate check error: {e}")
+            output.error(message)
+            output.detail(f"Deployment config: {settings.config_path}")
+        raise typer.Exit(1)
 
-    if json_mode:
-        result = {
-            "config_dir": config_dir,
-            "data_dir": data_dir,
-            "printers_found": printers_found,
-            "labs": labs,
-            "https_certs_generated": certs_generated,
-            "cert_path": cert_path_str,
-        }
+    client = ZebraDayClient(settings)
+    if not skip_scan:
+        resolved_ip_stub = ip_stub or _derive_ip_stub()
+        printers = client.discover_printers(ip_stub=resolved_ip_stub, lab=lab)
+        result["discovered_printers"] = [printer.to_payload() for printer in printers]
+        result["ip_stub"] = resolved_ip_stub
+
+    if get_context().json_mode:
         output.emit_json(result)
         return
 
-    output.success("Bootstrap complete!")
+    output.heading("zebra_day Bootstrap")
+    if config_created:
+        output.success(f"Created config: {settings.config_path}")
+    else:
+        output.detail(f"Using config: {settings.config_path}")
+    output.success(f"TapDB config found: {settings.tapdb_config_path}")
+    if skip_scan:
+        output.detail("Skipped printer scan")
+    else:
+        output.success(f"Discovered {len(result['discovered_printers'])} printer(s)")
     output.heading("Next steps")
-    output.detail("zday gui start     Start the web UI")
-    output.detail("zday printer list  Show configured printers")
-    output.detail("zday info          Show configuration details")
+    output.detail("zday gui start")
+    output.detail("zday printer list")
+    output.detail("zday config status")

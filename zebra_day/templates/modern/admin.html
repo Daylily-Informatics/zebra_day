@@ -1,0 +1,125 @@
+{% extends "modern/base.html" %}
+
+{% block title %}Admin - Zebra Day{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title" data-testid="admin-console-title">Admin Console</h1>
+    <p class="page-subtitle">Observability, authentication, and runtime state for the modern zebra_day service.</p>
+</div>
+
+<div class="grid grid-4 mb-xl">
+    <div class="stat-card">
+        <div class="card-icon primary">
+            <i class="fas fa-building"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ labs | length }}</div>
+            <div class="stat-label">Labs</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon success">
+            <i class="fas fa-print"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ printer_count }}</div>
+            <div class="stat-label">Printers</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon info">
+            <i class="fas fa-file-code"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ template_count }}</div>
+            <div class="stat-label">Templates</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon warning">
+            <i class="fas fa-user-shield"></i>
+        </div>
+        <div>
+            <div class="stat-value">{{ auth_summary.mode | upper }}</div>
+            <div class="stat-label">Auth Mode</div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Runtime</h3>
+        </div>
+        <div class="table-container" style="box-shadow:none;">
+            <table class="table">
+                <tbody>
+                    <tr><th>Deployment</th><td>{{ deployment_code }}</td></tr>
+                    <tr><th>Storage</th><td>{{ storage_mode | upper }}</td></tr>
+                    <tr><th>TapDB Namespace</th><td>{{ tapdb_namespace }}</td></tr>
+                    <tr><th>Auth Enabled</th><td>{{ "yes" if auth_summary.enabled else "no" }}</td></tr>
+                    <tr><th>Internal API Key</th><td>{{ "configured" if auth_summary.has_internal_api_key else "absent" }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Auth Session</h3>
+        </div>
+        <div class="quick-actions">
+            {% if auth_enabled and is_authenticated %}
+            <div class="action-card" style="pointer-events:none;">
+                <i class="fas fa-user-check"></i>
+                <div>
+                    <strong>{{ user_name or "authenticated user" }}</strong>
+                    <small class="text-muted d-block">Current web session</small>
+                </div>
+            </div>
+            <a href="/auth/logout" class="action-card">
+                <i class="fas fa-right-from-bracket"></i>
+                <div>
+                    <strong>Logout</strong>
+                    <small class="text-muted d-block">End the current session</small>
+                </div>
+            </a>
+            {% elif auth_enabled %}
+            <a href="/auth/login" class="action-card">
+                <i class="fas fa-right-to-bracket"></i>
+                <div>
+                    <strong>Login</strong>
+                    <small class="text-muted d-block">Start a Cognito-backed web session</small>
+                </div>
+            </a>
+            {% else %}
+            <div class="action-card" style="pointer-events:none;">
+                <i class="fas fa-triangle-exclamation"></i>
+                <div>
+                    <strong>No Auth Mode</strong>
+                    <small class="text-muted d-block">Started with the explicit global auth override</small>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Observability Endpoints</h3>
+    </div>
+    <div class="grid grid-2">
+        {% for path in observability_links %}
+        <a href="{{ path }}" class="action-card" target="_blank">
+            <i class="fas fa-wave-square"></i>
+            <div>
+                <strong>{{ path }}</strong>
+                <small class="text-muted d-block">Structured service contract output</small>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

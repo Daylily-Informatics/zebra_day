@@ -169,3 +169,5 @@ zebra_day/files/*.png
 zebra_day/logs/
 zebra_day/_version.py
 zebra_day.egg-info/
+.auth/
+output/playwright/

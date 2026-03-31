@@ -1,513 +1,125 @@
 {% extends "modern/base.html" %}
 
-{% block title %}Configuration - Zebra Day{% endblock %}
+{% block title %}Config - Zebra Day{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">Configuration</h1>
-    <p class="page-subtitle">Manage printer configuration and settings</p>
+    <h1 class="page-title">Runtime Configuration</h1>
+    <p class="page-subtitle">Deployment-scoped service settings for the TapDB-only zebra_day runtime.</p>
+</div>
+
+<div class="grid grid-4 mb-xl">
+    <div class="stat-card">
+        <div class="card-icon primary"><i class="fas fa-building"></i></div>
+        <div>
+            <div class="stat-value">{{ runtime.lab_count }}</div>
+            <div class="stat-label">Labs</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon success"><i class="fas fa-print"></i></div>
+        <div>
+            <div class="stat-value">{{ runtime.printer_count }}</div>
+            <div class="stat-label">Printers</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon warning"><i class="fas fa-file-code"></i></div>
+        <div>
+            <div class="stat-value">{{ runtime.template_count }}</div>
+            <div class="stat-label">Templates</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="card-icon info"><i class="fas fa-layer-group"></i></div>
+        <div>
+            <div class="stat-value">{{ runtime.label_profile_count }}</div>
+            <div class="stat-label">Label Profiles</div>
+        </div>
+    </div>
 </div>
 
 <div class="grid grid-2">
-    <!-- Printer Configuration -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-cog"></i> Printer Configuration</h3>
+            <h3 class="card-title">Resolved Paths</h3>
         </div>
-        <div class="quick-actions">
-            <a href="/config/view" class="action-card">
-                <i class="fas fa-eye"></i>
-                <div>
-                    <strong>View Config</strong>
-                    <small class="text-muted d-block">View printers.json</small>
-                </div>
-            </a>
-            <a href="/config/edit" class="action-card">
-                <i class="fas fa-edit"></i>
-                <div>
-                    <strong>Edit Config</strong>
-                    <small class="text-muted d-block">Modify printers.json</small>
-                </div>
-            </a>
-            <a href="/config/backups" class="action-card">
-                <i class="fas fa-history"></i>
-                <div>
-                    <strong>Backups</strong>
-                    <small class="text-muted d-block">Prior config files</small>
-                </div>
-            </a>
-            <a href="/config/new" class="action-card">
-                <i class="fas fa-plus"></i>
-                <div>
-                    <strong>New Config</strong>
-                    <small class="text-muted d-block">Build from scratch</small>
-                </div>
-            </a>
+        <div class="table-container" style="box-shadow:none;">
+            <table class="table">
+                <tbody>
+                    <tr><th>Deployment</th><td>{{ deployment_code }}</td></tr>
+                    <tr><th>Config File</th><td><code>{{ config_path }}</code></td></tr>
+                    <tr><th>TapDB Config</th><td><code>{{ tapdb_config_path }}</code></td></tr>
+                    <tr><th>Logs</th><td><code>{{ request.app.state.settings.logs_dir }}</code></td></tr>
+                    <tr><th>Cache</th><td><code>{{ request.app.state.settings.cache_dir }}</code></td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <!-- Network Scan -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title"><i class="fas fa-wifi"></i> Network Scanner</h3>
+            <h3 class="card-title">TapDB Contract</h3>
         </div>
-	        <form action="/config/scan" method="get" onsubmit="return startNetworkScan(event, this)">
-            <div class="form-group">
-                <label class="form-label">IP Range</label>
-                <input type="text" name="ip_stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" placeholder="192.168.1">
-                <small class="text-muted">Enter the first three octets of your network</small>
-            </div>
-            <div class="form-group">
-                <label class="form-label">Lab Name</label>
-                <input type="text" name="lab" class="form-control" list="lab-names" placeholder="Enter lab name">
-                <datalist id="lab-names">
-                    {% for lab in labs %}
-                    <option value="{{ lab }}">
-                    {% endfor %}
-                </datalist>
-            </div>
-	            <div class="form-group">
-	                <label class="form-label">Scan Wait Time</label>
-	                <select name="scan_wait" class="form-control">
-	                    <option value="0.15">Fast (0.15s)</option>
-	                    <option value="0.25">Normal (0.25s)</option>
-	                    <option value="0.5" selected>Slow (0.5s)</option>
-	                    <option value="1.0">Very Slow (1.0s)</option>
-	                </select>
-	                <small class="text-muted">Longer wait times find more printers on slow networks</small>
-	            </div>
-	            <div class="form-group">
-	                <label class="form-label">HTTP Port (optional)</label>
-	                <input type="number" name="scan_http_port" class="form-control" placeholder="e.g. 80" min="1" max="65535">
-	                <small class="text-muted">Also probe this HTTP port for web-based discovery</small>
-	            </div>
-	            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-search"></i> Scan for Printers
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- Backend Configuration -->
-<div class="card mt-lg" id="backend-config-card">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-database"></i> Backend Configuration</h3>
-        {% if backend_info and backend_info.backend_type == 'dynamodb' %}
-        <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-outline btn-sm" onclick="refreshFromBackend()" id="btn-refresh-backend" title="Reload config from DynamoDB">
-                <i class="fas fa-sync-alt"></i> Refresh
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="detectTables()" id="btn-detect-tables" title="Scan for compatible DynamoDB tables">
-                <i class="fas fa-search"></i> Detect Tables
-            </button>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Backend type badge -->
-    <div class="mb-md" style="padding: 0.75rem 1rem; background: var(--color-gray-700); border-radius: var(--radius-sm);">
-        <span class="text-muted"><i class="fas fa-server"></i> Backend Type:</span>
-        {% if backend_info and backend_info.backend_type == 'dynamodb' %}
-        <span class="badge badge-info" style="margin-left: 0.5rem;"><i class="fas fa-cloud"></i> DynamoDB</span>
-        {% else %}
-        <span class="badge badge-warning" style="margin-left: 0.5rem;"><i class="fas fa-hdd"></i> Local</span>
-        {% endif %}
-    </div>
-
-    {% if backend_info and backend_info.error %}
-    <div class="mb-md" style="padding: 0.75rem 1rem; background: rgba(239,68,68,0.1); border: 1px solid var(--color-error); border-radius: var(--radius-sm); color: var(--color-error);">
-        <i class="fas fa-exclamation-triangle"></i> <strong>Error:</strong> {{ backend_info.error }}
-    </div>
-    {% endif %}
-
-    <!-- AWS config fields -->
-    <div class="grid grid-2 mb-md" style="gap: 0.75rem;">
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-user-shield"></i> AWS Profile</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.aws_profile | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-table"></i> DynamoDB Table</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.dynamo_table | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-globe"></i> AWS Region</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.aws_region | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-archive"></i> S3 Backup Bucket</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.s3_bucket | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-folder"></i> S3 Prefix</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.s3_prefix | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-clock"></i> Last Backup</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.last_backup | default('N/A') }}</code>
-        </div>
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-code-branch"></i> Config Version</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.config_version | default('N/A') }}</code>
-        </div>
-        {% if backend_info and backend_info.backend_type == 'dynamodb' and backend_info.config_updated_at %}
-        <div style="padding: 0.5rem 0.75rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            <div class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.25rem;"><i class="fas fa-user-edit"></i> Last Updated</div>
-            <code style="color: var(--color-gray-200); font-family: 'JetBrains Mono', monospace;">{{ backend_info.config_updated_at }} by {{ backend_info.config_updated_by | default('unknown') }}</code>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- Detect tables results area (hidden by default) -->
-    <div id="detect-tables-results" class="d-none" style="margin-top: 1rem;"></div>
-
-    <!-- Switch Backend -->
-    <div style="margin-top: 1.5rem; border-top: 1px solid var(--color-gray-600); padding-top: 1rem;">
-        <h4 style="margin-bottom: 0.75rem; cursor: pointer;" onclick="document.getElementById('switch-backend-form').classList.toggle('d-none')">
-            <i class="fas fa-exchange-alt"></i> Switch Backend
-            <small class="text-muted" style="font-weight: 400; font-size: 0.75rem; margin-left: 0.5rem;">click to expand</small>
-        </h4>
-
-        <div id="switch-backend-form" class="d-none">
-            <!-- Session-only warning -->
-            <div style="padding: 0.6rem 0.9rem; margin-bottom: 1rem; background: rgba(245,158,11,0.1); border: 1px solid var(--color-warning); border-radius: var(--radius-sm); color: var(--color-warning); font-size: 0.85rem;">
-                <i class="fas fa-exclamation-triangle"></i> <strong>Session-only</strong>: Switching backend affects only this running server. To persist, set environment variables before restarting.
-            </div>
-
-            <div class="form-group mb-md">
-                <label for="switch-backend-type" style="font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; display: block;">Backend Type</label>
-                <select id="switch-backend-type" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;" onchange="toggleDynamoFields()">
-                    <option value="local" {% if not backend_info or backend_info.backend_type != 'dynamodb' %}selected{% endif %}>Local (filesystem)</option>
-                    <option value="dynamodb" {% if backend_info and backend_info.backend_type == 'dynamodb' %}selected{% endif %}>DynamoDB (AWS)</option>
-                </select>
-            </div>
-
-            <div id="dynamo-fields" class="{% if not backend_info or backend_info.backend_type != 'dynamodb' %}d-none{% endif %}">
-                <div class="grid grid-2" style="gap: 0.75rem; margin-bottom: 0.75rem;">
-                    <div class="form-group">
-                        <label for="switch-table" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">Table Name</label>
-                        <input id="switch-table" type="text" value="{{ backend_info.dynamo_table if backend_info and backend_info.backend_type == 'dynamodb' else 'zebra-day-config' }}" placeholder="zebra-day-config" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
-                    </div>
-                    <div class="form-group">
-                        <label for="switch-region" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">Region</label>
-                        <input id="switch-region" type="text" value="{{ backend_info.aws_region if backend_info and backend_info.backend_type == 'dynamodb' else 'us-west-2' }}" placeholder="us-west-2" onchange="updateS3BucketName()" onblur="updateS3BucketName()" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
-                    </div>
-                    <div class="form-group">
-                        <label for="switch-s3-bucket" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Bucket <span style="color: var(--color-error);">*</span></label>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <input id="switch-s3-bucket" type="text" value="{{ backend_info.s3_bucket if backend_info and backend_info.backend_type == 'dynamodb' else '' }}" placeholder="zebra-day-cfg-us-west-2" onblur="checkS3BucketExists()" style="flex: 1; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
-                            <button id="btn-create-s3-bucket" class="btn btn-outline btn-sm d-none" onclick="createS3Bucket()" style="white-space: nowrap;" title="Create this S3 bucket in AWS">
-                                <i class="fas fa-plus-circle"></i> Create Bucket
-                            </button>
-                        </div>
-                        <small id="s3-bucket-status" class="text-muted" style="display: none; margin-top: 0.2rem;"></small>
-                    </div>
-                    <div class="form-group">
-                        <label for="switch-s3-prefix" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">S3 Prefix</label>
-                        <input id="switch-s3-prefix" type="text" value="{{ backend_info.s3_prefix if backend_info and backend_info.backend_type == 'dynamodb' else 'zebra-day/' }}" placeholder="zebra-day/" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
-                    </div>
-                </div>
-                <div class="form-group" style="margin-bottom: 0.75rem;">
-                    <label for="switch-profile" style="font-size: 0.8rem; font-weight: 500; display: block; margin-bottom: 0.2rem;">AWS Profile <small class="text-muted">(optional)</small></label>
-                    <input id="switch-profile" type="text" value="{{ backend_info.aws_profile if backend_info and backend_info.backend_type == 'dynamodb' and backend_info.aws_profile not in ('default credential chain', 'N/A', 'N/A - using local file backend') else '' }}" placeholder="Leave empty for default credential chain" style="width: 100%; padding: 0.5rem 0.75rem; background: var(--color-gray-700); border: 1px solid var(--color-gray-600); border-radius: var(--radius-sm); color: var(--color-gray-200); font-size: 0.875rem;">
-                </div>
-            </div>
-
-            <button class="btn btn-primary" onclick="switchBackend()" id="btn-switch-backend">
-                <i class="fas fa-plug"></i> Connect
-            </button>
+        <div class="table-container" style="box-shadow:none;">
+            <table class="table">
+                <tbody>
+                    <tr><th>Client ID</th><td>{{ runtime.tapdb_client_id }}</td></tr>
+                    <tr><th>Database Name</th><td>{{ runtime.tapdb_database_name }}</td></tr>
+                    <tr><th>Environment</th><td>{{ runtime.tapdb_env }}</td></tr>
+                    <tr><th>Auth Mode</th><td>{{ auth_mode | upper }}</td></tr>
+                    <tr><th>Storage</th><td>TAPDB</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-<!-- Current Config Summary -->
 <div class="card mt-lg">
     <div class="card-header">
-        <h3 class="card-title">Current Configuration</h3>
-        <a href="/config/view" class="btn btn-outline btn-sm">
-            <i class="fas fa-external-link-alt"></i> View Full
+        <h3 class="card-title">Operational Links</h3>
+    </div>
+    <div class="grid grid-3">
+        <a href="/api/v1/config" class="action-card" target="_blank">
+            <i class="fas fa-sliders"></i>
+            <div>
+                <strong>Runtime JSON</strong>
+                <small class="text-muted d-block">Machine-readable settings summary</small>
+            </div>
+        </a>
+        <a href="/obs_services" class="action-card" target="_blank">
+            <i class="fas fa-wave-square"></i>
+            <div>
+                <strong>Observability</strong>
+                <small class="text-muted d-block">Structured service contract endpoints</small>
+            </div>
+        </a>
+        <a href="/docs" class="action-card" target="_blank">
+            <i class="fas fa-book-open"></i>
+            <div>
+                <strong>Docs</strong>
+                <small class="text-muted d-block">Interactive API documentation</small>
+            </div>
         </a>
     </div>
+</div>
 
-    <!-- Config File Path -->
-    <div class="mb-md" style="padding: 0.75rem 1rem; background: var(--color-gray-700); border-radius: var(--radius-sm); font-family: 'JetBrains Mono', monospace; font-size: 0.875rem;">
-        <span class="text-muted"><i class="fas fa-file-alt"></i> Loaded from:</span>
-        <code style="color: var(--color-highlight); margin-left: 0.5rem;">{{ config_file_path | default('Unknown') }}</code>
+{% if labs %}
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Configured Labs</h3>
     </div>
-
-    {% if config_summary %}
-    <div class="grid grid-4 mb-lg">
-        <div class="stat-card">
-            <div class="card-icon primary"><i class="fas fa-building"></i></div>
-            <div>
-                <div class="stat-value">{{ config_summary.labs }}</div>
-                <div class="stat-label">Labs</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="card-icon success"><i class="fas fa-print"></i></div>
-            <div>
-                <div class="stat-value">{{ config_summary.printers }}</div>
-                <div class="stat-label">Printers</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="card-icon info"><i class="fas fa-file-code"></i></div>
-            <div>
-                <div class="stat-value">{{ config_summary.templates }}</div>
-                <div class="stat-label">Templates</div>
-            </div>
-        </div>
-        <div class="stat-card">
-            <div class="card-icon warning"><i class="fas fa-clock"></i></div>
-            <div>
-                <div class="stat-value">{{ config_summary.backups }}</div>
-                <div class="stat-label">Backups</div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-    
-    <!-- Labs List -->
-    {% if labs %}
-    <h4 class="mb-md">Configured Labs</h4>
-    <div class="grid grid-5">
-        {% for lab in labs %}
-        <a href="/printers/{{ lab }}" class="action-card">
+    <div class="grid grid-4">
+        {% for item in labs %}
+        <a href="/printers/{{ item }}" class="action-card">
             <i class="fas fa-building"></i>
             <div>
-	                <strong>{{ labs_meta.get(lab, {}).get("lab_display_name", lab) }}</strong>
-	                <small class="text-muted d-block">Key: {{ lab }}</small>
+                <strong>{{ item.replace('-', ' ').title() }}</strong>
+                <small class="text-muted d-block">{{ item }}</small>
             </div>
         </a>
         {% endfor %}
     </div>
-    {% else %}
-    <div class="empty-state">
-        <i class="fas fa-cog"></i>
-        <p>No labs configured</p>
-        <a href="/config/scan" class="btn btn-primary">
-            <i class="fas fa-wifi"></i> Scan Network
-        </a>
-    </div>
-    {% endif %}
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-async function refreshFromBackend() {
-    const btn = document.getElementById('btn-refresh-backend');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...'; }
-    try {
-        const resp = await fetch('/api/v1/config/refresh', { method: 'POST' });
-        const data = await resp.json();
-        if (resp.ok && data.success) {
-            showToast('success', 'Refreshed', data.message || 'Config reloaded from backend.');
-            setTimeout(() => window.location.reload(), 800);
-        } else {
-            showToast('error', 'Refresh Failed', data.detail || 'Unknown error');
-        }
-    } catch (e) {
-        showToast('error', 'Refresh Failed', e.message || 'Network error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh'; }
-    }
-}
-
-async function detectTables() {
-    const btn = document.getElementById('btn-detect-tables');
-    const resultsDiv = document.getElementById('detect-tables-results');
-    const regionEl = document.getElementById('switch-region');
-    const profileEl = document.getElementById('switch-profile');
-
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...'; }
-    if (resultsDiv) { resultsDiv.classList.remove('d-none'); resultsDiv.innerHTML = '<p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Scanning for DynamoDB tables...</p>'; }
-
-    // Build query params with region and profile from the form
-    const params = new URLSearchParams();
-    if (regionEl && regionEl.value.trim()) {
-        params.append('region', regionEl.value.trim());
-    }
-    if (profileEl && profileEl.value.trim()) {
-        params.append('profile', profileEl.value.trim());
-    }
-
-    try {
-        const url = '/api/v1/config/detect-tables' + (params.toString() ? '?' + params.toString() : '');
-        const resp = await fetch(url);
-        const data = await resp.json();
-        if (!resp.ok) {
-            resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (data.detail || 'Failed to scan') + '</div>';
-            return;
-        }
-        let html = '<h4 style="margin-bottom:0.5rem;"><i class="fas fa-search"></i> Tables in ' + data.region + ' (' + data.total_tables + ' total)</h4>';
-        if (data.matches.length === 0) {
-            html += '<p class="text-muted">No compatible zebra-day tables found.</p>';
-        } else {
-            html += '<div class="table-container"><table class="table"><thead><tr><th>Table Name</th><th>Region</th><th>Items</th><th>Status</th><th>Size</th></tr></thead><tbody>';
-            data.matches.forEach(function(t) {
-                const statusCls = t.status === 'ACTIVE' ? 'badge-success' : 'badge-warning';
-                const sizeKb = t.size_bytes > 0 ? (t.size_bytes / 1024).toFixed(1) + ' KB' : '0 KB';
-                html += '<tr><td><code>' + t.table_name + '</code></td><td>' + t.region + '</td><td>' + (t.item_count >= 0 ? t.item_count : 'N/A') + '</td><td><span class="badge ' + statusCls + '">' + t.status + '</span></td><td>' + sizeKb + '</td></tr>';
-            });
-            html += '</tbody></table></div>';
-        }
-        resultsDiv.innerHTML = html;
-        showToast('info', 'Scan Complete', data.matches.length + ' compatible table(s) found in ' + data.region);
-    } catch (e) {
-        if (resultsDiv) resultsDiv.innerHTML = '<div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--color-error);border-radius:var(--radius-sm);color:var(--color-error);"><i class="fas fa-exclamation-triangle"></i> ' + (e.message || 'Network error') + '</div>';
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-search"></i> Detect Tables'; }
-    }
-}
-
-function toggleDynamoFields() {
-    const sel = document.getElementById('switch-backend-type');
-    const fields = document.getElementById('dynamo-fields');
-    if (sel && fields) {
-        if (sel.value === 'dynamodb') {
-            fields.classList.remove('d-none');
-            updateS3BucketName();
-        } else {
-            fields.classList.add('d-none');
-        }
-    }
-}
-
-function updateS3BucketName() {
-    const bucketEl = document.getElementById('switch-s3-bucket');
-    const regionEl = document.getElementById('switch-region');
-    if (!bucketEl || !regionEl) return;
-    const region = regionEl.value.trim() || 'us-west-2';
-    // Only auto-fill if empty or already matches the auto-generated pattern
-    const current = bucketEl.value.trim();
-    if (!current || /^zebra-day-cfg-[a-z0-9-]+$/.test(current)) {
-        bucketEl.value = 'zebra-day-cfg-' + region;
-    }
-    // Reset bucket status when region changes
-    const statusEl = document.getElementById('s3-bucket-status');
-    const createBtn = document.getElementById('btn-create-s3-bucket');
-    if (statusEl) { statusEl.style.display = 'none'; statusEl.textContent = ''; }
-    if (createBtn) { createBtn.classList.add('d-none'); }
-}
-
-async function checkS3BucketExists() {
-    const bucketEl = document.getElementById('switch-s3-bucket');
-    const regionEl = document.getElementById('switch-region');
-    const profileEl = document.getElementById('switch-profile');
-    const statusEl = document.getElementById('s3-bucket-status');
-    const createBtn = document.getElementById('btn-create-s3-bucket');
-    if (!bucketEl || !statusEl || !createBtn) return;
-    const bucket = bucketEl.value.trim();
-    if (!bucket) { statusEl.style.display = 'none'; createBtn.classList.add('d-none'); return; }
-    const region = regionEl ? regionEl.value.trim() || 'us-west-2' : 'us-west-2';
-    const profile = profileEl ? profileEl.value.trim() : '';
-    statusEl.style.display = 'block';
-    statusEl.textContent = 'Checking bucket...';
-    statusEl.style.color = 'var(--color-gray-400)';
-    try {
-        const resp = await fetch('/api/v1/config/check-s3-bucket', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bucket: bucket, region: region, profile: profile }),
-        });
-        const data = await resp.json();
-        if (resp.ok && data.exists) {
-            statusEl.textContent = '✓ Bucket exists';
-            statusEl.style.color = 'var(--color-success)';
-            createBtn.classList.add('d-none');
-        } else if (resp.ok && !data.exists) {
-            statusEl.textContent = '⚠ Bucket does not exist';
-            statusEl.style.color = 'var(--color-warning)';
-            createBtn.classList.remove('d-none');
-        } else {
-            statusEl.textContent = data.detail || 'Could not check bucket';
-            statusEl.style.color = 'var(--color-error)';
-            createBtn.classList.add('d-none');
-        }
-    } catch (e) {
-        statusEl.textContent = 'Error checking bucket: ' + (e.message || 'network error');
-        statusEl.style.color = 'var(--color-error)';
-        createBtn.classList.add('d-none');
-    }
-}
-
-async function createS3Bucket() {
-    const bucketEl = document.getElementById('switch-s3-bucket');
-    const regionEl = document.getElementById('switch-region');
-    const profileEl = document.getElementById('switch-profile');
-    const createBtn = document.getElementById('btn-create-s3-bucket');
-    const statusEl = document.getElementById('s3-bucket-status');
-    if (!bucketEl || !createBtn) return;
-    const bucket = bucketEl.value.trim();
-    const region = regionEl ? regionEl.value.trim() || 'us-west-2' : 'us-west-2';
-    const profile = profileEl ? profileEl.value.trim() : '';
-    createBtn.disabled = true;
-    createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
-    try {
-        const resp = await fetch('/api/v1/config/create-s3-bucket', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bucket: bucket, region: region, profile: profile }),
-        });
-        const data = await resp.json();
-        if (resp.ok && data.success) {
-            showToast('success', 'Bucket Created', 'S3 bucket "' + bucket + '" created with lsmc tags.');
-            createBtn.classList.add('d-none');
-            if (statusEl) { statusEl.textContent = '✓ Bucket exists'; statusEl.style.color = 'var(--color-success)'; }
-        } else {
-            showToast('error', 'Create Failed', data.detail || 'Unknown error');
-        }
-    } catch (e) {
-        showToast('error', 'Create Failed', e.message || 'Network error');
-    } finally {
-        createBtn.disabled = false;
-        createBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Create Bucket';
-    }
-}
-
-async function switchBackend() {
-    const btn = document.getElementById('btn-switch-backend');
-    const backendType = document.getElementById('switch-backend-type').value;
-    const payload = { backend_type: backendType };
-    if (backendType === 'dynamodb') {
-        payload.table_name = document.getElementById('switch-table').value.trim() || 'zebra-day-config';
-        payload.region = document.getElementById('switch-region').value.trim() || 'us-west-2';
-        payload.s3_bucket = document.getElementById('switch-s3-bucket').value.trim();
-        payload.s3_prefix = document.getElementById('switch-s3-prefix').value.trim() || 'zebra-day/';
-        payload.profile = document.getElementById('switch-profile').value.trim();
-        if (!payload.s3_bucket) {
-            showToast('error', 'Validation Error', 'S3 Bucket is required for DynamoDB backend.');
-            return;
-        }
-        if (payload.profile.toLowerCase() === 'default') {
-            showToast('error', 'Validation Error', "AWS profile 'default' is not allowed. Please create and use a named profile (e.g., 'zebra-dev', 'lab-profile').");
-            return;
-        }
-    }
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...'; }
-    showLoading('Switching backend...');
-    try {
-        const resp = await fetch('/api/v1/config/switch-backend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        hideLoading();
-        if (resp.ok && data.success) {
-            showToast('success', 'Backend Switched', data.message || 'Backend switched successfully.');
-            setTimeout(() => window.location.reload(), 1000);
-        } else {
-            showToast('error', 'Switch Failed', data.detail || 'Unknown error');
-        }
-    } catch (e) {
-        hideLoading();
-        showToast('error', 'Switch Failed', e.message || 'Network error');
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Connect'; }
-    }
-}
-</script>
+{% endif %}
 {% endblock %}

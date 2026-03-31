@@ -1,407 +1,277 @@
-"""
-Versioned JSON API router for zebra_day.
-
-Provides programmatic access to printer management and label printing.
-All endpoints return JSON and are prefixed with /api/v1/.
-"""
+"""Versioned JSON API router for zebra_day."""
 
 from __future__ import annotations
 
-import os
-from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from zebra_day import paths as xdg
-from zebra_day.backends import ConfigBackend
-from zebra_day.logging_config import get_logger
-
-_log = get_logger(__name__)
+from zebra_day.client import PrinterRecord
 
 router = APIRouter()
 
 
-# ----- Request/Response Models -----
+class PrinterInfo(BaseModel):
+    printer_id: str
+    lab: str
+    ip_address: str
+    printer_name: str = ""
+    lab_location: str = ""
+    manufacturer: str = "zebra"
+    model: str = ""
+    serial: str = ""
+    label_profiles: list[str] = Field(default_factory=list)
+    default_label_profile: str = ""
+    print_method: str = "socket"
+    notes: str = ""
+    lsmc_euid: str = ""
+    state: str = "Unknown"
+    status: str = "active"
+    discovery_source: str = ""
+    euid: str = ""
+
+
+class TemplateInfo(BaseModel):
+    template_name: str
+    zpl_content: str
+    source: str = "user"
+    euid: str = ""
+
+
+class LabelProfileInfo(BaseModel):
+    profile_name: str
+    template_name: str = ""
+    managed_by: str = ""
+    euid: str = ""
 
 
 class PrintRequest(BaseModel):
-    """Request model for printing a label."""
-
-    lab: str = Field(..., description="Lab identifier")
-    printer: str = Field(..., description="Printer name")
-    label_zpl_style: str | None = Field(None, description="ZPL template name")
-    zpl_content: str | None = Field(
-        None,
-        description=("Raw ZPL content to print directly (takes precedence over label_zpl_style)."),
-    )
-    uid_barcode: str = Field("", description="UID for barcode")
-    alt_a: str = Field("", description="Alternative field A")
-    alt_b: str = Field("", description="Alternative field B")
-    alt_c: str = Field("", description="Alternative field C")
-    alt_d: str = Field("", description="Alternative field D")
-    alt_e: str = Field("", description="Alternative field E")
-    alt_f: str = Field("", description="Alternative field F")
-    copies: int = Field(1, ge=1, le=100, description="Number of copies")
+    lab: str
+    printer: str
+    label_zpl_style: str | None = None
+    zpl_content: str | None = None
+    uid_barcode: str = ""
+    alt_a: str = ""
+    alt_b: str = ""
+    alt_c: str = ""
+    alt_d: str = ""
+    alt_e: str = ""
+    alt_f: str = ""
+    copies: int = Field(1, ge=1, le=100)
 
 
 class PrintResponse(BaseModel):
-    """Response model for print request."""
-
     success: bool
     message: str
-    png_url: str | None = None
+    zpl_content: str = ""
 
 
-class PrinterInfo(BaseModel):
-    """Printer information model (v2.0.0 schema)."""
-
-    id: str = Field(..., description="Printer identifier/key in JSON")
-    ip_address: str
-    printer_name: str | None = Field(None, description="User-friendly display name")
-    lab_location: str | None = Field(None, description="Location within the lab")
-    manufacturer: str = Field("zebra", description="Printer manufacturer")
-    model: str
-    serial: str
-    label_zpl_styles: list[str]
-    default_label_style: str | None = Field(
-        None, description="Default label style to use when none specified"
-    )
-    print_method: str
-    notes: str | None = Field("", description="Optional notes")
-    lsmc_euid: str = Field("", description="Lab Sample Management Container Enterprise Unique ID")
-    state: str = Field(
-        "Unknown",
-        description="Operational state: Ready, Paused, Error, Offline, Unknown",
-    )
-
-
-class LabInfo(BaseModel):
-    """Lab information model (v2.1.0 schema)."""
-
-    id: str = Field(..., description="Lab identifier/key in JSON")
-    lab_name: str = Field(..., description="Human-readable lab name")
-    lab_display_name: str = Field(..., description="Short user-friendly display name")
-    lab_description: str = Field(..., description="Human-readable lab description")
-    network_stub: str = Field(
-        ..., description="IP stub last scanned for this lab (e.g. '192.168.1')"
-    )
-    available_locations: list[str] = Field(
-        default_factory=list, description="Valid location options for printers"
-    )
-    printers: list[PrinterInfo]
-
-
-class LabPrinters(BaseModel):
-    """Lab and its printers (deprecated, use LabInfo)."""
-
+class ResolvePrintResponse(BaseModel):
     lab: str
-    printers: list[PrinterInfo]
+    printer_id: str
+    printer_ip: str
+    printer: PrinterInfo
+    template_name: str = ""
+    label_style: str = ""
+    zpl_content: str
+    copies: int
 
 
 class RenderRequest(BaseModel):
-    """Request model for rendering ZPL to PNG."""
-
-    template: str | None = Field(None, description="ZPL template name (e.g., 'tube_2inX1in')")
-    zpl_content: str | None = Field(
-        None, description="Raw ZPL content (takes precedence over template)"
-    )
-    uid_barcode: str = Field("", description="UID for barcode")
-    alt_a: str = Field("", description="Alternative field A")
-    alt_b: str = Field("", description="Alternative field B")
-    alt_c: str = Field("", description="Alternative field C")
-    alt_d: str = Field("", description="Alternative field D")
-    alt_e: str = Field("", description="Alternative field E")
-    alt_f: str = Field("", description="Alternative field F")
+    template: str | None = None
+    zpl_content: str | None = None
+    uid_barcode: str = ""
+    alt_a: str = ""
+    alt_b: str = ""
+    alt_c: str = ""
+    alt_d: str = ""
+    alt_e: str = ""
+    alt_f: str = ""
 
 
 class RenderResponse(BaseModel):
-    """Response model for render request (when not returning PNG directly)."""
-
     success: bool
     message: str
-    png_url: str = Field(..., description="URL to download the generated PNG")
+    zpl_content: str
+    png_url: str
+
+
+class DiscoverRequest(BaseModel):
+    ip_stub: str
+    scan_http_port: int | None = None
 
 
 class TemplateSaveRequest(BaseModel):
-    """Request model for saving a ZPL template."""
-
-    filename: str = Field(..., description="Template filename (e.g., 'my_label.zpl' or 'my_label')")
-    zpl_content: str = Field(..., description="ZPL template content")
-    location: Literal["user", "package"] = Field(
-        "user", description="Save location: 'user' (XDG config) or 'package'"
-    )
-    overwrite: bool = Field(True, description="Overwrite existing file if present")
-    backup: bool = Field(True, description="Create backup before overwriting")
+    filename: str
+    zpl_content: str
 
 
-class TemplateSaveResponse(BaseModel):
-    """Response model for template save."""
-
-    success: bool
-    path: str = Field(..., description="Full path where template was saved")
-    filename: str = Field(..., description="Template filename")
+def _client(request: Request):
+    return request.app.state.zebra_day
 
 
-class TemplateDeleteResponse(BaseModel):
-    """Response model for template deletion."""
-
-    success: bool
-    message: str
-
-
-class TemplateImportRequest(BaseModel):
-    """Request model for importing local templates into DynamoDB."""
-
-    templates: list[str] = Field(..., description="List of template stem names to import")
-
-
-class TemplateImportResponse(BaseModel):
-    """Response model for template import results."""
-
-    success: bool
-    imported: list[str] = Field(default_factory=list, description="Successfully imported templates")
-    skipped: list[str] = Field(
-        default_factory=list, description="Templates that already exist in DynamoDB"
-    )
-    errors: list[str] = Field(default_factory=list, description="Templates that failed to import")
-
-
-# ----- Endpoints -----
+def _printer_info(record: PrinterRecord) -> PrinterInfo:
+    return PrinterInfo(**record.to_payload())
 
 
 @router.get("/labs", response_model=list[str])
 async def list_labs(request: Request) -> list[str]:
-    """List all available labs."""
-    zp = request.app.state.zp
-    return list(zp.printers.get("labs", {}).keys())
-
-
-@router.get("/labs/{lab}", response_model=LabInfo)
-async def get_lab(request: Request, lab: str) -> LabInfo:
-    """Get lab details including available locations and printers."""
-    zp = request.app.state.zp
-    labs = zp.printers.get("labs", {})
-
-    if lab not in labs:
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-
-    lab_data = labs[lab]
-    lab_printers = lab_data.get("printers", {})
-
-    printers = []
-    for printer_id, info in lab_printers.items():
-        printers.append(
-            PrinterInfo(
-                id=printer_id,
-                ip_address=info.get("ip_address", ""),
-                printer_name=info.get("printer_name"),
-                lab_location=info.get("lab_location"),
-                manufacturer=info.get("manufacturer", "zebra"),
-                model=info.get("model", ""),
-                serial=info.get("serial", ""),
-                label_zpl_styles=info.get("label_zpl_styles", []),
-                default_label_style=info.get("default_label_style"),
-                print_method=info.get("print_method", ""),
-                notes=info.get("notes", ""),
-                lsmc_euid=info.get("lsmc_euid", ""),
-                state="Unknown",
-            )
-        )
-
-    return LabInfo(
-        id=lab,
-        lab_name=lab_data.get("lab_name", lab),
-        lab_display_name=lab_data.get("lab_display_name", lab_data.get("lab_name", lab)),
-        lab_description=lab_data.get("lab_description", ""),
-        network_stub=lab_data.get("network_stub", ""),
-        available_locations=lab_data.get("available_locations", []),
-        printers=printers,
-    )
+    return list(_client(request).list_labs())
 
 
 @router.get("/labs/{lab}/printers", response_model=list[PrinterInfo])
 async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
-    """List all printers in a lab."""
-    zp = request.app.state.zp
-    labs = zp.printers.get("labs", {})
-
-    if lab not in labs:
+    if lab not in _client(request).list_labs():
         raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+    return [_printer_info(item) for item in _client(request).list_printers(lab)]
 
-    # Access printers via nested 'printers' key (v2 schema)
-    lab_printers = labs[lab].get("printers", {})
 
-    printers = []
-    for printer_id, info in lab_printers.items():
-        printers.append(
-            PrinterInfo(
-                id=printer_id,
-                ip_address=info.get("ip_address", ""),
-                printer_name=info.get("printer_name"),
-                lab_location=info.get("lab_location"),
-                manufacturer=info.get("manufacturer", "zebra"),
-                model=info.get("model", ""),
-                serial=info.get("serial", ""),
-                label_zpl_styles=info.get("label_zpl_styles", []),
-                default_label_style=info.get("default_label_style"),
-                print_method=info.get("print_method", ""),
-                notes=info.get("notes", ""),
-                lsmc_euid=info.get("lsmc_euid", ""),
-                state="Unknown",
-            )
-        )
-    return printers
+@router.get("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
+async def get_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
+    printer = _client(request).get_printer(printer_id, lab=lab)
+    if printer is None:
+        raise HTTPException(status_code=404, detail=f"Printer not found: {lab}/{printer_id}")
+    return _printer_info(printer)
+
+
+@router.patch("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
+async def patch_printer(
+    request: Request,
+    lab: str,
+    printer_id: str,
+    payload: dict[str, Any],
+) -> PrinterInfo:
+    try:
+        updated = _client(request).update_printer_metadata(lab, printer_id, **payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _printer_info(updated)
+
+
+@router.post("/labs/{lab}/discover", response_model=list[PrinterInfo])
+async def discover_lab_printers(
+    request: Request,
+    lab: str,
+    payload: DiscoverRequest,
+) -> list[PrinterInfo]:
+    rows = _client(request).discover_printers(
+        ip_stub=payload.ip_stub,
+        lab=lab,
+        scan_http_port=payload.scan_http_port,
+    )
+    return [_printer_info(item) for item in rows]
+
+
+@router.post("/labs/{lab}/printers/{printer_id}/sync", response_model=PrinterInfo)
+async def sync_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
+    try:
+        updated = _client(request).sync_printer_metadata(printer_id, lab)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _printer_info(updated)
 
 
 @router.get("/templates", response_model=list[str])
 async def list_templates(request: Request) -> list[str]:
-    """List all available ZPL templates.
-
-    Returns template names (stems) from:
-    1. User config dir (~/.config/zebra_day/label_styles/)
-    2. Package dir (zebra_day/etc/label_styles/)
-    """
-    zp = request.app.state.zp
-    names: list[str] = zp.list_template_names(include_legacy_drafts=False)
-    return names
+    return list(_client(request).list_templates())
 
 
-@router.post("/templates", response_model=TemplateSaveResponse)
-async def save_template(request: Request, data: TemplateSaveRequest) -> TemplateSaveResponse:
-    """Save a ZPL template.
+@router.get("/templates/{template_name}", response_model=TemplateInfo)
+async def get_template(request: Request, template_name: str) -> TemplateInfo:
+    template = _client(request).get_template(template_name)
+    if template is None:
+        raise HTTPException(status_code=404, detail=f"Template not found: {template_name}")
+    return TemplateInfo(**template)
 
-    Default save location is the user's XDG config dir (~/.config/zebra_day/label_styles/).
-    If backup=True (default), existing files are backed up before overwriting.
-    """
-    zp = request.app.state.zp
 
+@router.post("/templates", response_model=TemplateInfo)
+async def save_template(request: Request, payload: TemplateSaveRequest) -> TemplateInfo:
+    raw_name = payload.filename.strip()
+    if not raw_name:
+        raise HTTPException(status_code=400, detail="filename is required")
+    if "/" in raw_name or "\\" in raw_name:
+        raise HTTPException(status_code=400, detail="filename must be a simple filename")
+    stem = raw_name[:-4] if raw_name.endswith(".zpl") else raw_name
+    _client(request).save_template(stem, payload.zpl_content, source="user")
+    template = _client(request).get_template(stem)
+    assert template is not None
+    return TemplateInfo(**template)
+
+
+@router.delete("/templates/{template_name}")
+async def delete_template(request: Request, template_name: str) -> dict[str, Any]:
     try:
-        path = zp.save_template(
-            filename=data.filename,
-            zpl_content=data.zpl_content,
-            location=data.location,
-            overwrite=data.overwrite,
-            backup=data.backup,
-        )
-        return TemplateSaveResponse(success=True, path=str(path), filename=path.name)
-    except FileExistsError as e:
-        raise HTTPException(status_code=409, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from e
+        _client(request).delete_template(template_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"success": True, "message": "Template deleted"}
 
 
-@router.delete("/templates/{template_name}", response_model=TemplateDeleteResponse)
-async def delete_template(
-    request: Request,
-    template_name: str,
-    location: Literal["user", "package"] = "user",
-) -> TemplateDeleteResponse:
-    """Delete a ZPL template by name.
-
-    By default, deletes from user config dir. Use location='package' to delete from package dir.
-    """
-    zp = request.app.state.zp
-
-    try:
-        zp.delete_template(template_name, location=location)
-        return TemplateDeleteResponse(success=True, message=f"Template '{template_name}' deleted")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e)) from e
+@router.get("/label-profiles", response_model=list[LabelProfileInfo])
+async def list_label_profiles(request: Request) -> list[LabelProfileInfo]:
+    return [LabelProfileInfo(**item) for item in _client(request).list_label_profiles()]
 
 
-@router.post("/templates/import-to-dynamo", response_model=TemplateImportResponse)
-async def import_templates_to_dynamo(
-    request: Request, data: TemplateImportRequest
-) -> TemplateImportResponse:
-    """Import selected local (user/package) templates into DynamoDB.
+@router.get("/label-profiles/{profile_name}", response_model=LabelProfileInfo)
+async def get_label_profile(request: Request, profile_name: str) -> LabelProfileInfo:
+    payload = _client(request).get_label_profile(profile_name)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Label profile not found: {profile_name}")
+    return LabelProfileInfo(**payload)
 
-    Reads template content from the local filesystem and saves each one to
-    the active DynamoDB backend via ``save_template()``.  Only available when
-    the active backend is DynamoDB.
-    """
-    from pathlib import Path
 
-    from zebra_day.backends.dynamo import DynamoBackend
-
-    zp = request.app.state.zp
-    backend = getattr(zp, "_backend", None)
-
-    if not isinstance(backend, DynamoBackend):
+@router.post("/render", response_model=RenderResponse)
+async def render_label(request: Request, render_req: RenderRequest) -> RenderResponse:
+    if not render_req.template and not render_req.zpl_content:
         raise HTTPException(
-            status_code=400,
-            detail="Import is only available when the DynamoDB backend is active.",
+            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
         )
-
-    if not data.templates:
-        raise HTTPException(status_code=400, detail="No templates specified.")
-
-    # Collect local template dirs (user first, then package)
-    user_dir = xdg.get_label_styles_dir()
-    pkg_dir = zp._package_label_styles_dir()
-
-    def _find_local(stem: str) -> Path | None:
-        """Resolve a template stem to a local .zpl file."""
-        for d in (user_dir, pkg_dir):
-            candidate = d / f"{stem}.zpl"
-            if candidate.is_file():
-                return candidate
-        return None
-
-    imported: list[str] = []
-    skipped: list[str] = []
-    errors: list[str] = []
-
-    # Check which templates already exist in DynamoDB
-    existing = set(backend.list_templates())
-
-    for stem in data.templates:
-        if stem in existing:
-            skipped.append(stem)
-            continue
-
-        path = _find_local(stem)
-        if path is None:
-            errors.append(f"{stem}: not found on local filesystem")
-            continue
-
-        try:
-            content = path.read_text()
-            backend.save_template(stem, content)
-            imported.append(stem)
-        except Exception as exc:
-            errors.append(f"{stem}: {exc}")
-
-    return TemplateImportResponse(
-        success=len(errors) == 0,
-        imported=imported,
-        skipped=skipped,
-        errors=errors,
+    zpl_string, png_url = _client(request).render_label(
+        template=render_req.template,
+        zpl_content=render_req.zpl_content,
+        uid_barcode=render_req.uid_barcode,
+        alt_a=render_req.alt_a,
+        alt_b=render_req.alt_b,
+        alt_c=render_req.alt_c,
+        alt_d=render_req.alt_d,
+        alt_e=render_req.alt_e,
+        alt_f=render_req.alt_f,
+    )
+    return RenderResponse(
+        success=True,
+        message="PNG rendered successfully",
+        zpl_content=zpl_string,
+        png_url=png_url,
     )
 
 
-@router.post("/print", response_model=PrintResponse)
-async def print_label(request: Request, print_req: PrintRequest) -> PrintResponse:
-    """Send a print request to a printer."""
-    zp = request.app.state.zp
-    rate_limiter = request.app.state.print_rate_limiter
-    client_ip = request.client.host if request.client else "unknown"
+@router.post("/render/png")
+async def render_label_png(request: Request, render_req: RenderRequest):
+    _zpl_string, png_url = _client(request).render_label(
+        template=render_req.template,
+        zpl_content=render_req.zpl_content,
+        uid_barcode=render_req.uid_barcode,
+        alt_a=render_req.alt_a,
+        alt_b=render_req.alt_b,
+        alt_c=render_req.alt_c,
+        alt_d=render_req.alt_d,
+        alt_e=render_req.alt_e,
+        alt_f=render_req.alt_f,
+    )
+    filename = png_url.rsplit("/", 1)[-1]
+    path = xdg.get_generated_files_dir() / filename
+    return FileResponse(path=str(path), media_type="image/png", filename=filename)
 
-    # Check rate limit
-    allowed, reason = await rate_limiter.acquire(client_ip)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=reason)
 
+@router.post("/print/resolve", response_model=ResolvePrintResponse)
+async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePrintResponse:
     try:
-        zp.print_zpl(
+        resolved = _client(request).resolve_print_request(
             lab=print_req.lab,
-            printer_name=print_req.printer,
+            printer=print_req.printer,
             label_zpl_style=print_req.label_zpl_style,
             zpl_content=print_req.zpl_content,
             uid_barcode=print_req.uid_barcode,
@@ -411,598 +281,67 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
             alt_d=print_req.alt_d,
             alt_e=print_req.alt_e,
             alt_f=print_req.alt_f,
-            print_n=print_req.copies,
+            copies=print_req.copies,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return ResolvePrintResponse(
+        lab=str(resolved["lab"]),
+        printer_id=str(resolved["printer_id"]),
+        printer_ip=str(resolved["printer_ip"]),
+        printer=PrinterInfo(**dict(resolved["printer"])),
+        template_name=str(resolved.get("template_name") or ""),
+        label_style=str(resolved.get("label_style") or ""),
+        zpl_content=str(resolved["zpl_content"]),
+        copies=int(resolved["copies"]),
+    )
+
+
+@router.post("/print", response_model=PrintResponse)
+async def print_label(request: Request, print_req: PrintRequest) -> PrintResponse:
+    rate_limiter = request.app.state.print_rate_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, reason = await rate_limiter.acquire(client_ip)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=reason)
+    try:
+        zpl_string = _client(request).submit_print_job(
+            lab=print_req.lab,
+            printer=print_req.printer,
+            label_zpl_style=print_req.label_zpl_style,
+            zpl_content=print_req.zpl_content,
+            uid_barcode=print_req.uid_barcode,
+            alt_a=print_req.alt_a,
+            alt_b=print_req.alt_b,
+            alt_c=print_req.alt_c,
+            alt_d=print_req.alt_d,
+            alt_e=print_req.alt_e,
+            alt_f=print_req.alt_f,
+            copies=print_req.copies,
             client_ip=client_ip,
         )
-        return PrintResponse(success=True, message="Print request sent successfully")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from None
+        return PrintResponse(
+            success=True, message="Print request sent successfully", zpl_content=zpl_string
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         rate_limiter.release()
 
 
-@router.post("/render", response_model=RenderResponse)
-async def render_label(request: Request, render_req: RenderRequest) -> RenderResponse:
-    """
-    Render ZPL to PNG image.
-
-    This endpoint generates a PNG image from ZPL content without sending to a printer.
-    You can provide either:
-    - A template name (e.g., 'tube_2inX1in') with field values
-    - Raw ZPL content directly
-
-    Returns a URL to download the generated PNG.
-    """
-    zp = request.app.state.zp
-
-    # Validate that we have either template or zpl_content
-    if not render_req.template and not render_req.zpl_content:
-        raise HTTPException(
-            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
-        )
-
-    try:
-        # Generate ZPL string from template if not provided directly
-        if render_req.zpl_content:
-            zpl_string = render_req.zpl_content
-        else:
-            zpl_string = zp.formulate_zpl(
-                uid_barcode=render_req.uid_barcode,
-                alt_a=render_req.alt_a,
-                alt_b=render_req.alt_b,
-                alt_c=render_req.alt_c,
-                alt_d=render_req.alt_d,
-                alt_e=render_req.alt_e,
-                alt_f=render_req.alt_f,
-                label_zpl_style=render_req.template,
-            )
-
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-        template_name = render_req.template or "custom"
-        png_filename = f"zpl_render_{template_name}_{timestamp}.png"
-        png_path = xdg.get_generated_files_dir() / png_filename
-
-        # Render to PNG
-        zp.generate_label_png(zpl_string, str(png_path), relative=False)
-
-        return RenderResponse(
-            success=True,
-            message="PNG rendered successfully",
-            png_url=f"/generated/{png_filename}",
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"Template not found: {e}") from None
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Render failed: {e}") from None
-
-
-@router.post("/render/png")
-async def render_label_png(request: Request, render_req: RenderRequest):
-    """
-    Render ZPL to PNG and return the image directly.
-
-    Same as /render but returns the PNG file directly instead of a URL.
-    Useful for programmatic access where you want the image bytes.
-    """
-    zp = request.app.state.zp
-
-    # Validate that we have either template or zpl_content
-    if not render_req.template and not render_req.zpl_content:
-        raise HTTPException(
-            status_code=400, detail="Either 'template' or 'zpl_content' must be provided"
-        )
-
-    try:
-        # Generate ZPL string from template if not provided directly
-        if render_req.zpl_content:
-            zpl_string = render_req.zpl_content
-        else:
-            zpl_string = zp.formulate_zpl(
-                uid_barcode=render_req.uid_barcode,
-                alt_a=render_req.alt_a,
-                alt_b=render_req.alt_b,
-                alt_c=render_req.alt_c,
-                alt_d=render_req.alt_d,
-                alt_e=render_req.alt_e,
-                alt_f=render_req.alt_f,
-                label_zpl_style=render_req.template,
-            )
-
-        # Generate unique filename
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-        template_name = render_req.template or "custom"
-        png_filename = f"zpl_render_{template_name}_{timestamp}.png"
-        png_path = xdg.get_generated_files_dir() / png_filename
-
-        # Render to PNG
-        zp.generate_label_png(zpl_string, str(png_path), relative=False)
-
-        # Return the file directly
-        return FileResponse(
-            path=str(png_path),
-            media_type="image/png",
-            filename=png_filename,
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"Template not found: {e}") from None
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Render failed: {e}") from None
-
-
 @router.get("/config")
-async def get_config(request: Request) -> dict[str, Any]:
-    """Get the current printer configuration."""
-    zp = request.app.state.zp
-    return dict(zp.printers)
-
-
-# ----- Lab Settings Endpoints -----
-
-
-class LabUpdateRequest(BaseModel):
-    """Request model for updating lab settings."""
-
-    lab_name: str | None = Field(None, description="Human-readable lab name")
-    lab_display_name: str | None = Field(None, description="Short user-friendly display name")
-    lab_description: str | None = Field(None, description="Human-readable lab description")
-    network_stub: str | None = Field(None, description="IP stub last scanned for this lab")
-    available_locations: list[str] | None = Field(None, description="List of valid locations")
-
-
-class PrinterUpdateRequest(BaseModel):
-    """Request model for updating printer settings."""
-
-    printer_name: str | None = Field(None, description="User-friendly display name")
-    lab_location: str | None = Field(None, description="Location within the lab")
-    notes: str | None = Field(None, description="Optional notes")
-    label_zpl_styles: list[str] | None = Field(None, description="Allowed ZPL styles")
-    default_label_style: str | None = Field(
-        None, description="Default label style to use when none specified"
-    )
-    lsmc_euid: str | None = Field(
-        None, description="Lab Sample Management Container EUID (no leading zeros)"
-    )
-
-
-@router.patch("/labs/{lab}", response_model=LabInfo)
-async def update_lab(request: Request, lab: str, update: LabUpdateRequest) -> LabInfo:
-    """Update lab settings (lab_name, available_locations)."""
-    zp = request.app.state.zp
-    labs = zp.printers.get("labs", {})
-
-    if lab not in labs:
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-
-    lab_data = labs[lab]
-
-    if update.lab_name is not None:
-        lab_data["lab_name"] = update.lab_name
-    if update.lab_display_name is not None:
-        lab_data["lab_display_name"] = update.lab_display_name
-    if update.lab_description is not None:
-        lab_data["lab_description"] = update.lab_description
-    if update.network_stub is not None:
-        lab_data["network_stub"] = update.network_stub
-    if update.available_locations is not None:
-        lab_data["available_locations"] = update.available_locations
-
-    # Save changes
-    zp.save_printer_json(zp.printers_filename, relative=False)
-
-    # Return updated lab info
-    return await get_lab(request, lab)
-
-
-@router.patch("/labs/{lab}/printers/{printer_id}")
-async def update_printer(
-    request: Request, lab: str, printer_id: str, update: PrinterUpdateRequest
-) -> PrinterInfo:
-    """Update printer settings (printer_name, lab_location, notes)."""
-    zp = request.app.state.zp
-    labs = zp.printers.get("labs", {})
-
-    if lab not in labs:
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
-
-    lab_printers = labs[lab].get("printers", {})
-    if printer_id not in lab_printers:
-        raise HTTPException(
-            status_code=404, detail=f"Printer '{printer_id}' not found in lab '{lab}'"
-        )
-
-    printer_data = lab_printers[printer_id]
-
-    if update.printer_name is not None:
-        printer_data["printer_name"] = update.printer_name if update.printer_name else None
-    if update.lab_location is not None:
-        printer_data["lab_location"] = update.lab_location if update.lab_location else None
-    if update.notes is not None:
-        printer_data["notes"] = update.notes
-    if update.label_zpl_styles is not None:
-        printer_data["label_zpl_styles"] = update.label_zpl_styles
-    if update.default_label_style is not None:
-        # Validate that the style exists in label_zpl_styles (if it's not empty string)
-        if update.default_label_style and update.default_label_style not in printer_data.get(
-            "label_zpl_styles", []
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Default label style '{update.default_label_style}' must be one of: {printer_data.get('label_zpl_styles', [])}",
-            )
-        printer_data["default_label_style"] = (
-            update.default_label_style if update.default_label_style else None
-        )
-    if update.lsmc_euid is not None:
-        printer_data["lsmc_euid"] = update.lsmc_euid
-
-    # Save changes
-    zp.save_printer_json(zp.printers_filename, relative=False)
-
-    return PrinterInfo(
-        id=printer_id,
-        ip_address=printer_data.get("ip_address", ""),
-        printer_name=printer_data.get("printer_name"),
-        lab_location=printer_data.get("lab_location"),
-        manufacturer=printer_data.get("manufacturer", "zebra"),
-        model=printer_data.get("model", ""),
-        serial=printer_data.get("serial", ""),
-        label_zpl_styles=printer_data.get("label_zpl_styles", []),
-        default_label_style=printer_data.get("default_label_style"),
-        print_method=printer_data.get("print_method", ""),
-        notes=printer_data.get("notes", ""),
-        lsmc_euid=printer_data.get("lsmc_euid", ""),
-        state="Unknown",
-    )
-
-
-# ----- Backend / AWS Configuration Endpoints -----
-
-
-def _get_backend_info(zp) -> dict[str, Any]:
-    """Build a backend status dict from the active zpl() instance."""
-    from zebra_day.backends.dynamo import DynamoBackend
-
-    backend = zp._backend
-    backend_type = "dynamodb" if isinstance(backend, DynamoBackend) else "local"
-
-    info: dict[str, Any] = {
-        "backend_type": backend_type,
-    }
-
-    if backend_type == "dynamodb":
-        info["aws_profile"] = (
-            getattr(backend, "profile", None)
-            or os.environ.get("AWS_PROFILE")
-            or "default credential chain"
-        )
-        info["dynamo_table"] = backend.table_name
-        info["aws_region"] = backend.region
-        info["s3_bucket"] = backend.s3_bucket or ""
-        info["s3_prefix"] = backend.s3_prefix
-        try:
-            status = backend.get_status()
-            info["table_status"] = status.get("table_status", "UNKNOWN")
-            info["item_count"] = status.get("item_count", 0)
-            info["last_backup"] = status.get("last_backup_at", "")
-            info["last_backup_s3_key"] = status.get("last_backup_s3_key", "")
-            info["backup_count"] = status.get("backup_count", 0)
-            info["config_version"] = status.get("config_version", 0)
-            info["config_updated_at"] = status.get("config_updated_at", "")
-            info["config_updated_by"] = status.get("config_updated_by", "")
-            info["error"] = None
-        except Exception as exc:
-            _log.warning("Failed to fetch DynamoDB status: %s", exc)
-            info["error"] = str(exc)
-    else:
-        na = "N/A - using local file backend"
-        info["aws_profile"] = na
-        info["dynamo_table"] = na
-        info["aws_region"] = na
-        info["s3_bucket"] = na
-        info["s3_prefix"] = na
-        info["last_backup"] = na
-        info["config_version"] = na
-        info["error"] = None
-
-    return info
-
-
-@router.get("/config/backend-status")
-async def config_backend_status(request: Request) -> dict[str, Any]:
-    """Return the current backend type and AWS configuration details."""
-    zp = request.app.state.zp
-    return _get_backend_info(zp)
-
-
-@router.post("/config/refresh")
-async def config_refresh(request: Request) -> dict[str, Any]:
-    """Reload configuration from the active backend.
-
-    For DynamoDB backend this re-reads from the table.
-    For local backend this re-reads the config file.
-    """
-    zp = request.app.state.zp
-    try:
-        zp.printers = zp._backend.load_config()
-        zp._maybe_migrate_schema()
-        return {"success": True, "message": "Configuration reloaded from backend."}
-    except Exception as exc:
-        _log.error("Config refresh failed: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/config/detect-tables")
-async def config_detect_tables(
-    request: Request,
-    region: str | None = None,
-    profile: str | None = None,
-) -> dict[str, Any]:
-    """Scan an AWS region for compatible zebra-day DynamoDB tables.
-
-    Parameters:
-        region: AWS region to scan. Defaults to ZEBRA_DAY_DYNAMO_REGION,
-                then AWS_DEFAULT_REGION, then us-west-2.
-        profile: AWS profile name to use. Defaults to AWS_PROFILE env var.
-    """
-    scan_region = region or os.environ.get(
-        "ZEBRA_DAY_DYNAMO_REGION",
-        os.environ.get("AWS_DEFAULT_REGION", "us-west-2"),
-    )
-
-    try:
-        import boto3
-
-        # Use provided profile, fall back to env var, then None (default chain)
-        profile_name = profile or os.environ.get("AWS_PROFILE") or None
-        session_kwargs = {"region_name": scan_region}
-        if profile_name:
-            session_kwargs["profile_name"] = profile_name
-        session = boto3.Session(**session_kwargs)
-        ddb = session.client("dynamodb")
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        ) from None
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Unable to create AWS session: {exc}",
-        ) from exc
-
-    try:
-        # List all tables (paginate)
-        all_tables: list[str] = []
-        paginator = ddb.get_paginator("list_tables")
-        for page in paginator.paginate():
-            all_tables.extend(page.get("TableNames", []))
-
-        # Filter for tables that look like zebra-day config tables
-        keywords = {"zebra", "config"}
-        matches: list[dict[str, Any]] = []
-        for tname in all_tables:
-            lower = tname.lower()
-            if lower == "zebra-day-config" or all(kw in lower for kw in keywords):
-                # Describe each match for details
-                try:
-                    desc = ddb.describe_table(TableName=tname)["Table"]
-                    matches.append(
-                        {
-                            "table_name": tname,
-                            "region": scan_region,
-                            "item_count": desc.get("ItemCount", 0),
-                            "status": desc.get("TableStatus", "UNKNOWN"),
-                            "size_bytes": desc.get("TableSizeBytes", 0),
-                        }
-                    )
-                except Exception as desc_exc:
-                    matches.append(
-                        {
-                            "table_name": tname,
-                            "region": scan_region,
-                            "item_count": -1,
-                            "status": f"Error: {desc_exc}",
-                            "size_bytes": 0,
-                        }
-                    )
-
-        return {
-            "region": scan_region,
-            "total_tables": len(all_tables),
-            "matches": matches,
+async def get_runtime_config(request: Request) -> dict[str, Any]:
+    settings = request.app.state.settings
+    summary = dict(_client(request).runtime_summary())
+    summary.update(
+        {
+            "auth_mode": settings.auth_mode,
+            "internal_api_key_configured": bool(settings.internal_api_key),
+            "config_path": str(settings.config_path),
         }
-
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Failed to scan DynamoDB tables in {scan_region}: {exc}",
-        ) from exc
-
-
-class CheckS3BucketRequest(BaseModel):
-    """Request model for checking S3 bucket existence."""
-
-    bucket: str = Field(description="S3 bucket name to check")
-    region: str = Field(default="us-west-2", description="AWS region")
-    profile: str = Field(default="", description="AWS profile name (optional)")
-
-
-class CreateS3BucketRequest(BaseModel):
-    """Request model for creating an S3 bucket with tags."""
-
-    bucket: str = Field(description="S3 bucket name to create")
-    region: str = Field(default="us-west-2", description="AWS region")
-    profile: str = Field(default="", description="AWS profile name (optional)")
-    cost_center: str = Field(default="", description="lsmc-cost-center tag value")
-    project: str = Field(default="", description="lsmc-project tag value")
-
-
-@router.post("/config/check-s3-bucket")
-async def config_check_s3_bucket(body: CheckS3BucketRequest) -> dict[str, Any]:
-    """Check whether an S3 bucket exists and is accessible."""
-    if not body.bucket:
-        raise HTTPException(status_code=400, detail="bucket is required.")
-    profile = body.profile.strip() or None
-    if profile and profile.lower() == "default":
-        raise HTTPException(
-            status_code=400,
-            detail="AWS profile 'default' is not allowed. Use a named profile.",
-        )
-    try:
-        import boto3
-
-        session_kwargs: dict[str, Any] = {"region_name": body.region}
-        if profile:
-            session_kwargs["profile_name"] = profile
-        s3 = boto3.Session(**session_kwargs).client("s3")
-        s3.head_bucket(Bucket=body.bucket)
-        return {"exists": True, "bucket": body.bucket}
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        ) from None
-    except Exception:
-        return {"exists": False, "bucket": body.bucket}
-
-
-@router.post("/config/create-s3-bucket")
-async def config_create_s3_bucket(body: CreateS3BucketRequest) -> dict[str, Any]:
-    """Create an S3 bucket with lsmc cost-center and project tags."""
-    if not body.bucket:
-        raise HTTPException(status_code=400, detail="bucket is required.")
-    profile = body.profile.strip() or None
-    if profile and profile.lower() == "default":
-        raise HTTPException(
-            status_code=400,
-            detail="AWS profile 'default' is not allowed. Use a named profile.",
-        )
-    try:
-        from zebra_day.backends.dynamo import DynamoBackend
-
-        backend = DynamoBackend(
-            table_name="zebra-day-config",
-            region=body.region,
-            s3_bucket=body.bucket,
-            profile=profile,
-            cost_center=body.cost_center or None,
-            project=body.project or None,
-        )
-        backend.create_s3_bucket()
-        return {
-            "success": True,
-            "bucket": body.bucket,
-            "region": body.region,
-            "tags": {
-                "lsmc-cost-center": backend.cost_center,
-                "lsmc-project": backend.project,
-            },
-        }
-    except ImportError:
-        raise HTTPException(
-            status_code=501,
-            detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-        ) from None
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Failed to create S3 bucket '{body.bucket}': {exc}",
-        ) from exc
-
-
-class SwitchBackendRequest(BaseModel):
-    """Request model for switching the active config backend."""
-
-    backend_type: Literal["local", "dynamodb"]
-    table_name: str = Field(default="zebra-day-config", description="DynamoDB table name")
-    region: str = Field(default="us-west-2", description="AWS region")
-    s3_bucket: str = Field(default="", description="S3 backup bucket (required for dynamodb)")
-    s3_prefix: str = Field(default="zebra-day/", description="S3 key prefix")
-    profile: str = Field(default="", description="AWS profile name (optional)")
-
-
-@router.post("/config/switch-backend")
-async def config_switch_backend(
-    request: Request,
-    body: SwitchBackendRequest,
-) -> dict[str, Any]:
-    """Switch the running server's config backend.
-
-    **Session-only**: This affects the running process. To persist, set the
-    corresponding environment variables before restarting the server.
-    """
-    zp = request.app.state.zp
-
-    new_backend: ConfigBackend
-
-    if body.backend_type == "dynamodb":
-        # Reject profile="default" explicitly
-        if body.profile.strip().lower() == "default":
-            raise HTTPException(
-                status_code=400,
-                detail="AWS profile 'default' is not allowed. Please create and use a named profile (e.g., 'zebra-dev', 'lab-profile').",
-            )
-
-        # Validate required fields
-        if not body.s3_bucket:
-            raise HTTPException(
-                status_code=400,
-                detail="s3_bucket is required when switching to DynamoDB backend.",
-            )
-
-        try:
-            from zebra_day.backends.dynamo import DynamoBackend
-
-            profile = body.profile.strip() or None
-            new_backend = DynamoBackend(
-                table_name=body.table_name,
-                region=body.region,
-                s3_bucket=body.s3_bucket,
-                s3_prefix=body.s3_prefix,
-                profile=profile,
-            )
-
-            # Validate connection by describing the table
-            new_backend._ddb_client.describe_table(TableName=body.table_name)
-
-        except ImportError:
-            raise HTTPException(
-                status_code=501,
-                detail="boto3 is not installed. Install with: pip install zebra_day[aws]",
-            ) from None
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Cannot connect to DynamoDB table '{body.table_name}' "
-                f"in {body.region}: {exc}",
-            ) from exc
-
-    else:
-        # Switch to local backend
-        from zebra_day.backends.local import LocalBackend
-
-        new_backend = LocalBackend()
-
-    # Swap the backend on the live zpl instance
-    try:
-        zp._backend = new_backend
-        zp.printers = new_backend.load_config()
-        if hasattr(new_backend, "config_path_str"):
-            zp.printers_filename = new_backend.config_path_str
-        else:
-            zp.printers_filename = ""
-        zp._maybe_migrate_schema()
-    except Exception as exc:
-        _log.error("Backend switch failed during config reload: %s", exc)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Backend switch failed during config reload: {exc}",
-        ) from exc
-
-    _log.info("Backend switched to %s", body.backend_type)
-    return {
-        "success": True,
-        "message": f"Backend switched to {body.backend_type}. This is session-only.",
-        "backend": _get_backend_info(zp),
-    }
+    )
+    return summary
