@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+import json
 import os
 import signal
 import subprocess
@@ -23,6 +25,38 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 gui_app = typer.Typer(help="TapDB-backed web GUI management")
+SERVER_META_FILE = "server-meta.json"
+
+
+def _load_tls_helpers() -> tuple[object, object]:
+    try:
+        certs_mod = importlib.import_module("cli_core_yo.certs")
+    except ImportError:
+        certs_mod = None
+    else:
+        if hasattr(certs_mod, "resolve_https_certs") and hasattr(
+            certs_mod, "shared_dayhoff_certs_dir"
+        ):
+            return certs_mod.resolve_https_certs, certs_mod.shared_dayhoff_certs_dir
+
+    sibling_checkout = Path(__file__).resolve().parents[2].parent / "cli-core-yo"
+    if sibling_checkout.exists():
+        sys.path.insert(0, str(sibling_checkout))
+        importlib.invalidate_caches()
+        for module_name in ("cli_core_yo.certs", "cli_core_yo"):
+            sys.modules.pop(module_name, None)
+        certs_mod = importlib.import_module("cli_core_yo.certs")
+        if hasattr(certs_mod, "resolve_https_certs") and hasattr(
+            certs_mod, "shared_dayhoff_certs_dir"
+        ):
+            return certs_mod.resolve_https_certs, certs_mod.shared_dayhoff_certs_dir
+
+    raise ImportError(
+        "cli_core_yo.certs.resolve_https_certs/shared_dayhoff_certs_dir are required"
+    )
+
+
+resolve_https_certs, shared_dayhoff_certs_dir = _load_tls_helpers()
 
 
 def _pid_file(settings: ZebraDaySettings) -> Path:
@@ -37,6 +71,32 @@ def _latest_log(settings: ZebraDaySettings) -> Path | None:
 def _log_file(settings: ZebraDaySettings) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return settings.logs_dir / f"gui_{timestamp}.log"
+
+
+def _runtime_meta_file(settings: ZebraDaySettings) -> Path:
+    return settings.state_dir / SERVER_META_FILE
+
+
+def _write_runtime_meta(*, settings: ZebraDaySettings, ssl_enabled: bool, host: str, port: int) -> None:
+    _runtime_meta_file(settings).write_text(
+        json.dumps({"ssl_enabled": ssl_enabled, "host": host, "port": port}, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _read_runtime_meta(settings: ZebraDaySettings) -> dict[str, object]:
+    meta_file = _runtime_meta_file(settings)
+    if not meta_file.exists():
+        return {}
+    try:
+        payload = json.loads(meta_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _clear_runtime_meta(settings: ZebraDaySettings) -> None:
+    _runtime_meta_file(settings).unlink(missing_ok=True)
 
 
 def _running_pid(settings: ZebraDaySettings) -> int | None:
@@ -68,28 +128,23 @@ def _resolve_ssl(
     settings: ZebraDaySettings,
     cert: str | None,
     key: str | None,
-    no_https: bool,
+    ssl_enabled: bool,
 ) -> tuple[str | None, str | None, bool]:
-    if no_https:
+    if not ssl_enabled:
+        if cert or key:
+            raise typer.BadParameter("--cert and --key require HTTPS; omit them with --no-ssl")
         return None, None, False
 
-    cert_path = cert or os.environ.get("SSL_CERT_PATH")
-    key_path = key or os.environ.get("SSL_KEY_PATH")
-    if cert_path and key_path and Path(cert_path).exists() and Path(key_path).exists():
-        return cert_path, key_path, True
-
-    cert_dir = settings.config_dir / "certs"
-    default_cert = cert_dir / "server.crt"
-    default_key = cert_dir / "server.key"
-    if default_cert.exists() and default_key.exists():
-        return str(default_cert), str(default_key), True
-
-    from zebra_day import mkcert
-
-    success, _message, cert_file, key_file = mkcert.try_auto_generate_certificates()
-    if success and cert_file and key_file:
-        return str(cert_file), str(key_file), True
-    return None, None, False
+    resolved = resolve_https_certs(
+        cert_path=cert,
+        key_path=key,
+        env=dict(os.environ),
+        legacy_cert_env_vars=("SSL_CERT_PATH",),
+        legacy_key_env_vars=("SSL_KEY_PATH",),
+        shared_certs_dir=shared_dayhoff_certs_dir(settings.deployment_code),
+        fallback_certs_dir=settings.config_dir / "certs",
+    )
+    return str(resolved.cert_path), str(resolved.key_path), True
 
 
 @gui_app.command("start")
@@ -104,9 +159,10 @@ def start(
     reload: bool = typer.Option(False, "--reload", help="Enable auto reload"),
     auth: str = typer.Option("cognito", "--auth", help="Auth mode: cognito or none"),
     no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
+    ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
+    no_https: bool = typer.Option(False, "--no-https", help="Deprecated alias for --no-ssl"),
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
     key: str | None = typer.Option(None, "--key", help="SSL private key path"),
-    no_https: bool = typer.Option(False, "--no-https", help="Disable HTTPS"),
 ) -> None:
     settings = ZebraDaySettings.from_context()
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -127,14 +183,15 @@ def start(
         output.error(str(exc))
         raise typer.Exit(1) from exc
 
-    cert_path, key_path, https_enabled = _resolve_ssl(settings, cert, key, no_https)
+    https_enabled = ssl and not no_https
+    cert_path, key_path, https_enabled = _resolve_ssl(settings, cert, key, https_enabled)
     command = [
         sys.executable,
         "-c",
         (
             "from zebra_day.web.app import run_server; "
             f"run_server(host={host!r}, port={port}, reload={reload}, auth={selected_auth!r}, "
-            f"ssl_certfile={cert_path!r}, ssl_keyfile={key_path!r})"
+            f"ssl_enabled={https_enabled!r}, ssl_certfile={cert_path!r}, ssl_keyfile={key_path!r})"
         ),
     ]
 
@@ -143,8 +200,10 @@ def start(
     env["ZEBRA_DAY_AUTH_MODE"] = selected_auth
     env["ZEBRA_DAY_DEPLOYMENT_CODE"] = settings.deployment_code
     if cert_path:
+        env["SSL_CERT_FILE"] = cert_path
         env["SSL_CERT_PATH"] = cert_path
     if key_path:
+        env["SSL_KEY_FILE"] = key_path
         env["SSL_KEY_PATH"] = key_path
 
     if reload:
@@ -153,6 +212,7 @@ def start(
     if background:
         log_path = _log_file(settings)
         log_handle = open(log_path, "w", encoding="utf-8", buffering=1)
+        _write_runtime_meta(settings=settings, ssl_enabled=https_enabled, host=host, port=port)
         process = subprocess.Popen(
             command,
             stdout=log_handle,
@@ -164,6 +224,7 @@ def start(
         time.sleep(2)
         if process.poll() is not None:
             log_handle.close()
+            _clear_runtime_meta(settings)
             output.error(f"GUI failed to start. See {log_path}")
             raise typer.Exit(1)
         _pid_file(settings).write_text(str(process.pid), encoding="utf-8")
@@ -175,8 +236,12 @@ def start(
 
     output.action(f"Starting GUI at {_display_url(host, port, https_enabled)}")
     output.detail(f"Auth: {selected_auth}")
-    completed = subprocess.run(command, cwd=Path.cwd(), env=env)
-    raise typer.Exit(completed.returncode)
+    _write_runtime_meta(settings=settings, ssl_enabled=https_enabled, host=host, port=port)
+    try:
+        completed = subprocess.run(command, cwd=Path.cwd(), env=env)
+        raise typer.Exit(completed.returncode)
+    finally:
+        _clear_runtime_meta(settings)
 
 
 @gui_app.command("stop")
@@ -188,6 +253,7 @@ def stop() -> None:
         return
     os.kill(pid, signal.SIGTERM)
     _pid_file(settings).unlink(missing_ok=True)
+    _clear_runtime_meta(settings)
     output.success(f"Stopped GUI process {pid}")
 
 
@@ -196,13 +262,14 @@ def restart(
     port: int = typer.Option(8118, "--port", "-p", help="Port to bind"),
     host: str = typer.Option("localhost", "--host", help="Host to bind"),
     no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
+    ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
     no_https: bool = typer.Option(False, "--no-https", help="Disable HTTPS"),
 ) -> None:
     settings = ZebraDaySettings.from_context()
     if _running_pid(settings):
         stop()
         time.sleep(1)
-    start(port=port, host=host, no_auth=no_auth, no_https=no_https)
+    start(port=port, host=host, no_auth=no_auth, ssl=ssl, no_https=no_https)
 
 
 @gui_app.command("status")
@@ -213,7 +280,12 @@ def status() -> None:
     if pid is None:
         output.warning("GUI is not running")
     else:
-        output.success(f"GUI running (PID {pid})")
+        meta = _read_runtime_meta(settings)
+        scheme = "http" if str(meta.get("ssl_enabled")).lower() in {"false", "0", "no"} else "https"
+        bound_host = str(meta.get("host") or settings.host)
+        bound_port = int(meta.get("port") or settings.port)
+        display_host = "localhost" if bound_host in {"0.0.0.0", "::", ""} else bound_host
+        output.success(f"GUI running (PID {pid}) on {scheme}://{display_host}:{bound_port}")
     output.detail(f"State dir: {settings.state_dir}")
     output.detail(f"Logs dir: {settings.logs_dir}")
     if latest_log is not None:

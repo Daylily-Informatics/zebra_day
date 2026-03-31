@@ -196,6 +196,31 @@ def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):
     assert principal["roles"] == ["ADMIN", "OPERATOR"]
 
 
+def test_cognito_sessions_are_isolated_across_clients(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
+        profile_claims={"email": "admin@example.com", "name": "Admin User"},
+    )
+    with TestClient(app) as client_a, TestClient(app) as client_b:
+        _authenticate_session(client_a)
+        _authenticate_session(client_b)
+
+        first_session = client_a.get("/my_health")
+        second_session = client_b.get("/my_health")
+        assert first_session.status_code == 200
+        assert second_session.status_code == 200
+        assert first_session.json()["principal"]["email"] == "admin@example.com"
+        assert second_session.json()["principal"]["email"] == "admin@example.com"
+
+        logout = client_a.get("/auth/logout", follow_redirects=False)
+        assert logout.status_code == 302
+
+        assert client_a.get("/my_health").status_code == 401
+        assert client_b.get("/my_health").status_code == 200
+
+
 def test_admin_route_requires_admin_role(tmp_path, monkeypatch):
     app = _make_cognito_app(
         tmp_path,

@@ -392,45 +392,19 @@ def create_app(
     return app
 
 
-def get_default_cert_paths() -> tuple[Path | None, Path | None]:
-    settings = ZebraDaySettings.from_context()
-    cert_dir = settings.config_dir / "certs"
-    cert_file = cert_dir / "server.crt"
-    key_file = cert_dir / "server.key"
-    if cert_file.exists() and key_file.exists():
-        return cert_file, key_file
-    return None, None
-
-
 def run_server(
     host: str = "0.0.0.0",
     port: int = 8118,
     reload: bool = False,
     auth: Literal["none", "cognito"] = "cognito",
+    ssl_enabled: bool = True,
     ssl_certfile: str | None = None,
     ssl_keyfile: str | None = None,
 ):
     """Run the FastAPI server using uvicorn."""
     import uvicorn
 
-    from zebra_day import mkcert
-
     os.environ["ZEBRA_DAY_AUTH_MODE"] = auth
-    cert_path = ssl_certfile or os.environ.get("SSL_CERT_PATH")
-    key_path = ssl_keyfile or os.environ.get("SSL_KEY_PATH")
-    if not cert_path or not key_path:
-        default_cert, default_key = get_default_cert_paths()
-        if default_cert and default_key:
-            cert_path = str(default_cert)
-            key_path = str(default_key)
-
-    use_ssl = bool(cert_path and key_path and Path(cert_path).exists() and Path(key_path).exists())
-    if not use_ssl:
-        success, _message, cert_file, key_file = mkcert.try_auto_generate_certificates()
-        if success and cert_file and key_file:
-            cert_path = str(cert_file)
-            key_path = str(key_file)
-            use_ssl = True
 
     uvicorn_kwargs: dict[str, Any] = {
         "host": host,
@@ -438,7 +412,18 @@ def run_server(
         "reload": reload,
         "factory": True,
     }
-    if use_ssl:
-        uvicorn_kwargs["ssl_certfile"] = cert_path
-        uvicorn_kwargs["ssl_keyfile"] = key_path
+    if ssl_enabled:
+        if not ssl_certfile or not ssl_keyfile:
+            raise SystemExit(
+                "HTTPS server start requires both ssl_certfile and ssl_keyfile. "
+                "Use the GUI command so Zebra Day can resolve them once per deployment."
+            )
+        cert_path = Path(ssl_certfile)
+        key_path = Path(ssl_keyfile)
+        if not cert_path.exists() or not key_path.exists():
+            raise SystemExit(
+                f"HTTPS server start requires existing cert paths: {cert_path} and {key_path}"
+            )
+        uvicorn_kwargs["ssl_certfile"] = str(cert_path)
+        uvicorn_kwargs["ssl_keyfile"] = str(key_path)
     uvicorn.run("zebra_day.web.app:create_app", **uvicorn_kwargs)
