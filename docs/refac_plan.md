@@ -27,7 +27,7 @@ The plan is therefore:
 - After init, align the env entry to zebra_day’s expected defaults:
   - local: `engine_type=local`, `database=zebra_day_dev`, `audit_log_euid_prefix=ZDY`, `support_email=support@lsmc.bio`
   - staging: `engine_type=aurora`, `database=zebra_day_prod`, `audit_log_euid_prefix=ZDY`, `support_email=support@lsmc.bio`, `cluster_identifier=zebra-day`, `region=us-west-2`, `iam_auth=true`, `ssl=true`
-- Do not change the zebra_day runtime namespace contract. `TAPDB_DATABASE_NAME` stays deployment-scoped (`zebra-day-local`, `zebra-day-staging`).
+- Do not change the zebra_day runtime namespace contract. `database_name` stays deployment-scoped (`zebra-day-local`, `zebra-day-staging`).
 
 ### 2. Local Dayhoff-managed validation
 - Create `~/.config/dayhoff/local_config.yaml` with:
@@ -100,7 +100,7 @@ The plan is therefore:
 
 ## Assumptions
 - `local` and `staging` are the exact Dayhoff deployment names to use for this tranche.
-- `TAPDB_ENV` remains `dev` for both environments because that is how Dayhoff currently generates shared env for service deployments.
+- `tapdb.env` remains `dev` for both environments because that is how Dayhoff now seeds the explicit service TapDB contract.
 - The Aurora target for zebra_day staging is the shared service cluster identifier `zebra-day` in `us-west-2`.
 - A global admin email is required because both `local` and `staging` are treated as brand-new Dayhoff deployments unless the AWS stack already exists.
 - Live Playwright/Cognito E2E, cross-repo PRs, tagging, and publish work remain blocked until this startup-validation tranche passes.

@@ -24,12 +24,12 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-PRINTER_TEMPLATE_CODE = "zebra-day/fleet/printer/1.0/"
-LABEL_PROFILE_TEMPLATE_CODE = "zebra-day/labels/profile/1.0/"
-LABEL_TEMPLATE_TEMPLATE_CODE = "zebra-day/labels/template/1.0/"
-OBSERVATION_TEMPLATE_CODE = "zebra-day/fleet/printer-observation/1.0/"
-DRIFT_TEMPLATE_CODE = "zebra-day/fleet/metadata-drift/1.0/"
-PRINT_JOB_TEMPLATE_CODE = "zebra-day/printing/print-job/1.0/"
+PRINTER_TEMPLATE_CODE = "generic/fleet/printer/1.0/"
+LABEL_PROFILE_TEMPLATE_CODE = "generic/labels/profile/1.0/"
+LABEL_TEMPLATE_TEMPLATE_CODE = "generic/labels/template/1.0/"
+OBSERVATION_TEMPLATE_CODE = "generic/fleet/printer-observation/1.0/"
+DRIFT_TEMPLATE_CODE = "generic/fleet/metadata-drift/1.0/"
+PRINT_JOB_TEMPLATE_CODE = "generic/printing/print-job/1.0/"
 PACKAGE_TEMPLATE_PACK = (
     Path(__file__).resolve().parents[1]
     / "config"
@@ -160,11 +160,12 @@ class TapDBFleetRepository:
     def _build_connection(self):
         tapdb_mod = import_from_sibling("daylily_tapdb", "daylily-tapdb")
         db_config_mod = import_from_sibling("daylily_tapdb.cli.db_config", "daylily-tapdb")
-        os.environ["TAPDB_CLIENT_ID"] = self.settings.tapdb_client_id
-        os.environ["TAPDB_DATABASE_NAME"] = self.settings.tapdb_database_name
-        os.environ["TAPDB_ENV"] = self.settings.tapdb_env
-        os.environ["TAPDB_CONFIG_PATH"] = str(self.settings.tapdb_config_path)
-        cfg = db_config_mod.get_db_config_for_env(self.settings.tapdb_env)
+        cfg = db_config_mod.get_db_config_for_env(
+            self.settings.tapdb_env,
+            config_path=str(self.settings.tapdb_config_path),
+            client_id=self.settings.tapdb_client_id,
+            database_name=self.settings.tapdb_database_name,
+        )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
         return tapdb_mod.TAPDBConnection(
             db_hostname=db_hostname,
@@ -208,7 +209,7 @@ class TapDBFleetRepository:
         return (
             session.query(self._generic_instance)
             .filter(
-                self._generic_instance.category == "zebra-day",
+                self._generic_instance.category == "generic",
                 self._generic_instance.subtype == subtype,
                 self._generic_instance.is_deleted.is_(False),
             )
@@ -228,7 +229,7 @@ class TapDBFleetRepository:
             existing = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "zebra-day",
+                    self._generic_instance.category == "generic",
                     self._generic_instance.subtype == subtype,
                     self._generic_instance.name == name,
                     self._generic_instance.is_deleted.is_(False),
@@ -285,7 +286,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "zebra-day",
+                    self._generic_instance.category == "generic",
                     self._generic_instance.subtype == "printer",
                     self._generic_instance.name == _stable_name(lab, printer_id),
                     self._generic_instance.is_deleted.is_(False),
@@ -328,7 +329,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "zebra-day",
+                    self._generic_instance.category == "generic",
                     self._generic_instance.subtype == "template",
                     self._generic_instance.name == template_name,
                     self._generic_instance.is_deleted.is_(False),
@@ -381,7 +382,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "zebra-day",
+                    self._generic_instance.category == "generic",
                     self._generic_instance.subtype == "profile",
                     self._generic_instance.name == profile_name,
                     self._generic_instance.is_deleted.is_(False),

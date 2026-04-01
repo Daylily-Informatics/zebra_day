@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -18,23 +17,22 @@ if TYPE_CHECKING:
 tapdb_app = typer.Typer(help="TapDB lifecycle wrappers")
 bootstrap_app = typer.Typer(help="TapDB bootstrap wrappers")
 tapdb_app.add_typer(bootstrap_app, name="bootstrap")
-
-
-def _runtime_env(settings: ZebraDaySettings) -> dict[str, str]:
-    env = os.environ.copy()
-    env["TAPDB_CLIENT_ID"] = settings.tapdb_client_id
-    env["TAPDB_DATABASE_NAME"] = settings.tapdb_database_name
-    env["TAPDB_ENV"] = settings.tapdb_env
-    env["TAPDB_CONFIG_PATH"] = str(settings.tapdb_config_path)
-    return env
-
-
 def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
     result = subprocess.run(
-        ["tapdb", *args],
+        [
+            "tapdb",
+            "--client-id",
+            settings.tapdb_client_id,
+            "--database-name",
+            settings.tapdb_database_name,
+            "--config",
+            str(settings.tapdb_config_path),
+            "--env",
+            settings.tapdb_env,
+            *args,
+        ],
         capture_output=True,
         text=True,
-        env=_runtime_env(settings),
     )
     if result.stdout:
         output.print_text(result.stdout.rstrip())

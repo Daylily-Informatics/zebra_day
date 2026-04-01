@@ -2,29 +2,27 @@ meta:
   config_version: 2
   client_id: zebra-day
   database_name: zebra-day
-
 environments:
   dev:
     engine_type: local
     host: localhost
-    port: "5544"
-    ui_port: "8118"
+    port: '5544'
+    ui_port: '8118'
     database: zebra_day_dev
-    audit_log_euid_prefix: ZDY
+    audit_log_euid_prefix: ZGX
     support_email: support@lsmc.bio
-    cognito_user_pool_id: ""
-
+    cognito_user_pool_id: ''
   prod:
     engine_type: aurora
     host: zebra-day.cluster-REPLACE.us-west-2.rds.amazonaws.com
-    port: "5432"
+    port: '5432'
     user: tapdb_admin
-    password: ""
+    password: ''
     database: zebra_day_prod
-    audit_log_euid_prefix: ZDY
+    audit_log_euid_prefix: ZGX
     support_email: support@lsmc.bio
-    cognito_user_pool_id: ""
+    cognito_user_pool_id: ''
     region: us-west-2
     cluster_identifier: zebra-day
-    iam_auth: "true"
-    ssl: "true"
+    iam_auth: 'true'
+    ssl: 'true'
