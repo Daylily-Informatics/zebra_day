@@ -31,6 +31,7 @@ _BLUE='\033[0;34m'
 _CYAN='\033[0;36m'
 _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
+_ZDAY_PYTHON=""
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
@@ -112,7 +113,20 @@ _zday_install_editable_repo() {
         return 0
     fi
     echo -e "  ${_CYAN}→${_NC} Installing ${label} from ${repo_root}"
-    python -m pip install --no-deps -e "$repo_root" -q || return 1
+    "${_ZDAY_PYTHON:-python}" -m pip install --no-deps -e "$repo_root" -q || return 1
+}
+
+_zday_ensure_postgres_runtime() {
+    if command -v initdb >/dev/null 2>&1 && command -v pg_ctl >/dev/null 2>&1; then
+        return 0
+    fi
+    echo -e "  ${_CYAN}→${_NC} Installing PostgreSQL runtime into ${_ZDAY_ENV_NAME}"
+    conda install -y -n "${_ZDAY_ENV_NAME}" -c conda-forge postgresql || return 1
+    if [[ -n "${CONDA_PREFIX:-}" ]] && [[ -d "${CONDA_PREFIX}/bin" ]]; then
+        export PATH="${CONDA_PREFIX}/bin:$PATH"
+        hash -r 2>/dev/null || true
+    fi
+    command -v initdb >/dev/null 2>&1 && command -v pg_ctl >/dev/null 2>&1
 }
 
 if [[ "$#" -ne 1 ]]; then
@@ -161,8 +175,25 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "${_ZDAY_ENV_NAME}" ]]; then
     return 1
 fi
 
+if [[ -n "${CONDA_PREFIX:-}" ]] && [[ -d "${CONDA_PREFIX}/bin" ]]; then
+    export PATH="${CONDA_PREFIX}/bin:$PATH"
+    _ZDAY_PYTHON="${CONDA_PREFIX}/bin/python"
+else
+    _ZDAY_PYTHON="python"
+fi
+
+if [[ ! -x "${_ZDAY_PYTHON}" ]]; then
+    echo -e "  ${_YELLOW}✗${_NC} Missing python interpreter in ${CONDA_PREFIX:-<unset>}"
+    return 1
+fi
+
+_zday_ensure_postgres_runtime || {
+    echo -e "  ${_YELLOW}✗${_NC} PostgreSQL runtime tools are required (initdb, pg_ctl)"
+    return 1
+}
+
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-python -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[auth]" -q || return 1
+"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[auth]" -q || return 1
 
 if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" ]]; then
     _zday_install_editable_repo "daylily-tapdb" "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" || return 1
@@ -190,3 +221,4 @@ echo "    zday gui start"
 
 unset _zday_deployment_code
 unset _ZDAY_ENV_NAME
+unset _ZDAY_PYTHON
