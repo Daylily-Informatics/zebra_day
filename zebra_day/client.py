@@ -182,11 +182,18 @@ class TapDBFleetRepository:
         if not PACKAGE_TEMPLATE_PACK.exists():
             return
         loader = import_from_sibling("daylily_tapdb.templates.loader", "daylily-tapdb")
+        euid_mod = import_from_sibling("daylily_tapdb.euid", "daylily-tapdb")
         with self._session(commit=True) as session:
             templates = (
                 json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
             )
-            loader.seed_templates(session, templates, overwrite=False)
+            loader.seed_templates(
+                session,
+                templates,
+                overwrite=False,
+                core_config_dir=loader.find_tapdb_core_config_dir(),
+                core_instance_prefix=euid_mod.resolve_client_scoped_core_prefix("Z"),
+            )
 
     def _seed_package_templates(self) -> None:
         package_dir = Path(__file__).resolve().parent / "etc" / "label_styles"

@@ -88,13 +88,7 @@ _zday_prepare_tapdb_config_path() {
     local deployment_code="$1"
     local client_id="$2"
     local database_name="$3"
-    local explicit_path="${ZEBRA_DAY_TAPDB_CONFIG_PATH:-}"
     local user_path="$(_zday_tapdb_config_path "$deployment_code" "$client_id")"
-
-    if [[ -n "$explicit_path" ]]; then
-        printf '%s\n' "$explicit_path"
-        return 0
-    fi
     if [[ -f "$user_path" ]]; then
         chmod 600 "$user_path" 2>/dev/null || true
         printf '%s\n' "$user_path"
@@ -138,10 +132,10 @@ export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
 export ZEBRA_DAY_PROJECT_ROOT
 export ZEBRA_DAY_ACTIVE=1
 _ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
-_ZDAY_TAPDB_CLIENT_ID="${ZEBRA_DAY_TAPDB_CLIENT_ID:-zebra-day}"
-_ZDAY_TAPDB_DATABASE_NAME="${ZEBRA_DAY_TAPDB_DATABASE_NAME:-zebra-day-${_zday_deployment_code}}"
-_ZDAY_TAPDB_ENV="${ZEBRA_DAY_TAPDB_ENV:-dev}"
-export ZEBRA_DAY_TAPDB_CONFIG_PATH="${ZEBRA_DAY_TAPDB_CONFIG_PATH:-$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")}"
+_ZDAY_TAPDB_CLIENT_ID="zebra-day"
+_ZDAY_TAPDB_DATABASE_NAME="zebra-day-${_zday_deployment_code}"
+_ZDAY_TAPDB_ENV="dev"
+_ZDAY_TAPDB_CONFIG_PATH="$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")"
 export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
 
 echo -e "${_BLUE}Activating zebra_day environment...${_NC}"
@@ -179,14 +173,14 @@ if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" ]]; then
 fi
 
 mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
-mkdir -p "$(dirname "${ZEBRA_DAY_TAPDB_CONFIG_PATH}")" || return 1
+mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1
 
 hash -r 2>/dev/null || true
 
 echo -e "  ${_GREEN}✓${_NC} Deployment: ${_zday_deployment_code}"
 echo -e "  ${_GREEN}✓${_NC} CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV}"
 echo -e "  ${_GREEN}✓${_NC} Config path: ${ZEBRA_DAY_CONFIG_PATH}"
-echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${ZEBRA_DAY_TAPDB_CONFIG_PATH}"
+echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${_ZDAY_TAPDB_CONFIG_PATH}"
 echo -e "  ${_GREEN}✓${_NC} Runtime namespace: ${_ZDAY_TAPDB_CLIENT_ID}/${_ZDAY_TAPDB_DATABASE_NAME}"
 echo
 echo "  Next:"
