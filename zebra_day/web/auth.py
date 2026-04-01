@@ -22,8 +22,8 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-PUBLIC_PATHS = ["/healthz", "/readyz"]
-AUTH_PATHS = ["/auth/login", "/auth/callback", "/auth/logout", "/auth/error"]
+PUBLIC_PATHS = ["/healthz", "/readyz", "/login"]
+AUTH_PATHS = ["/auth/login", "/auth/callback", "/auth/logout", "/auth/error", "/login"]
 STRUCTURED_PATHS = {
     "/health",
     "/obs_services",
@@ -131,10 +131,16 @@ class CognitoBinding:
         return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
 
     def redirect_uri(self, request: Request) -> str:
+        configured = _clean(getattr(self.config, "callback_url", ""))
+        if configured:
+            return self._canonicalize_loopback_url(configured)
         return self._canonicalize_loopback_url(str(request.url_for("auth_callback")))
 
     def logout_uri(self, request: Request) -> str:
-        return self._canonicalize_loopback_url(str(request.base_url))
+        configured = _clean(getattr(self.config, "logout_url", ""))
+        if configured:
+            return self._canonicalize_loopback_url(configured)
+        return self._canonicalize_loopback_url(str(request.url_for("login_page")))
 
     def build_login_url(self, request: Request) -> str:
         state = secrets.token_urlsafe(24)
@@ -371,4 +377,4 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         target = request.url.path
         if request.url.query:
             target = f"{target}?{request.url.query}"
-        return RedirectResponse(url=f"/auth/login?next={quote(target)}", status_code=302)
+        return RedirectResponse(url=f"/login?next={quote(target)}", status_code=302)

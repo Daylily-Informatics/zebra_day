@@ -138,7 +138,20 @@ def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch)
     with TestClient(app) as test_client:
         response = test_client.get("/printers", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"].startswith("/auth/login")
+    assert response.headers["location"].startswith("/login?next=/printers")
+
+
+def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
+        profile_claims={"email": "user@example.com", "name": "Example User"},
+    )
+    with TestClient(app) as test_client:
+        response = test_client.get("/login?next=/admin")
+    assert response.status_code == 200
+    assert "/auth/login?next=/admin" in response.text
 
 
 def test_cognito_mode_allows_local_docs_without_auth(tmp_path, monkeypatch):
@@ -178,6 +191,7 @@ def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
     assert "Token validation failed" in response.text
     assert 'data-testid="auth-error-card"' in response.text
     assert "Zebra Day Dashboard" not in response.text
+    assert 'data-testid="auth-error-login"' in response.text
 
 
 def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):

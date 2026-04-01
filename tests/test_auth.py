@@ -206,3 +206,19 @@ def test_build_user_identity_normalizes_cognito_groups_to_roles():
 
     assert identity["cognito_groups"] == ["zebra-day-admin"]
     assert identity["roles"] == ["ADMIN", "OPERATOR"]
+
+
+def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            callback_url="https://127.0.0.1:8118/auth/callback",
+            logout_url="https://0.0.0.0:8118/login",
+        ),
+        auth=SimpleNamespace(),
+        oauth=SimpleNamespace(),
+        jwks=SimpleNamespace(),
+    )
+
+    assert binding.redirect_uri(SimpleNamespace()) == "https://localhost:8118/auth/callback"
+    assert binding.logout_uri(SimpleNamespace()) == "https://localhost:8118/login"

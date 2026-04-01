@@ -1,35 +1,64 @@
-{% extends "modern/base.html" %}
-
-{% block title %}{{ error_title }} - Zebra Day{% endblock %}
-
-{% block content %}
-<div class="page-header">
-    <h1 class="page-title" data-testid="auth-error-title">{{ error_title }}</h1>
-    <p class="page-subtitle">Authentication and authorization issues are isolated to this page so zebra_day never falls back to the dashboard on auth failures.</p>
-</div>
-
-<div class="card" data-testid="auth-error-card">
-    <div class="card-header">
-        <h3 class="card-title">Access Review</h3>
-    </div>
-    <p><strong>Reason:</strong> <code>{{ error_reason }}</code></p>
-    <p>{{ error_message }}</p>
-    <p class="text-muted">HTTP status: {{ error_status_code }}</p>
-    <div class="quick-actions">
-        <a href="/auth/login" class="action-card" data-testid="auth-error-login">
-            <i class="fas fa-right-to-bracket"></i>
-            <div>
-                <strong>Retry Login</strong>
-                <small class="text-muted d-block">Start a new Cognito sign-in attempt</small>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ error_title }} - Zebra Day</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/zebra_modern.css?v={{ cache_bust | default('1') }}">
+</head>
+<body class="auth-page">
+    <div class="zebra-stripe-bar"></div>
+    <main class="auth-layout">
+        <section class="auth-shell-grid">
+            <div class="auth-copy">
+                <span class="auth-badge">Access Review</span>
+                <p class="auth-eyebrow">Zebra Day</p>
+                <h1 class="auth-title" data-testid="auth-error-title">{{ error_title }}</h1>
+                <p class="auth-description">
+                    Authentication failures stop on a dedicated Atlas-style review screen so
+                    zebra_day never falls back to a dashboard or mismatched callback flow.
+                </p>
             </div>
-        </a>
-        <a href="/" class="action-card" data-testid="auth-error-home">
-            <i class="fas fa-house"></i>
-            <div>
-                <strong>Return Home</strong>
-                <small class="text-muted d-block">Go back to the zebra_day landing page</small>
-            </div>
-        </a>
-    </div>
-</div>
-{% endblock %}
+
+            <section class="card auth-gateway-card auth-gateway-card-error" data-testid="auth-error-card">
+                <div class="auth-card-brand">
+                    <div class="auth-brand-mark" aria-hidden="true">
+                        <i class="fas fa-triangle-exclamation"></i>
+                    </div>
+                    <div>
+                        <p class="auth-card-kicker">Access Denied</p>
+                        <h2 class="auth-card-title">Sign-in was blocked</h2>
+                    </div>
+                </div>
+                <p class="auth-card-copy">{{ error_message }}</p>
+                <div class="auth-reason-row">
+                    <strong>Reason</strong>
+                    <code>{{ error_reason }}</code>
+                </div>
+                <p class="text-muted">HTTP status: {{ error_status_code }}</p>
+                <div class="quick-actions">
+                    <a href="/auth/login" class="action-card auth-primary-btn" data-testid="auth-error-login">
+                        <i class="fas fa-right-to-bracket"></i>
+                        <div>
+                            <strong>Retry Login</strong>
+                            <small class="text-muted d-block">Start a new Cognito sign-in attempt</small>
+                        </div>
+                    </a>
+                    <a href="/auth/logout" class="action-card" data-testid="auth-error-logout">
+                        <i class="fas fa-right-from-bracket"></i>
+                        <div>
+                            <strong>End Current Session</strong>
+                            <small class="text-muted d-block">Clear the current hosted-ui session before retrying</small>
+                        </div>
+                    </a>
+                </div>
+            </section>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In - Zebra Day</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/zebra_modern.css?v={{ cache_bust | default('1') }}">
+</head>
+<body class="auth-page">
+    <div class="zebra-stripe-bar"></div>
+    <main class="auth-layout">
+        <section class="auth-shell-grid">
+            <div class="auth-copy">
+                <span class="auth-badge">Authentication Required</span>
+                <p class="auth-eyebrow">Zebra Day</p>
+                <h1 class="auth-title">Operator access stays on the deployment-auth rail.</h1>
+                <p class="auth-description">
+                    Zebra Day now follows the same Atlas-style movement: protected routes land on the
+                    public login page, continue through `/auth/login`, and return through the
+                    deployment-managed callback URL registered in Cognito.
+                </p>
+            </div>
+
+            <section class="card auth-gateway-card" data-testid="login-card">
+                <div class="auth-card-brand">
+                    <div class="auth-brand-mark" aria-hidden="true">
+                        <i class="fas fa-barcode"></i>
+                    </div>
+                    <div>
+                        <p class="auth-card-kicker">Zebra Day Operator Console</p>
+                        <h2 class="auth-card-title">Sign in with AWS Cognito</h2>
+                    </div>
+                </div>
+                <p class="auth-card-copy">
+                    Fleet printing access is granted from deployment-managed Cognito groups after the
+                    canonical callback completes.
+                </p>
+                <a href="/auth/login?next={{ login_next | urlencode }}" class="action-card auth-primary-btn" data-testid="login-cta">
+                    <i class="fas fa-right-to-bracket"></i>
+                    <div>
+                        <strong>Sign in with AWS Cognito</strong>
+                        <small class="text-muted d-block">Start the canonical Zebra Day sign-in flow</small>
+                    </div>
+                </a>
+                <p class="auth-secondary-copy">
+                    Need access?
+                    <a href="mailto:support@lsmc.bio">support@lsmc.bio</a>
+                </p>
+            </section>
+        </section>
+    </main>
+</body>
+</html>

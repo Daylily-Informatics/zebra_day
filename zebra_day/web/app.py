@@ -300,6 +300,17 @@ def create_app(
         request.session["post_login_redirect"] = next or "/"
         return RedirectResponse(url=binding.build_login_url(request), status_code=302)
 
+    @app.get("/login", name="login_page", response_class=HTMLResponse)
+    async def login_page(request: Request, next: str = "/"):
+        from zebra_day.web.routers import ui
+
+        context = ui.get_modern_context(
+            request,
+            active_page="",
+            login_next=next or "/",
+        )
+        return templates.TemplateResponse(request, "modern/login.html", context, status_code=200)
+
     @app.get("/auth/callback", name="auth_callback")
     async def auth_callback(request: Request, code: str, state: str | None = None):
         expected = str(request.session.get("oauth_state") or "")
@@ -327,10 +338,14 @@ def create_app(
     async def auth_logout(request: Request):
         request.session.clear()
         if resolved_settings.auth_mode == "none":
-            return RedirectResponse(url="/", status_code=302)
+            return RedirectResponse(url="/login", status_code=302)
         return RedirectResponse(
             url=app.state.cognito_auth.build_logout_url(request), status_code=302
         )
+
+    @app.post("/auth/logout", name="auth_logout_post")
+    async def auth_logout_post(request: Request):
+        return await auth_logout(request)
 
     @app.get("/auth/error", response_class=HTMLResponse)
     async def auth_error(request: Request, reason: str = "auth_failed"):
