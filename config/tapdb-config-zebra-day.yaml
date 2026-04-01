@@ -2,6 +2,7 @@ meta:
   config_version: 3
   client_id: zebra-day
   database_name: zebra-day
+  euid_client_code: Z
 environments:
   dev:
     engine_type: local
