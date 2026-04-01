@@ -73,10 +73,10 @@ pytest tests/ -v --tb=short
 |----------|---------|---------|
 | `ZEBRA_DAY_DEPLOYMENT_CODE` | `local` | Active deployment name |
 | `ZEBRA_DAY_AUTH_MODE` | `cognito` | Runtime auth mode override; `none` is supported via global `--no-auth` |
-| `TAPDB_CLIENT_ID` | `zebra-day` | TapDB client namespace |
-| `TAPDB_DATABASE_NAME` | `zebra-day-<deployment>` | TapDB database namespace |
-| `TAPDB_ENV` | `dev` | TapDB environment selector |
-| `TAPDB_CONFIG_PATH` | deployment derived | Required TapDB config file path |
+| `tapdb.client_id` | `zebra-day` | TapDB client namespace in service config |
+| `tapdb.database_name` | `zebra-day-<deployment>` | TapDB database namespace in service config |
+| `tapdb.env` | `dev` | TapDB environment selector in service config |
+| `tapdb.config_path` | deployment derived | Required TapDB config file path in service config |
 | `INTERNAL_API_KEY` | _(none)_ | Optional bearer token for machine API clients |
 | `AWS_PROFILE` | _(none)_ | Used for daycog/Cognito admin commands; never pass `"default"` explicitly |
 

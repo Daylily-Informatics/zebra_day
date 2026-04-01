@@ -59,12 +59,12 @@ Ownership:
 
 Deliverables:
 - Adopt strict TapDB namespace context:
-  - `TAPDB_CLIENT_ID=zebra-day`
-  - `TAPDB_DATABASE_NAME=zebra-day-<deployment>`
-  - `TAPDB_ENV`
+  - `client_id=zebra-day`
+  - `database_name=zebra-day-<deployment>`
+  - `env=dev`
 - Resolve TapDB config from
   `~/.config/tapdb/<client>/<database>/tapdb-config.yaml` unless explicitly
-  overridden by `TAPDB_CONFIG_PATH`.
+  overridden by the explicit service `tapdb_config_path`.
 - Define fixed object types for:
   - `printer`
   - `label_profile`
@@ -207,7 +207,7 @@ Deliverables:
 - deployment-scoped YAML settings at
   `~/.config/zebra-day-<deployment>/zebra-day-config-<deployment>.yaml`
 - repo-owned JSON TapDB packs under `config/tapdb_templates/`
-- TapDB namespace via `TAPDB_CLIENT_ID`, `TAPDB_DATABASE_NAME`, and `TAPDB_ENV`
+- TapDB namespace via explicit service config fields `tapdb.client_id`, `tapdb.database_name`, and `tapdb.env`
 
 ### Supported Python Facade
 

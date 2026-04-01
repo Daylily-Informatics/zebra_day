@@ -80,8 +80,8 @@ def test_repo_ships_tapdb_config_template():
     assert payload["meta"]["database_name"] == "zebra-day"
     assert payload["environments"]["dev"]["port"] == "5544"
     assert payload["environments"]["dev"]["database"] == "zebra_day_dev"
-    assert payload["environments"]["dev"]["audit_log_euid_prefix"] == "ZDY"
-    assert payload["environments"]["prod"]["audit_log_euid_prefix"] == "ZDY"
+    assert payload["environments"]["dev"]["audit_log_euid_prefix"] == "ZGX"
+    assert payload["environments"]["prod"]["audit_log_euid_prefix"] == "ZGX"
 
 
 def test_repo_ships_single_zebra_day_template_prefix():
@@ -89,4 +89,4 @@ def test_repo_ships_single_zebra_day_template_prefix():
         Path("config/tapdb_templates/zebra_day/templates.json").read_text(encoding="utf-8")
     )
     prefixes = {template["instance_prefix"] for template in template_pack["templates"]}
-    assert prefixes == {"ZDY"}
+    assert prefixes == {"ZGX"}

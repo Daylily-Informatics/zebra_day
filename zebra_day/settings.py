@@ -53,7 +53,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
         "tapdb": {
             "client_id": DEFAULT_TAPDB_CLIENT_ID,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
-            "env": os.environ.get("TAPDB_ENV", "dev"),
+            "env": "dev",
         },
         "discovery": {
             "default_scan_wait_seconds": 0.5,
@@ -150,17 +150,13 @@ class ZebraDaySettings:
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
 
-        client_id = str(
-            os.environ.get("TAPDB_CLIENT_ID") or tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID
-        ).strip()
+        client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
         database_name = str(
-            os.environ.get("TAPDB_DATABASE_NAME")
-            or tapdb.get("database_name")
-            or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
+            tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
-        env_name = str(os.environ.get("TAPDB_ENV") or tapdb.get("env") or "dev").strip() or "dev"
+        env_name = str(tapdb.get("env") or "dev").strip() or "dev"
         tapdb_config_path = Path(
-            os.environ.get("TAPDB_CONFIG_PATH")
+            tapdb.get("config_path")
             or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
         )
 
