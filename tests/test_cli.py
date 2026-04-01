@@ -77,10 +77,6 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     assert result.exit_code == 0
     assert recorded["cmd"] == [
         "tapdb",
-        "--client-id",
-        "zebra-day",
-        "--database-name",
-        "zebra-day-dev1",
         "--config",
         str(
             tmp_path

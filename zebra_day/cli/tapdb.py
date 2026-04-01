@@ -21,10 +21,6 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
     result = subprocess.run(
         [
             "tapdb",
-            "--client-id",
-            settings.tapdb_client_id,
-            "--database-name",
-            settings.tapdb_database_name,
             "--config",
             str(settings.tapdb_config_path),
             "--env",

@@ -76,6 +76,7 @@ def test_repo_ships_tapdb_config_template():
     payload = yaml.safe_load(template_path.read_text(encoding="utf-8"))
 
     assert template_path.is_file()
+    assert payload["meta"]["config_version"] == 3
     assert payload["meta"]["client_id"] == "zebra-day"
     assert payload["meta"]["database_name"] == "zebra-day"
     assert payload["environments"]["dev"]["port"] == "5544"
