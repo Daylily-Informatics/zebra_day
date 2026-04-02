@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Any, cast
 
 import typer
 from cli_core_yo.app import create_app
@@ -169,7 +170,7 @@ def _root_callback(
         os.environ["ZEBRA_DAY_AUTH_MODE"] = "none"
     _reset()
     debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
-    xdg_paths = app._cli_core_yo_xdg_paths
+    xdg_paths = cast(Any, app)._cli_core_yo_xdg_paths
     initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
 
 
