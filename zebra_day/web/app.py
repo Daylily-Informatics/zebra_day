@@ -48,6 +48,11 @@ _AUTH_ERROR_REASONS: dict[str, tuple[str, str, int]] = {
         "The sign-in attempt did not complete. Start a new login flow and try again.",
         401,
     ),
+    "auth_error": (
+        "Authentication failed",
+        "The sign-in attempt did not complete. Start a new login flow and try again.",
+        403,
+    ),
     "token_validation_failed": (
         "Token validation failed",
         "The Cognito callback completed, but zebra_day could not validate the returned token set.",

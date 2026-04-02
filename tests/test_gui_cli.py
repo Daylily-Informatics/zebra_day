@@ -41,7 +41,9 @@ def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
     monkeypatch.setattr(gui_module, "_running_pid", lambda *args, **kwargs: None)
     monkeypatch.setattr(gui_module, "_log_file", lambda settings: tmp_path / "gui.log")
     monkeypatch.setattr(gui_module, "_pid_file", lambda settings: tmp_path / "gui.pid")
-    monkeypatch.setattr(gui_module, "_runtime_meta_file", lambda settings: tmp_path / "server-meta.json")
+    monkeypatch.setattr(
+        gui_module, "_runtime_meta_file", lambda settings: tmp_path / "server-meta.json"
+    )
     monkeypatch.setattr(
         gui_module,
         "resolve_https_certs",
@@ -65,7 +67,9 @@ def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
     monkeypatch.setattr(
         gui_module,
         "subprocess",
-        SimpleNamespace(Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT),
+        SimpleNamespace(
+            Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT
+        ),
     )
 
     result = runner.invoke(
@@ -98,7 +102,9 @@ def test_gui_start_supports_deprecated_no_https_alias(monkeypatch, tmp_path):
     monkeypatch.setattr(gui_module, "_running_pid", lambda *args, **kwargs: None)
     monkeypatch.setattr(gui_module, "_log_file", lambda settings: tmp_path / "gui.log")
     monkeypatch.setattr(gui_module, "_pid_file", lambda settings: tmp_path / "gui.pid")
-    monkeypatch.setattr(gui_module, "_runtime_meta_file", lambda settings: tmp_path / "server-meta.json")
+    monkeypatch.setattr(
+        gui_module, "_runtime_meta_file", lambda settings: tmp_path / "server-meta.json"
+    )
     monkeypatch.setattr(
         gui_module,
         "resolve_https_certs",
@@ -120,7 +126,9 @@ def test_gui_start_supports_deprecated_no_https_alias(monkeypatch, tmp_path):
     monkeypatch.setattr(
         gui_module,
         "subprocess",
-        SimpleNamespace(Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT),
+        SimpleNamespace(
+            Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT
+        ),
     )
 
     result = runner.invoke(zebra_cli.app, ["gui", "start", "--background", "--no-https"])

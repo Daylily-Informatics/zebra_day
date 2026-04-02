@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 tapdb_app = typer.Typer(help="TapDB lifecycle wrappers")
 bootstrap_app = typer.Typer(help="TapDB bootstrap wrappers")
 tapdb_app.add_typer(bootstrap_app, name="bootstrap")
+
+
 def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
     result = subprocess.run(
         [
