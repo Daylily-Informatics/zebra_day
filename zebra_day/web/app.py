@@ -23,9 +23,13 @@ from zebra_day.observability import ZebraDayObservability
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.auth import (
     CognitoAuthMiddleware,
-    build_user_identity,
+    CognitoWebAuthError,
+    clear_session_principal,
+    complete_cognito_callback,
+    load_session_principal,
     setup_cognito_auth,
     setup_session_auth,
+    start_cognito_login,
 )
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
@@ -63,12 +67,26 @@ _AUTH_ERROR_REASONS: dict[str, tuple[str, str, int]] = {
         "The callback state did not match the active browser session. Start the login flow again.",
         401,
     ),
+    "session_expired": (
+        "Session expired",
+        "Your browser session is no longer valid. Start the login flow again.",
+        401,
+    ),
     "not_authorized": (
         "Admin access required",
         "Your account is authenticated, but it does not have the ADMIN role needed for this page.",
         403,
     ),
 }
+
+
+def _auth_error_reason(reason: str) -> str:
+    return {
+        "invalid_state": "state_mismatch",
+        "token_exchange_failed": "token_validation_failed",
+        "missing_code": "auth_failed",
+        "session_expired": "session_expired",
+    }.get(reason, reason or "auth_failed")
 
 
 def get_local_ip() -> str:
@@ -126,12 +144,12 @@ def create_app(
     if resolved_settings.auth_mode == "cognito":
         cognito_binding = setup_cognito_auth(app, resolved_settings)
 
-    app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CognitoAuthMiddleware,
         cognito_auth=cognito_binding,
         settings=resolved_settings,
     )
+    app.add_middleware(RequestLoggingMiddleware)
     setup_session_auth(app, resolved_settings)
     app.state.cognito_auth = cognito_binding
 
@@ -287,8 +305,8 @@ def create_app(
                     ),
                     "sessions": {
                         "supported": True,
-                        "active_session_count": 1 if request.session.get("user_data") else 0,
-                        "recent_user_count": 1 if request.session.get("user_data") else 0,
+                        "active_session_count": 1 if load_session_principal(request) else 0,
+                        "recent_user_count": 1 if getattr(request.state, "user", None) else 0,
                         "observed_at": app.state.observability.base_frame(request, status="ok")[
                             "observed_at"
                         ],
@@ -301,9 +319,7 @@ def create_app(
     async def auth_login(request: Request, next: str = "/"):
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url=next or "/", status_code=302)
-        binding = app.state.cognito_auth
-        request.session["post_login_redirect"] = next or "/"
-        return RedirectResponse(url=binding.build_login_url(request), status_code=302)
+        return start_cognito_login(request, app.state.web_session_config, next or "/")
 
     @app.get("/login", name="login_page", response_class=HTMLResponse)
     async def login_page(request: Request, next: str = "/"):
@@ -318,35 +334,33 @@ def create_app(
 
     @app.get("/auth/callback", name="auth_callback")
     async def auth_callback(request: Request, code: str, state: str | None = None):
-        expected = str(request.session.get("oauth_state") or "")
-        if expected and state and expected != state:
-            return RedirectResponse(url="/auth/error?reason=state_mismatch", status_code=302)
+        if resolved_settings.auth_mode == "none":
+            return RedirectResponse(url="/", status_code=302)
         try:
-            result = app.state.cognito_auth.exchange_code(request, code)
+            return await complete_cognito_callback(
+                request,
+                app.state.web_session_config,
+                code,
+                state,
+                app.state.cognito_auth.resolve_principal,
+            )
+        except CognitoWebAuthError as exc:
+            _log.warning("Cognito callback failed: %s", exc)
+            reason = _auth_error_reason(exc.reason)
+            return RedirectResponse(url=f"/auth/error?reason={reason}", status_code=302)
         except ValueError as exc:
             _log.warning("Cognito callback failed: %s", exc)
             return RedirectResponse(
                 url="/auth/error?reason=token_validation_failed", status_code=302
             )
-        claims = dict(result.get("claims") or {})
-        profile_claims = dict(result.get("profile_claims") or {})
-        merged_claims = dict(claims)
-        for key, value in profile_claims.items():
-            if value not in ("", None, []):
-                merged_claims[key] = value
-        request.session["user_data"] = build_user_identity(merged_claims, resolved_settings)
-        return RedirectResponse(
-            url=str(request.session.pop("post_login_redirect", "/")), status_code=302
-        )
 
     @app.get("/auth/logout", name="auth_logout")
     async def auth_logout(request: Request):
+        clear_session_principal(request)
         request.session.clear()
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url="/login", status_code=302)
-        return RedirectResponse(
-            url=app.state.cognito_auth.build_logout_url(request), status_code=302
-        )
+        return RedirectResponse(url=app.state.cognito_auth.build_logout_url(request), status_code=302)
 
     @app.post("/auth/logout", name="auth_logout_post")
     async def auth_logout_post(request: Request):

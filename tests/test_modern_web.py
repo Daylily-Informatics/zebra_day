@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -9,6 +10,7 @@ from tests.fakes import sample_repository
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
+from zebra_day.web.auth import SessionPrincipal, build_user_identity
 
 
 def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
@@ -27,9 +29,31 @@ def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:
 
 
 def _make_cognito_binding(claims: dict[str, object], profile_claims: dict[str, object]):
-    def build_login_url(request):
-        request.session["oauth_state"] = "state-123"
-        return "https://example.com/login?state=state-123"
+    def resolve_principal(token_payload, request):
+        del request
+        del token_payload
+        merged_claims = dict(claims)
+        merged_claims.update(profile_claims)
+        identity = build_user_identity(
+            merged_claims,
+            SimpleNamespace(
+                cognito_group_role_map={
+                    "zebra-day-admin": "ADMIN",
+                    "zebra-day-operator": "OPERATOR",
+                }
+            ),
+        )
+        return SessionPrincipal(
+            user_sub=identity["sub"],
+            email=identity["email"],
+            name=identity["name"],
+            roles=identity["roles"],
+            cognito_groups=identity["cognito_groups"],
+            auth_mode=identity["auth_mode"],
+            authenticated_at="2026-04-02T00:00:00+00:00",
+            server_instance_id=None,
+            app_context={},
+        )
 
     return SimpleNamespace(
         config=SimpleNamespace(
@@ -37,13 +61,8 @@ def _make_cognito_binding(claims: dict[str, object], profile_claims: dict[str, o
             user_pool_id="pool",
             app_client_id="client",
         ),
-        build_login_url=build_login_url,
         build_logout_url=lambda request: "https://example.com/logout",
-        exchange_code=lambda request, code: {
-            "claims": claims,
-            "profile_claims": profile_claims,
-            "tokens": {"access_token": "access-token", "id_token": "id-token"},
-        },
+        resolve_principal=resolve_principal,
     )
 
 
@@ -52,11 +71,33 @@ def _make_cognito_app(
 ):
     _set_xdg(monkeypatch, tmp_path)
     monkeypatch.setattr(
+        "zebra_day.web.auth.load_daycog_contract",
+        lambda: {
+            "region": "us-west-2",
+            "user_pool_id": "pool",
+            "app_client_id": "client",
+            "cognito_domain": "example.com",
+            "callback_url": "https://localhost:8118/auth/callback",
+            "logout_url": "https://localhost:8118/login",
+        },
+    )
+    monkeypatch.setattr(
         "zebra_day.web.app.setup_cognito_auth",
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
     )
+    monkeypatch.setattr(
+        "daylily_cognito.web_session.exchange_authorization_code",
+        lambda **kwargs: {
+            "access_token": "access-token",
+            "id_token": "id-token",
+        },
+    )
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     return create_app(auth="cognito", client=_seed_client(tmp_path, monkeypatch))
+
+
+def _cognito_client(app):
+    return TestClient(app, base_url="https://localhost:8118")
 
 
 def _authenticate_session(test_client: TestClient) -> None:
@@ -135,7 +176,7 @@ def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch)
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         response = test_client.get("/printers", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"].startswith("/auth/login?next=/printers")
@@ -148,7 +189,7 @@ def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         response = test_client.get("/login?next=/admin")
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
@@ -187,10 +228,16 @@ def test_auth_login_redirects_to_cognito_hosted_ui(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    assert app.state.web_session_config.session_cookie_name == "zebra_day_session"
+    assert app.state.web_session_config.allow_insecure_http is False
+    with _cognito_client(app) as test_client:
         response = test_client.get("/auth/login?next=/admin", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"] == "https://example.com/login?state=state-123"
+    assert response.headers["location"].startswith("https://example.com/oauth2/authorize")
+    assert "state=" in response.headers["location"]
+    assert "redirect_uri=https%3A%2F%2Flocalhost%3A8118%2Fauth%2Fcallback" in response.headers[
+        "location"
+    ]
 
 
 def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
@@ -200,7 +247,7 @@ def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         response = test_client.get("/auth/error?reason=token_validation_failed")
     assert response.status_code == 401
     assert "Token validation failed" in response.text
@@ -216,7 +263,7 @@ def test_auth_error_reason_auth_error_returns_sign_in_page(tmp_path, monkeypatch
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         response = test_client.get("/auth/error?reason=auth_error")
     assert response.status_code == 403
     assert "/auth/login" in response.text
@@ -230,13 +277,47 @@ def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
         profile_claims={"email": "admin@example.com", "name": "Admin User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         _authenticate_session(test_client)
         response = test_client.get("/my_health")
     principal = response.json()["principal"]
     assert principal["email"] == "admin@example.com"
     assert principal["cognito_groups"] == ["zebra-day-admin"]
     assert principal["roles"] == ["ADMIN", "OPERATOR"]
+
+
+def test_auth_callback_without_state_redirects_to_state_mismatch(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
+        profile_claims={"email": "admin@example.com", "name": "Admin User"},
+    )
+    with _cognito_client(app) as test_client:
+        test_client.get("/auth/login?next=/printers", follow_redirects=False)
+        response = test_client.get("/auth/callback?code=valid-code", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/auth/error?reason=state_mismatch"
+
+
+def test_cognito_session_expired_after_restart_redirects_to_error(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
+        profile_claims={"email": "admin@example.com", "name": "Admin User"},
+    )
+    with _cognito_client(app) as test_client:
+        _authenticate_session(test_client)
+        new_config = replace(
+            app.state.web_session_config,
+            server_instance_id="new-server-instance",
+        )
+        app.state.web_session_config = new_config
+        app.state.__dict__["_daylily_cognito_web_session_config"] = new_config
+        response = test_client.get("/printers", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/auth/error?reason=session_expired"
 
 
 def test_cognito_mode_keeps_api_routes_unauthorized_without_session(tmp_path, monkeypatch):
@@ -246,7 +327,7 @@ def test_cognito_mode_keeps_api_routes_unauthorized_without_session(tmp_path, mo
         claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
         profile_claims={"email": "user@example.com", "name": "Example User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         response = test_client.get("/api/v1/config")
     assert response.status_code == 401
     assert response.json() == {"detail": "Authentication required"}
@@ -259,7 +340,7 @@ def test_cognito_sessions_are_isolated_across_clients(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
         profile_claims={"email": "admin@example.com", "name": "Admin User"},
     )
-    with TestClient(app) as client_a, TestClient(app) as client_b:
+    with _cognito_client(app) as client_a, _cognito_client(app) as client_b:
         _authenticate_session(client_a)
         _authenticate_session(client_b)
 
@@ -288,7 +369,7 @@ def test_admin_route_requires_admin_role(tmp_path, monkeypatch):
         },
         profile_claims={"email": "user@example.com", "name": "Standard User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         _authenticate_session(test_client)
         response = test_client.get("/admin", follow_redirects=False)
         denied = test_client.get("/auth/error?reason=not_authorized")
@@ -305,7 +386,7 @@ def test_admin_route_allows_admin_user(tmp_path, monkeypatch):
         claims={"sub": "user", "username": "admin-user", "cognito:groups": ["zebra-day-admin"]},
         profile_claims={"email": "admin@example.com", "name": "Admin User"},
     )
-    with TestClient(app) as test_client:
+    with _cognito_client(app) as test_client:
         _authenticate_session(test_client)
         response = test_client.get("/admin")
     assert response.status_code == 200

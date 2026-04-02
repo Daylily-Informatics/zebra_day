@@ -126,6 +126,19 @@ def test_tampered_callback_state_renders_state_mismatch(anonymous_page: Page, ba
     )
 
 
+def test_missing_callback_state_renders_state_mismatch(anonymous_page: Page, base_url: str):
+    anonymous_page.goto(
+        f"{base_url}/auth/callback?code=invalid-code",
+        wait_until="domcontentloaded",
+    )
+    assert_auth_error_page(
+        anonymous_page,
+        base_url=base_url,
+        reason="state_mismatch",
+        title="State mismatch",
+    )
+
+
 def test_anonymous_local_docs_load_without_auth(anonymous_page: Page, base_url: str):
     response = anonymous_page.goto(f"{base_url}/docs", wait_until="domcontentloaded")
     assert response is not None

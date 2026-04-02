@@ -3,22 +3,37 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
 from zebra_day.optional_deps import import_from_sibling
 from zebra_day.rbac import parse_groups, roles_from_groups
 from zebra_day.settings import ZebraDaySettings
+
+_web_session = import_from_sibling("daylily_cognito.web_session", "daylily-cognito")
+_cognito_oauth = import_from_sibling("daylily_cognito.oauth", "daylily-cognito")
+
+CognitoWebAuthError = _web_session.CognitoWebAuthError
+CognitoWebSessionConfig = _web_session.CognitoWebSessionConfig
+SessionPrincipal = _web_session.SessionPrincipal
+clear_session_principal = _web_session.clear_session_principal
+complete_cognito_callback = _web_session.complete_cognito_callback
+configure_session_middleware = _web_session.configure_session_middleware
+load_session_principal = _web_session.load_session_principal
+start_cognito_login = _web_session.start_cognito_login
+store_session_principal = _web_session.store_session_principal
+build_logout_url = _cognito_oauth.build_logout_url
 
 _log = get_logger(__name__)
 
@@ -113,6 +128,99 @@ def load_daycog_contract() -> dict[str, str]:
     return contract
 
 
+SERVER_INSTANCE_ID = secrets.token_urlsafe(16)
+_PUBLIC_BASE_URL_ENV = "ZEBRA_DAY_PUBLIC_BASE_URL"
+
+
+def get_server_instance_id() -> str:
+    """Return the process-scoped server instance identifier."""
+    return SERVER_INSTANCE_ID
+
+
+def _session_secret(settings: ZebraDaySettings) -> str:
+    return (
+        os.environ.get("ZEBRA_DAY_SESSION_SECRET")
+        or f"zebra-day-{settings.deployment_code}-dev-secret"
+    )
+
+
+def _runtime_public_base_url(settings: ZebraDaySettings) -> str:
+    configured = _clean(os.environ.get(_PUBLIC_BASE_URL_ENV))
+    if configured:
+        return configured
+    scheme = "https" if settings.auth_mode == "cognito" else "http"
+    return f"{scheme}://localhost:{settings.port}"
+
+
+def _origin(value: str) -> str:
+    parts = urlsplit(value)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionConfig:
+    """Build the shared browser-session config for the current runtime."""
+    contract: dict[str, str] = {}
+    if settings.auth_mode == "cognito":
+        try:
+            contract = load_daycog_contract()
+        except Exception as exc:
+            _log.warning("Using fallback Cognito web-session URLs: %s", exc)
+
+    callback_url = _clean(contract.get("callback_url"))
+    logout_url = _clean(contract.get("logout_url"))
+    public_base_url = (
+        _origin(callback_url)
+        if callback_url
+        else _origin(logout_url)
+        if logout_url
+        else _runtime_public_base_url(settings)
+    )
+    if not callback_url:
+        callback_url = f"{public_base_url}{settings.callback_path}"
+    if not logout_url:
+        logout_url = f"{public_base_url}/login"
+
+    return CognitoWebSessionConfig(
+        domain=_clean(contract.get("cognito_domain")) or "localhost",
+        client_id=_clean(contract.get("app_client_id")) or settings.tapdb_client_id,
+        redirect_uri=callback_url,
+        logout_uri=logout_url,
+        session_secret_key=_session_secret(settings),
+        session_cookie_name=settings.session_cookie_name,
+        public_base_url=public_base_url,
+        server_instance_id=get_server_instance_id(),
+        allow_insecure_http=public_base_url.startswith("http://"),
+    )
+
+
+def _principal_to_user_context(
+    principal: SessionPrincipal, settings: ZebraDaySettings
+) -> dict[str, Any]:
+    expires_at = ""
+    authenticated_at = _clean(principal.authenticated_at)
+    if authenticated_at:
+        try:
+            parsed = datetime.fromisoformat(authenticated_at)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            else:
+                parsed = parsed.astimezone(timezone.utc)
+            expires_at = (parsed + timedelta(hours=12)).isoformat()
+        except ValueError:
+            expires_at = ""
+
+    return {
+        "sub": principal.user_sub,
+        "email": principal.email,
+        "name": principal.name or "",
+        "roles": list(principal.roles),
+        "cognito_groups": list(principal.cognito_groups),
+        "auth_mode": principal.auth_mode,
+        "expires_at": expires_at,
+        "service_principal": bool(principal.app_context.get("service_principal", False)),
+    }
+
+
 @dataclass
 class CognitoBinding:
     settings: ZebraDaySettings
@@ -120,6 +228,7 @@ class CognitoBinding:
     auth: Any
     oauth: Any
     jwks: Any
+    web_session_config: CognitoWebSessionConfig | None = None
 
     def _canonicalize_loopback_url(self, value: str) -> str:
         parts = urlsplit(value)
@@ -143,6 +252,10 @@ class CognitoBinding:
         return self._canonicalize_loopback_url(str(request.url_for("login_page")))
 
     def build_login_url(self, request: Request) -> str:
+        if self.web_session_config is not None:
+            response = start_cognito_login(request, self.web_session_config, "/")
+            return _clean(response.headers.get("location"))
+
         state = secrets.token_urlsafe(24)
         request.session["oauth_state"] = state
         return str(
@@ -156,7 +269,7 @@ class CognitoBinding:
 
     def build_logout_url(self, request: Request) -> str:
         return str(
-            self.oauth.build_logout_url(
+            build_logout_url(
                 domain=self.config.cognito_domain,
                 client_id=self.config.app_client_id,
                 logout_uri=self.logout_uri(request),
@@ -244,22 +357,58 @@ class CognitoBinding:
                         "Continuing without Cognito id token profile claims: %s",
                         decode_exc,
                     )
-                    profile_claims = {}
         return {"tokens": tokens, "claims": claims, "profile_claims": profile_claims}
 
+    def resolve_principal(
+        self, token_payload: dict[str, Any], request: Request
+    ) -> SessionPrincipal:
+        access_token = _clean(token_payload.get("access_token"))
+        if not access_token:
+            raise ValueError("Cognito token exchange did not return an access token")
 
-def setup_session_auth(app, settings: ZebraDaySettings) -> None:
-    secret = (
-        __import__("os").environ.get("ZEBRA_DAY_SESSION_SECRET")
-        or f"zebra-day-{settings.deployment_code}-dev-secret"
-    )
-    app.add_middleware(
-        SessionMiddleware,
-        secret_key=secret,
-        session_cookie=settings.session_cookie_name,
-        same_site="lax",
-        https_only=False,
-    )
+        claims = dict(self.auth.verify_token(access_token))
+        profile_claims: dict[str, Any] = {}
+        id_token = _clean(token_payload.get("id_token"))
+        if id_token:
+            try:
+                profile_claims = self._verify_id_token(id_token)
+            except ValueError as exc:
+                _log.warning(
+                    "Falling back to unverified Cognito id token decode for profile claims: %s",
+                    exc,
+                )
+                try:
+                    profile_claims = self._decode_id_token_unverified(id_token)
+                except ValueError as decode_exc:
+                    _log.warning(
+                        "Continuing without Cognito id token profile claims: %s",
+                        decode_exc,
+                    )
+                    profile_claims = {}
+
+        merged_claims = dict(claims)
+        for key, value in profile_claims.items():
+            if value not in ("", None, []):
+                merged_claims[key] = value
+        identity = build_user_identity(merged_claims, self.settings)
+        return SessionPrincipal(
+            user_sub=identity["sub"],
+            email=identity["email"],
+            name=identity["name"] or None,
+            roles=list(identity["roles"]),
+            cognito_groups=list(identity["cognito_groups"]),
+            auth_mode=str(identity["auth_mode"] or "cognito_session"),
+            authenticated_at=datetime.now(timezone.utc).isoformat(),
+            server_instance_id=get_server_instance_id(),
+            app_context={},
+        )
+
+
+def setup_session_auth(app, settings: ZebraDaySettings) -> CognitoWebSessionConfig:
+    web_session_config = build_web_session_config(settings)
+    configure_session_middleware(app, web_session_config)
+    app.state.web_session_config = web_session_config
+    return web_session_config
 
 
 def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
@@ -280,7 +429,14 @@ def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
         app_client_id=config.app_client_id,
         profile=_clean(config.aws_profile) or None,
     )
-    return CognitoBinding(settings=settings, config=config, auth=auth, oauth=oauth, jwks=jwks)
+    return CognitoBinding(
+        settings=settings,
+        config=config,
+        auth=auth,
+        oauth=oauth,
+        jwks=jwks,
+        web_session_config=build_web_session_config(settings),
+    )
 
 
 def _has_internal_api_key(request: Request) -> bool:
@@ -326,8 +482,13 @@ def _requires_json_response(request: Request) -> bool:
 
 
 def _session_user(request: Request) -> dict[str, Any] | None:
-    user = request.session.get("user_data")
-    return dict(user) if isinstance(user, dict) else None
+    principal = load_session_principal(request)
+    if principal is None:
+        return None
+    settings = getattr(request.app.state, "settings", None)
+    if settings is None:
+        return None
+    return _principal_to_user_context(principal, settings)
 
 
 class CognitoAuthMiddleware(BaseHTTPMiddleware):
@@ -351,6 +512,10 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         if session_user is not None:
             request.state.user = session_user
             return await call_next(request)  # type: ignore[no-any-return]
+
+        auth_reason = _clean(getattr(request.state, "cognito_auth_reason", ""))
+        if auth_reason == "session_expired" and not _requires_json_response(request):
+            return RedirectResponse(url="/auth/error?reason=session_expired", status_code=302)
 
         if _has_internal_api_key(request):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
