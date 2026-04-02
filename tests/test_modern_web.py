@@ -235,9 +235,10 @@ def test_auth_login_redirects_to_cognito_hosted_ui(tmp_path, monkeypatch):
     assert response.status_code == 302
     assert response.headers["location"].startswith("https://example.com/oauth2/authorize")
     assert "state=" in response.headers["location"]
-    assert "redirect_uri=https%3A%2F%2Flocalhost%3A8118%2Fauth%2Fcallback" in response.headers[
-        "location"
-    ]
+    assert (
+        "redirect_uri=https%3A%2F%2Flocalhost%3A8118%2Fauth%2Fcallback"
+        in response.headers["location"]
+    )
 
 
 def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
