@@ -153,7 +153,7 @@ def _ensure_tapdb_dependency() -> None:
     except ImportError as exc:
         raise SystemExit(
             "zebra_day CLI startup failed because daylily-tapdb is unavailable. "
-            "Install the supported package or expose a sibling checkout before running zday."
+            "Install the supported package before running zday."
         ) from exc
 
 

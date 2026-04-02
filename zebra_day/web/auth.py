@@ -7,7 +7,7 @@ import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -223,9 +223,9 @@ def _principal_to_user_context(
         try:
             parsed = datetime.fromisoformat(authenticated_at)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed = parsed.replace(tzinfo=UTC)
             else:
-                parsed = parsed.astimezone(timezone.utc)
+                parsed = parsed.astimezone(UTC)
             expires_at = (parsed + timedelta(hours=12)).isoformat()
         except ValueError:
             expires_at = ""
@@ -419,7 +419,7 @@ class CognitoBinding:
             roles=list(identity["roles"]),
             cognito_groups=list(identity["cognito_groups"]),
             auth_mode=str(identity["auth_mode"] or "cognito_session"),
-            authenticated_at=datetime.now(timezone.utc).isoformat(),
+            authenticated_at=datetime.now(UTC).isoformat(),
             server_instance_id=get_server_instance_id(),
             app_context={},
         )
