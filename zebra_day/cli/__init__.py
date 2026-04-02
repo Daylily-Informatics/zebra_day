@@ -169,7 +169,7 @@ def _root_callback(
         os.environ["ZEBRA_DAY_AUTH_MODE"] = "none"
     _reset()
     debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
-    xdg_paths = app._cli_core_yo_xdg_paths  # type: ignore[attr-defined]
+    xdg_paths = app._cli_core_yo_xdg_paths
     initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
 
 

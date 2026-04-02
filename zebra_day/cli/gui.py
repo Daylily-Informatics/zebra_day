@@ -9,9 +9,10 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import typer
 from cli_core_yo import output
@@ -28,16 +29,44 @@ gui_app = typer.Typer(help="TapDB-backed web GUI management")
 SERVER_META_FILE = "server-meta.json"
 
 
-def _load_tls_helpers() -> tuple[object, object]:
+class _ResolvedCerts(Protocol):
+    cert_path: Path
+    key_path: Path
+
+
+class _ResolveHttpsCerts(Protocol):
+    def __call__(
+        self,
+        *,
+        cert_path: str | None,
+        key_path: str | None,
+        env: Mapping[str, str],
+        legacy_cert_env_vars: tuple[str, ...],
+        legacy_key_env_vars: tuple[str, ...],
+        shared_certs_dir: Path,
+        fallback_certs_dir: Path,
+    ) -> _ResolvedCerts: ...
+
+
+class _SharedDayhoffCertsDir(Protocol):
+    def __call__(self, deployment_code: str) -> Path: ...
+
+
+def _load_tls_helpers() -> tuple[_ResolveHttpsCerts, _SharedDayhoffCertsDir]:
+    certs_mod: Any | None
     try:
         certs_mod = importlib.import_module("cli_core_yo.certs")
     except ImportError:
         certs_mod = None
-    else:
-        if hasattr(certs_mod, "resolve_https_certs") and hasattr(
-            certs_mod, "shared_dayhoff_certs_dir"
-        ):
-            return certs_mod.resolve_https_certs, certs_mod.shared_dayhoff_certs_dir
+
+    if (
+        certs_mod is not None
+        and hasattr(certs_mod, "resolve_https_certs")
+        and hasattr(certs_mod, "shared_dayhoff_certs_dir")
+    ):
+        return cast(_ResolveHttpsCerts, certs_mod.resolve_https_certs), cast(
+            _SharedDayhoffCertsDir, certs_mod.shared_dayhoff_certs_dir
+        )
 
     sibling_checkout = Path(__file__).resolve().parents[2].parent / "cli-core-yo"
     if sibling_checkout.exists():
@@ -49,11 +78,11 @@ def _load_tls_helpers() -> tuple[object, object]:
         if hasattr(certs_mod, "resolve_https_certs") and hasattr(
             certs_mod, "shared_dayhoff_certs_dir"
         ):
-            return certs_mod.resolve_https_certs, certs_mod.shared_dayhoff_certs_dir
+            return cast(_ResolveHttpsCerts, certs_mod.resolve_https_certs), cast(
+                _SharedDayhoffCertsDir, certs_mod.shared_dayhoff_certs_dir
+            )
 
-    raise ImportError(
-        "cli_core_yo.certs.resolve_https_certs/shared_dayhoff_certs_dir are required"
-    )
+    raise ImportError("cli_core_yo.certs.resolve_https_certs/shared_dayhoff_certs_dir are required")
 
 
 resolve_https_certs, shared_dayhoff_certs_dir = _load_tls_helpers()
@@ -77,7 +106,9 @@ def _runtime_meta_file(settings: ZebraDaySettings) -> Path:
     return settings.state_dir / SERVER_META_FILE
 
 
-def _write_runtime_meta(*, settings: ZebraDaySettings, ssl_enabled: bool, host: str, port: int) -> None:
+def _write_runtime_meta(
+    *, settings: ZebraDaySettings, ssl_enabled: bool, host: str, port: int
+) -> None:
     _runtime_meta_file(settings).write_text(
         json.dumps({"ssl_enabled": ssl_enabled, "host": host, "port": port}, sort_keys=True),
         encoding="utf-8",
@@ -283,7 +314,8 @@ def status() -> None:
         meta = _read_runtime_meta(settings)
         scheme = "http" if str(meta.get("ssl_enabled")).lower() in {"false", "0", "no"} else "https"
         bound_host = str(meta.get("host") or settings.host)
-        bound_port = int(meta.get("port") or settings.port)
+        raw_port = meta.get("port")
+        bound_port = raw_port if isinstance(raw_port, int) else int(str(raw_port or settings.port))
         display_host = "localhost" if bound_host in {"0.0.0.0", "::", ""} else bound_host
         output.success(f"GUI running (PID {pid}) on {scheme}://{display_host}:{bound_port}")
     output.detail(f"State dir: {settings.state_dir}")
