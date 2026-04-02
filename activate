@@ -32,6 +32,7 @@ _CYAN='\033[0;36m'
 _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
+_ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/zebra_day_env.yaml"
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
@@ -106,16 +107,6 @@ _zday_prepare_tapdb_config_path() {
     printf '%s\n' "$user_path"
 }
 
-_zday_install_editable_repo() {
-    local label="$1"
-    local repo_root="$2"
-    if [[ -z "$repo_root" || ! -d "$repo_root" ]]; then
-        return 0
-    fi
-    echo -e "  ${_CYAN}→${_NC} Installing ${label} from ${repo_root}"
-    "${_ZDAY_PYTHON:-python}" -m pip install --no-deps -e "$repo_root" -q || return 1
-}
-
 _zday_ensure_postgres_runtime() {
     if command -v initdb >/dev/null 2>&1 && command -v pg_ctl >/dev/null 2>&1; then
         return 0
@@ -165,7 +156,7 @@ if conda info --envs | grep -q "${_ZDAY_ENV_NAME}"; then
     echo -e "  ${_GREEN}✓${_NC} Activating conda environment: ${_ZDAY_ENV_NAME}"
 else
     echo -e "  ${_CYAN}→${_NC} Creating conda environment: ${_ZDAY_ENV_NAME}"
-    conda create -y -n "${_ZDAY_ENV_NAME}" python=3.12 pip || return 1
+    conda env create -n "${_ZDAY_ENV_NAME}" -f "${_ZDAY_ENV_FILE}" || return 1
 fi
 
 conda activate "${_ZDAY_ENV_NAME}" || return 1
@@ -193,15 +184,7 @@ _zday_ensure_postgres_runtime || {
 }
 
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[auth]" -q || return 1
-
-if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" ]]; then
-    _zday_install_editable_repo "daylily-tapdb" "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-tapdb" || return 1
-fi
-
-if [[ -d "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" ]]; then
-    _zday_install_editable_repo "daylily-cognito" "${ZEBRA_DAY_PROJECT_ROOT}/../daylily-cognito" || return 1
-fi
+"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[dev,lint,auth]" -q || return 1
 
 mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
 mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1

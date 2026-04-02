@@ -19,6 +19,7 @@ def _set_xdg(monkeypatch, tmp_path, deployment="stage-1") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
 
 
 def test_default_config_template_is_valid_yaml():

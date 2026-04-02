@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import Any, cast
 
 import typer
 from cli_core_yo.app import create_app
@@ -152,7 +153,7 @@ def _ensure_tapdb_dependency() -> None:
     except ImportError as exc:
         raise SystemExit(
             "zebra_day CLI startup failed because daylily-tapdb is unavailable. "
-            "Install the supported package or expose a sibling checkout before running zday."
+            "Install the supported package before running zday."
         ) from exc
 
 
@@ -169,7 +170,7 @@ def _root_callback(
         os.environ["ZEBRA_DAY_AUTH_MODE"] = "none"
     _reset()
     debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
-    xdg_paths = app._cli_core_yo_xdg_paths
+    xdg_paths = cast(Any, app)._cli_core_yo_xdg_paths
     initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
 
 

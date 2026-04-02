@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "A Python library to manage a Zebra printer fleet and an API for ZPL print requests."
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     {name = "John Major", email = "john@daylilyinformatics.com"}
 ]
@@ -19,7 +19,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -38,8 +37,9 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "pydantic>=2.0.0",
     "python-multipart>=0.0.6",
-    "cli-core-yo>=0.5.0",
-    "daylily-tapdb==3.2.1",
+    "cli-core-yo>=0.5.1",
+    "daylily-cognito==0.4.1",
+    "daylily-tapdb==3.2.2",
     "typer>=0.21.0,<0.22.0",
     "rich>=14.0.0,<15.0.0",
     "pillow>=10.0.0",
@@ -70,7 +70,6 @@ aws = [
     "boto3>=1.26.0",
 ]
 auth = [
-    "daylily-cognito==0.4.0",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.26.0",
 ]
@@ -119,7 +118,7 @@ markers = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -142,7 +141,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = false

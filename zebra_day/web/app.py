@@ -360,7 +360,9 @@ def create_app(
         request.session.clear()
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url="/login", status_code=302)
-        return RedirectResponse(url=app.state.cognito_auth.build_logout_url(request), status_code=302)
+        return RedirectResponse(
+            url=app.state.cognito_auth.build_logout_url(request), status_code=302
+        )
 
     @app.post("/auth/logout", name="auth_logout_post")
     async def auth_logout_post(request: Request):

@@ -7,35 +7,55 @@ import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
+import daylily_cognito as daycog
+from daylily_cognito import jwks
+from daylily_cognito import oauth as cognito_oauth
+from daylily_cognito.config import get_context_values
+from daylily_cognito.oauth import build_logout_url
+from daylily_cognito.web_session import (
+    CognitoWebAuthError,
+    CognitoWebSessionConfig,
+    SessionPrincipal,
+    clear_session_principal,
+    complete_cognito_callback,
+    configure_session_middleware,
+    load_session_principal,
+    start_cognito_login,
+)
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
-from zebra_day.optional_deps import import_from_sibling
 from zebra_day.rbac import parse_groups, roles_from_groups
 from zebra_day.settings import ZebraDaySettings
 
-_web_session = import_from_sibling("daylily_cognito.web_session", "daylily-cognito")
-_cognito_oauth = import_from_sibling("daylily_cognito.oauth", "daylily-cognito")
-
-CognitoWebAuthError = _web_session.CognitoWebAuthError
-CognitoWebSessionConfig = _web_session.CognitoWebSessionConfig
-SessionPrincipal = _web_session.SessionPrincipal
-clear_session_principal = _web_session.clear_session_principal
-complete_cognito_callback = _web_session.complete_cognito_callback
-configure_session_middleware = _web_session.configure_session_middleware
-load_session_principal = _web_session.load_session_principal
-start_cognito_login = _web_session.start_cognito_login
-store_session_principal = _web_session.store_session_principal
-build_logout_url = _cognito_oauth.build_logout_url
-
 _log = get_logger(__name__)
+
+__all__ = [
+    "CognitoBinding",
+    "CognitoWebAuthError",
+    "CognitoWebSessionConfig",
+    "SessionPrincipal",
+    "build_logout_url",
+    "build_web_session_config",
+    "clear_session_principal",
+    "complete_cognito_callback",
+    "configure_session_middleware",
+    "get_cognito_import_error",
+    "get_server_instance_id",
+    "is_cognito_available",
+    "load_daycog_contract",
+    "load_session_principal",
+    "setup_cognito_auth",
+    "setup_session_auth",
+    "start_cognito_login",
+]
 
 PUBLIC_PATHS = ["/healthz", "/readyz", "/login"]
 AUTH_PATHS = ["/auth/login", "/auth/callback", "/auth/logout", "/auth/error", "/login"]
@@ -83,7 +103,8 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
 
 def is_cognito_available() -> bool:
     try:
-        import_from_sibling("daylily_cognito", "daylily-cognito")
+        import daylily_cognito  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -91,7 +112,8 @@ def is_cognito_available() -> bool:
 
 def get_cognito_import_error() -> str | None:
     try:
-        import_from_sibling("daylily_cognito", "daylily-cognito")
+        import daylily_cognito  # noqa: F401
+
         return None
     except ImportError as exc:
         return str(exc)
@@ -99,8 +121,7 @@ def get_cognito_import_error() -> str | None:
 
 def load_daycog_contract() -> dict[str, str]:
     """Load the active daycog context values."""
-    config_mod = import_from_sibling("daylily_cognito.config", "daylily-cognito")
-    values = config_mod.get_context_values()
+    values = get_context_values()
     if not values:
         raise ValueError("No active daycog context found in ~/.config/daycog/config.yaml")
 
@@ -202,9 +223,9 @@ def _principal_to_user_context(
         try:
             parsed = datetime.fromisoformat(authenticated_at)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                parsed = parsed.replace(tzinfo=UTC)
             else:
-                parsed = parsed.astimezone(timezone.utc)
+                parsed = parsed.astimezone(UTC)
             expires_at = (parsed + timedelta(hours=12)).isoformat()
         except ValueError:
             expires_at = ""
@@ -398,7 +419,7 @@ class CognitoBinding:
             roles=list(identity["roles"]),
             cognito_groups=list(identity["cognito_groups"]),
             auth_mode=str(identity["auth_mode"] or "cognito_session"),
-            authenticated_at=datetime.now(timezone.utc).isoformat(),
+            authenticated_at=datetime.now(UTC).isoformat(),
             server_instance_id=get_server_instance_id(),
             app_context={},
         )
@@ -418,9 +439,6 @@ def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
             "daylily-cognito is required for Cognito authentication. "
             f"Import error: {get_cognito_import_error()}"
         )
-    daycog = import_from_sibling("daylily_cognito", "daylily-cognito")
-    oauth = import_from_sibling("daylily_cognito.oauth", "daylily-cognito")
-    jwks = import_from_sibling("daylily_cognito.jwks", "daylily-cognito")
     contract = load_daycog_contract()
     config = SimpleNamespace(**contract)
     auth = daycog.CognitoAuth(
@@ -433,7 +451,7 @@ def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
         settings=settings,
         config=config,
         auth=auth,
-        oauth=oauth,
+        oauth=cognito_oauth,
         jwks=jwks,
         web_session_config=build_web_session_config(settings),
     )

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
@@ -53,34 +53,17 @@ class _SharedDayhoffCertsDir(Protocol):
 
 
 def _load_tls_helpers() -> tuple[_ResolveHttpsCerts, _SharedDayhoffCertsDir]:
-    certs_mod: Any | None
     try:
-        certs_mod = importlib.import_module("cli_core_yo.certs")
-    except ImportError:
-        certs_mod = None
+        certs_mod: Any = importlib.import_module("cli_core_yo.certs")
+    except ImportError as exc:
+        raise ImportError(
+            "cli_core_yo.certs.resolve_https_certs/shared_dayhoff_certs_dir are required"
+        ) from exc
 
-    if (
-        certs_mod is not None
-        and hasattr(certs_mod, "resolve_https_certs")
-        and hasattr(certs_mod, "shared_dayhoff_certs_dir")
-    ):
+    if hasattr(certs_mod, "resolve_https_certs") and hasattr(certs_mod, "shared_dayhoff_certs_dir"):
         return cast(_ResolveHttpsCerts, certs_mod.resolve_https_certs), cast(
             _SharedDayhoffCertsDir, certs_mod.shared_dayhoff_certs_dir
         )
-
-    sibling_checkout = Path(__file__).resolve().parents[2].parent / "cli-core-yo"
-    if sibling_checkout.exists():
-        sys.path.insert(0, str(sibling_checkout))
-        importlib.invalidate_caches()
-        for module_name in ("cli_core_yo.certs", "cli_core_yo"):
-            sys.modules.pop(module_name, None)
-        certs_mod = importlib.import_module("cli_core_yo.certs")
-        if hasattr(certs_mod, "resolve_https_certs") and hasattr(
-            certs_mod, "shared_dayhoff_certs_dir"
-        ):
-            return cast(_ResolveHttpsCerts, certs_mod.resolve_https_certs), cast(
-                _SharedDayhoffCertsDir, certs_mod.shared_dayhoff_certs_dir
-            )
 
     raise ImportError("cli_core_yo.certs.resolve_https_certs/shared_dayhoff_certs_dir are required")
 
@@ -98,7 +81,7 @@ def _latest_log(settings: ZebraDaySettings) -> Path | None:
 
 
 def _log_file(settings: ZebraDaySettings) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     return settings.logs_dir / f"gui_{timestamp}.log"
 
 
