@@ -198,8 +198,12 @@ class ZebraDaySettings:
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
         deployment_chrome = _resolve_deployment_chrome(
-            name=(merged.get("deployment") or {}).get("name") if isinstance(merged.get("deployment"), dict) else "",
-            color=(merged.get("deployment") or {}).get("color") if isinstance(merged.get("deployment"), dict) else "",
+            name=(merged.get("deployment") or {}).get("name")
+            if isinstance(merged.get("deployment"), dict)
+            else "",
+            color=(merged.get("deployment") or {}).get("color")
+            if isinstance(merged.get("deployment"), dict)
+            else "",
             fallback_name=deployment_code,
         )
 
