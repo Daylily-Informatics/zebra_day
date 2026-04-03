@@ -51,6 +51,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "bandit[toml]>=1.8.0",
+    "pre-commit>=3.8.0",
     "pytest>=7.4.0",
     "pytest-cov>=4.0.0",
     "pytest-playwright>=0.4.4",
@@ -139,6 +141,11 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[tool.bandit]
+targets = ["zebra_day"]
+exclude_dirs = ["tests", "dist", "build"]
+skips = ["B101", "B105", "B404", "B603", "B607"]
 
 [tool.mypy]
 python_version = "3.11"
