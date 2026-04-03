@@ -111,7 +111,9 @@ def deactivate():
 def status():
     """Show current environment status."""
     is_active = bool(os.environ.get("ZEBRA_DAY_ACTIVE"))
-    project_root = os.environ.get("ZEBRA_DAY_PROJECT_ROOT") or os.environ.get("ZDAY_PROJECT_ROOT", "")
+    project_root = os.environ.get("ZEBRA_DAY_PROJECT_ROOT") or os.environ.get(
+        "ZDAY_PROJECT_ROOT", ""
+    )
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
     config_path = str(xdg.get_config_file_path())
 
