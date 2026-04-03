@@ -90,6 +90,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -98,6 +102,21 @@ jobs:
 
       - name: Install build tools
         run: pip install build
+
+      - name: Verify release version
+        if: github.event_name == 'release'
+        run: |
+          python -m pip install setuptools_scm
+          version="$(python -c 'from setuptools_scm import get_version; print(get_version())')"
+          echo "Resolved version: $version"
+          if [[ "$version" == *".dev"* ]]; then
+            echo "Refusing to build release from development version: $version" >&2
+            exit 1
+          fi
+          if [[ "$version" != "${{ github.event.release.tag_name }}" ]]; then
+            echo "Resolved version $version does not match release tag ${{ github.event.release.tag_name }}" >&2
+            exit 1
+          fi
 
       - name: Build package
         run: python -m build
@@ -115,6 +134,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -123,6 +146,20 @@ jobs:
 
       - name: Install build tools
         run: pip install build twine
+
+      - name: Verify release version
+        run: |
+          python -m pip install setuptools_scm
+          version="$(python -c 'from setuptools_scm import get_version; print(get_version())')"
+          echo "Resolved version: $version"
+          if [[ "$version" == *".dev"* ]]; then
+            echo "Refusing to publish non-release version: $version" >&2
+            exit 1
+          fi
+          if [[ "$version" != "${{ github.event.release.tag_name }}" ]]; then
+            echo "Resolved version $version does not match release tag ${{ github.event.release.tag_name }}" >&2
+            exit 1
+          fi
 
       - name: Build package
         run: python -m build
