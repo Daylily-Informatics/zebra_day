@@ -32,7 +32,7 @@ _CYAN='\033[0;36m'
 _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
-_ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/zebra_day_env.yaml"
+_ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
@@ -135,6 +135,7 @@ export ZEBRA_DAY_DEPLOYMENT_CODE="${_zday_deployment_code}"
 export DEPLOYMENT_CODE="${_zday_deployment_code}"
 export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
 export ZEBRA_DAY_PROJECT_ROOT
+export ZDAY_PROJECT_ROOT="${ZEBRA_DAY_PROJECT_ROOT}"
 export ZEBRA_DAY_ACTIVE=1
 _ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
 _ZDAY_TAPDB_CLIENT_ID="zebra-day"
@@ -184,7 +185,7 @@ _zday_ensure_postgres_runtime || {
 }
 
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}[dev,lint,auth]" -q || return 1
+"${_ZDAY_PYTHON}" -m pip install --no-deps -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
 
 mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
 mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1

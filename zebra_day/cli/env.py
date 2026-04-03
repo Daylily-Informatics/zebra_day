@@ -24,8 +24,10 @@ env_app = typer.Typer(help="Development environment management")
 
 def _find_project_root() -> Path | None:
     """Find the zebra_day project root by looking for pyproject.toml."""
-    # Check ZDAY_PROJECT_ROOT env var first
-    if env_root := os.environ.get("ZDAY_PROJECT_ROOT"):
+    for env_var in ("ZEBRA_DAY_PROJECT_ROOT", "ZDAY_PROJECT_ROOT"):
+        env_root = os.environ.get(env_var)
+        if not env_root:
+            continue
         return Path(env_root)
 
     # Search upward from current directory
@@ -59,7 +61,7 @@ def activate():
 
     console.print(
         Panel.fit(
-            f"[cyan]source {activate_script}[/cyan]",
+            f"[cyan]source {activate_script} <deploy-name>[/cyan]",
             title="Run this command to activate",
             border_style="green",
         )
@@ -76,7 +78,7 @@ def deactivate():
     the command you need to run.
     """
     # Check if environment is active
-    if not os.environ.get("_ZEBRA_DAY_ACTIVE"):
+    if not os.environ.get("ZEBRA_DAY_ACTIVE"):
         output.warning("zebra_day environment is not active")
         return
 
@@ -108,8 +110,8 @@ def deactivate():
 @env_app.command("status")
 def status():
     """Show current environment status."""
-    is_active = bool(os.environ.get("_ZEBRA_DAY_ACTIVE"))
-    project_root = os.environ.get("ZDAY_PROJECT_ROOT", "")
+    is_active = bool(os.environ.get("ZEBRA_DAY_ACTIVE"))
+    project_root = os.environ.get("ZEBRA_DAY_PROJECT_ROOT") or os.environ.get("ZDAY_PROJECT_ROOT", "")
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
     config_path = str(xdg.get_config_file_path())
 
@@ -150,13 +152,13 @@ def reset():
         raise typer.Exit(1)
 
     # Check if currently active
-    is_active = bool(os.environ.get("_ZDAY_ACTIVE"))
+    is_active = bool(os.environ.get("ZEBRA_DAY_ACTIVE"))
 
     if is_active and deactivate_script.exists():
         # Show combined command
         console.print(
             Panel.fit(
-                f"[cyan]source {deactivate_script} && source {activate_script}[/cyan]",
+                f"[cyan]source {deactivate_script} && source {activate_script} <deploy-name>[/cyan]",
                 title="Run this command to reset",
                 border_style="cyan",
             )
@@ -165,7 +167,7 @@ def reset():
         # Just activate (or re-activate)
         console.print(
             Panel.fit(
-                f"[cyan]source {activate_script}[/cyan]",
+                f"[cyan]source {activate_script} <deploy-name>[/cyan]",
                 title="Run this command to activate/reset",
                 border_style="green",
             )
