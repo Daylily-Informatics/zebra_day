@@ -63,6 +63,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             )
             raise
 
+        route = request.scope.get("route")
+        path_template = getattr(route, "path", path)
+        request.state.path_template = path_template
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
         # Build log context
@@ -91,11 +94,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         else:
             _log.info("Request completed", extra=log_context)
 
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Correlation-ID"] = correlation_id
         observability = getattr(request.app.state, "observability", None)
         if observability is not None:
-            observability.record_route(path_template)
+            observability.record_http_request(
+                method=method,
+                route_template=str(path_template or path),
+                status_code=status_code,
+                duration_ms=elapsed_ms,
+            )
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Correlation-ID"] = correlation_id
         return response  # type: ignore[no-any-return]
 
 

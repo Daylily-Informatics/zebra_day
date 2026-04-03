@@ -9,7 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -181,16 +181,30 @@ def create_app(
 
     @app.get("/health")
     async def health(request: Request):
+        auth_mode = resolved_settings.auth_mode
         return app.state.observability.with_projection(
             request,
             name="health",
             status="ok",
             payload={
                 "checks": {
-                    "process": {"status": "ok"},
+                    "process": {
+                        "status": "ok",
+                        "started_at": app.state.observability.started_at,
+                    },
                     "auth": {
-                        "status": "ok" if resolved_settings.auth_mode == "cognito" else "disabled",
-                        "mode": resolved_settings.auth_mode,
+                        "status": "ok" if auth_mode == "cognito" else "disabled",
+                        "mode": auth_mode,
+                        "cognito_configured": auth_mode == "cognito",
+                    },
+                    "database": {
+                        "status": "ok",
+                        "backend": "tapdb",
+                        "env": resolved_settings.tapdb_env,
+                        "namespace": {
+                            "client_id": resolved_settings.tapdb_client_id,
+                            "database_name": resolved_settings.tapdb_database_name,
+                        },
                     },
                 }
             },
@@ -198,50 +212,32 @@ def create_app(
 
     @app.get("/obs_services")
     async def obs_services(request: Request):
-        endpoints = [
-            {"path": "/health", "auth": "operator_or_service_token", "kind": "health"},
-            {"path": "/obs_services", "auth": "operator_or_service_token", "kind": "discovery"},
-            {"path": "/api_health", "auth": "operator_or_service_token", "kind": "health"},
-            {"path": "/endpoint_health", "auth": "operator_or_service_token", "kind": "health"},
-            {"path": "/db_health", "auth": "operator_or_service_token", "kind": "database"},
-            {"path": "/my_health", "auth": "operator_or_service_token", "kind": "identity"},
-            {"path": "/auth_health", "auth": "operator_or_service_token", "kind": "auth"},
-        ]
         return app.state.observability.with_projection(
             request,
             name="obs_services",
             status="ok",
-            payload={
-                "endpoints": endpoints,
-                "extensions": [],
-                "dependencies": {
-                    "configured_services": ["daylily-cognito", "daylily-tapdb"],
-                    "observed_services": ["daylily-cognito", "daylily-tapdb"],
-                },
-            },
+            payload=app.state.observability.obs_services_payload(
+                auth_mode=resolved_settings.auth_mode
+            ),
         )
 
     @app.get("/api_health")
     async def api_health(request: Request):
-        return app.state.observability.with_projection(
-            request,
-            name="api_health",
-            status="ok",
-            payload={"families": [{"name": "api", "status": "ok", "count": 1}]},
-        )
+        projection, families = app.state.observability.api_health_payload()
+        payload = app.state.observability.base_frame(request, status="ok")
+        payload["families"] = families
+        payload["projection"] = projection.model_dump()
+        return payload
 
     @app.get("/endpoint_health")
-    async def endpoint_health(request: Request):
-        items = sorted(app.state.observability.route_templates)
-        return app.state.observability.with_projection(
-            request,
-            name="endpoint_health",
-            status="ok",
-            payload={
-                "page": {"total": len(items), "offset": 0, "limit": len(items)},
-                "items": [{"path": item, "status": "ok"} for item in items],
-            },
+    async def endpoint_health(request: Request, offset: int = 0, limit: int = 25):
+        projection, page = app.state.observability.endpoint_health_payload(
+            offset=offset, limit=limit
         )
+        payload = app.state.observability.base_frame(request, status="ok")
+        payload.update(page)
+        payload["projection"] = projection.model_dump()
+        return payload
 
     @app.get("/db_health")
     async def db_health(request: Request):
@@ -258,62 +254,79 @@ def create_app(
                         "client_id": resolved_settings.tapdb_client_id,
                         "database_name": resolved_settings.tapdb_database_name,
                     },
+                    "latest": None,
+                    "recent": [],
                 }
             },
         )
 
-    @app.get("/my_health")
-    async def my_health(request: Request):
-        user = getattr(request.state, "user", {}) or {}
-        return app.state.observability.with_projection(
-            request,
-            name="my_health",
-            status="ok",
-            payload={
-                "principal": {
-                    "subject": str(user.get("sub") or ""),
-                    "email": str(user.get("email") or ""),
-                    "name": str(user.get("name") or ""),
-                    "roles": list(user.get("roles") or []),
-                    "cognito_groups": list(user.get("cognito_groups") or []),
-                    "auth_mode": str(user.get("auth_mode") or resolved_settings.auth_mode),
-                    "expires_at": str(user.get("expires_at") or ""),
-                    "service_principal": bool(user.get("service_principal", False)),
-                }
-            },
-        )
+    if resolved_settings.auth_mode != "none":
+
+        @app.get("/my_health")
+        async def my_health(request: Request):
+            user = getattr(request.state, "user", None)
+            if not isinstance(user, dict):
+                raise HTTPException(status_code=401, detail="Not authenticated")
+            app.state.observability.record_auth_event(
+                status="ok",
+                mode=resolved_settings.auth_mode,
+                detail=request.url.path,
+                principal_email=str(user.get("email") or ""),
+            )
+            return app.state.observability.with_projection(
+                request,
+                name="my_health",
+                status="ok",
+                payload={
+                    "principal": {
+                        "subject": str(user.get("sub") or ""),
+                        "email": str(user.get("email") or ""),
+                        "name": str(user.get("name") or ""),
+                        "roles": list(user.get("roles") or []),
+                        "cognito_groups": list(user.get("cognito_groups") or []),
+                        "auth_mode": str(user.get("auth_mode") or resolved_settings.auth_mode),
+                        "expires_at": str(user.get("expires_at") or ""),
+                        "service_principal": bool(user.get("service_principal", False)),
+                    }
+                },
+            )
 
     @app.get("/auth_health")
     async def auth_health(request: Request):
         binding = getattr(app.state, "cognito_auth", None)
-        return app.state.observability.with_projection(
-            request,
-            name="auth_health",
-            status="ok" if resolved_settings.auth_mode == "cognito" else "disabled",
-            payload={
-                "auth": {
-                    "mode": resolved_settings.auth_mode,
-                    "cognito_configured": binding is not None,
-                    "cognito_domain": str(
-                        getattr(getattr(binding, "config", None), "cognito_domain", "") or ""
-                    ),
-                    "user_pool_id": str(
-                        getattr(getattr(binding, "config", None), "user_pool_id", "") or ""
-                    ),
-                    "app_client_id_present": bool(
-                        getattr(getattr(binding, "config", None), "app_client_id", "")
-                    ),
-                    "sessions": {
-                        "supported": True,
-                        "active_session_count": 1 if load_session_principal(request) else 0,
-                        "recent_user_count": 1 if getattr(request.state, "user", None) else 0,
-                        "observed_at": app.state.observability.base_frame(request, status="ok")[
-                            "observed_at"
-                        ],
-                    },
-                }
-            },
+        user = getattr(request.state, "user", None)
+        principal_email = ""
+        if isinstance(user, dict):
+            principal_email = str(user.get("email") or "")
+        app.state.observability.record_auth_event(
+            status="ok",
+            mode=resolved_settings.auth_mode,
+            detail=request.url.path,
+            principal_email=principal_email,
         )
+        projection, auth_payload = app.state.observability.auth_health_payload(
+            auth_mode=resolved_settings.auth_mode,
+            cognito_domain=str(
+                getattr(getattr(binding, "config", None), "cognito_domain", "") or ""
+            ),
+            user_pool_id=str(getattr(getattr(binding, "config", None), "user_pool_id", "") or ""),
+            app_client_id_present=bool(
+                getattr(getattr(binding, "config", None), "app_client_id", "")
+            ),
+            active_session_count=(
+                None
+                if resolved_settings.auth_mode == "none"
+                else 1
+                if load_session_principal(request)
+                else 0
+            ),
+        )
+        payload = app.state.observability.base_frame(
+            request, status=str(auth_payload.pop("status"))
+        )
+        payload.update(auth_payload)
+        payload["projection"] = projection.model_dump()
+        return payload
 
     @app.get("/auth/login", name="auth_login")
     async def auth_login(request: Request, next: str = "/"):
