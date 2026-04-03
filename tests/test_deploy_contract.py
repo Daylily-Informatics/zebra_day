@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -29,6 +28,6 @@ def test_env_cli_points_to_contract_env_vars_and_positional_activate() -> None:
     env_cli = (PROJECT_ROOT / "zebra_day" / "cli" / "env.py").read_text(encoding="utf-8")
 
     assert "ZEBRA_DAY_PROJECT_ROOT" in env_cli
-    assert 'source {activate_script} <deploy-name>' in env_cli
+    assert "source {activate_script} <deploy-name>" in env_cli
     assert "_ZEBRA_DAY_ACTIVE" not in env_cli
     assert "_ZDAY_ACTIVE" not in env_cli
