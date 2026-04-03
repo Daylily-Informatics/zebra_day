@@ -171,3 +171,13 @@ zebra_day/_version.py
 zebra_day.egg-info/
 .auth/
 output/playwright/
+
+# TLS material
+certs/
+tls/
+ssl/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
