@@ -35,6 +35,7 @@ def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dic
         "storage_mode": "tapdb",
         "tapdb_namespace": settings.tapdb_database_name,
         "deployment_code": settings.deployment_code,
+        "deployment": settings.deployment,
         **kwargs,
     }
 

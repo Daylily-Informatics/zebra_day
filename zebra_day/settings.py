@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import colorsys
+import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +19,8 @@ DEFAULT_PORT = 8118
 DEFAULT_SERVICE_NAME = "zebra-day"
 DEFAULT_AUTH_MODE = "cognito"
 DEFAULT_TAPDB_CLIENT_ID = "zebra-day"
+DEFAULT_DEPLOYMENT_BANNER_COLOR = "#AFEEEE"
+PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
     "admin": "ADMIN",
     "platform-admin": "ADMIN",
@@ -30,6 +34,34 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         return {}
     content = yaml.safe_load(path.read_text()) or {}
     return content if isinstance(content, dict) else {}
+
+
+def _stable_deployment_color_hex(name: str) -> str:
+    digest = hashlib.sha256(name.encode("utf-8")).digest()
+    hue = int.from_bytes(digest[:8], "big") % 360
+    red, green, blue = colorsys.hls_to_rgb(hue / 360.0, 0.46, 0.72)
+    return f"#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}"
+
+
+def _resolve_deployment_chrome(
+    *,
+    name: str | None,
+    color: str | None,
+    fallback_name: str | None = None,
+) -> dict[str, object]:
+    resolved_name = str(name or "").strip() or str(fallback_name or "").strip()
+    resolved_color = str(color or "").strip()
+    if not resolved_color:
+        resolved_color = (
+            _stable_deployment_color_hex(resolved_name)
+            if resolved_name
+            else DEFAULT_DEPLOYMENT_BANNER_COLOR
+        )
+    return {
+        "name": resolved_name,
+        "color": resolved_color,
+        "is_production": resolved_name.lower() in PRODUCTION_DEPLOYMENT_NAMES,
+    }
 
 
 def build_default_config_template(deployment: str | None = None) -> bytes:
@@ -58,6 +90,11 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
         "discovery": {
             "default_scan_wait_seconds": 0.5,
             "default_http_port": None,
+        },
+        "deployment": {
+            "name": "",
+            "color": "",
+            "is_production": False,
         },
     }
     rendered = yaml.safe_dump(payload, sort_keys=False)
@@ -110,6 +147,9 @@ class ZebraDaySettings:
     """Resolved runtime settings."""
 
     deployment_code: str
+    deployment_name: str
+    deployment_color: str
+    deployment_is_production: bool
     config_path: Path
     config_dir: Path
     data_dir: Path
@@ -132,6 +172,14 @@ class ZebraDaySettings:
     default_scan_wait_seconds: float
     default_http_port: int | None
 
+    @property
+    def deployment(self) -> dict[str, object]:
+        return {
+            "name": self.deployment_name,
+            "color": self.deployment_color,
+            "is_production": self.deployment_is_production,
+        }
+
     @classmethod
     def from_context(cls, deployment: str | None = None) -> ZebraDaySettings:
         deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
@@ -139,7 +187,7 @@ class ZebraDaySettings:
         merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
         file_payload = _load_yaml(config_path)
 
-        for section in ("service", "authentication", "tapdb", "discovery"):
+        for section in ("service", "authentication", "tapdb", "discovery", "deployment"):
             file_section = file_payload.get(section)
             if isinstance(file_section, dict):
                 merged.setdefault(section, {})
@@ -149,6 +197,15 @@ class ZebraDaySettings:
         auth = merged.get("authentication") or {}
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
+        deployment_chrome = _resolve_deployment_chrome(
+            name=(merged.get("deployment") or {}).get("name")
+            if isinstance(merged.get("deployment"), dict)
+            else "",
+            color=(merged.get("deployment") or {}).get("color")
+            if isinstance(merged.get("deployment"), dict)
+            else "",
+            fallback_name=deployment_code,
+        )
 
         client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
         database_name = str(
@@ -162,6 +219,9 @@ class ZebraDaySettings:
 
         return cls(
             deployment_code=deployment_code,
+            deployment_name=str(deployment_chrome["name"]),
+            deployment_color=str(deployment_chrome["color"]),
+            deployment_is_production=bool(deployment_chrome["is_production"]),
             config_path=config_path,
             config_dir=xdg.get_config_dir(),
             data_dir=xdg.get_data_dir(),
