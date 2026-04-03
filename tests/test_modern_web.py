@@ -117,6 +117,7 @@ def test_root_route_renders(monkeypatch, tmp_path):
     with TestClient(app) as client:
         response = client.get("/")
     assert response.status_code == 200
+    assert "LOCAL" in response.text
     assert "TapDB-backed printer fleet state" in response.text
 
 
@@ -195,6 +196,7 @@ def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
     assert response.headers["content-type"].startswith("text/html")
     assert "location" not in response.headers
     assert "/auth/login?next=/admin" in response.text
+    assert "LOCAL" in response.text
 
 
 def test_cognito_mode_allows_local_docs_without_auth(tmp_path, monkeypatch):
@@ -252,6 +254,7 @@ def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
         response = test_client.get("/auth/error?reason=token_validation_failed")
     assert response.status_code == 401
     assert "Token validation failed" in response.text
+    assert "LOCAL" in response.text
     assert 'data-testid="auth-error-card"' in response.text
     assert "Zebra Day Dashboard" not in response.text
     assert 'data-testid="auth-error-login"' in response.text
@@ -269,6 +272,24 @@ def test_auth_error_reason_auth_error_returns_sign_in_page(tmp_path, monkeypatch
     assert response.status_code == 403
     assert "/auth/login" in response.text
     assert 'data-testid="auth-error-login"' in response.text
+
+
+def test_prod_deployment_hides_top_banner(tmp_path, monkeypatch):
+    _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-qa-1.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        "deployment:\n  name: prod\n  color: ''\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+
+    with TestClient(app) as client:
+        response = client.get("/login")
+
+    assert response.status_code == 200
+    assert "PROD" not in response.text
 
 
 def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):

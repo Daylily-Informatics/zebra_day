@@ -6,7 +6,10 @@ import yaml
 
 from zebra_day import paths as xdg
 from zebra_day.settings import (
+    DEFAULT_DEPLOYMENT_BANNER_COLOR,
     ZebraDaySettings,
+    _resolve_deployment_chrome,
+    _stable_deployment_color_hex,
     build_default_config_template,
     validate_settings_yaml,
 )
@@ -27,6 +30,7 @@ def test_default_config_template_is_valid_yaml():
     assert validate_settings_yaml(content) == []
     assert "database_name: zebra-day-dev" in content
     assert "zebra-day-admin: ADMIN" in content
+    assert "deployment:" in content
 
 
 def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
@@ -37,6 +41,9 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     settings = ZebraDaySettings.from_context()
 
     assert settings.deployment_code == "qa-1"
+    assert settings.deployment_name == "qa-1"
+    assert settings.deployment_color == _stable_deployment_color_hex("qa-1")
+    assert settings.deployment_is_production is False
     assert settings.config_path == explicit_config
     assert settings.tapdb_database_name == "zebra-day-qa-1"
     assert (
@@ -59,6 +66,9 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             "  client_id: zebra-day\n"
             "  database_name: zebra-day-prod-custom\n"
             "  env: sandbox\n"
+            "deployment:\n"
+            "  name: sandbox-g\n"
+            "  color: '#123456'\n"
         ),
         encoding="utf-8",
     )
@@ -70,6 +80,36 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.auth_mode == "none"
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
     assert settings.tapdb_env == "sandbox"
+    assert settings.deployment == {
+        "name": "sandbox-g",
+        "color": "#123456",
+        "is_production": False,
+    }
+
+
+def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
+    config_path = xdg.get_config_file_path()
+    config_path.write_text(
+        "deployment:\n  name: production\n  color: ''\n",
+        encoding="utf-8",
+    )
+
+    settings = ZebraDaySettings.from_context()
+
+    assert settings.deployment == {
+        "name": "production",
+        "color": _stable_deployment_color_hex("production"),
+        "is_production": True,
+    }
+
+
+def test_light_aqua_is_used_without_any_deployment_name():
+    assert _resolve_deployment_chrome(name="", color="", fallback_name="") == {
+        "name": "",
+        "color": DEFAULT_DEPLOYMENT_BANNER_COLOR,
+        "is_production": False,
+    }
 
 
 def test_repo_ships_tapdb_config_template():
