@@ -2,7 +2,9 @@
 Tests for the zebra_day authentication module.
 """
 
+import sys
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -88,16 +90,19 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
         jwks=jwks,
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
-    binding._verify_id_token = lambda token: (
-        {
+
+    def _verify_id_token(token, *, access_token=None):
+        assert access_token == "access-token"
+        if token != "id-token":
+            pytest.fail("expected id token verification")
+        return {
             "sub": "profile-sub",
             "email": "user@example.com",
             "name": "Atlas User",
             "aud": "client-id",
         }
-        if token == "id-token"
-        else pytest.fail("expected id token verification")
-    )
+
+    binding._verify_id_token = _verify_id_token
 
     result = binding.exchange_code(object(), "auth-code")
 
@@ -132,7 +137,12 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
         jwks=SimpleNamespace(),
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
-    binding._verify_id_token = lambda token: (_ for _ in ()).throw(ValueError("jwt failed"))
+
+    def _verify_id_token(token, *, access_token=None):
+        assert access_token == "access-token"
+        raise ValueError("jwt failed")
+
+    binding._verify_id_token = _verify_id_token
     binding._decode_id_token_unverified = lambda token: (
         {
             "email": "fallback@example.com",
@@ -175,7 +185,12 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
         jwks=SimpleNamespace(),
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
-    binding._verify_id_token = lambda token: (_ for _ in ()).throw(ValueError("jwt failed"))
+
+    def _verify_id_token(token, *, access_token=None):
+        assert access_token == "access-token"
+        raise ValueError("jwt failed")
+
+    binding._verify_id_token = _verify_id_token
     binding._decode_id_token_unverified = lambda token: (_ for _ in ()).throw(
         ValueError("payload failed")
     )
@@ -222,3 +237,80 @@ def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
 
     assert binding.redirect_uri(SimpleNamespace()) == "https://localhost:8118/auth/callback"
     assert binding.logout_uri(SimpleNamespace()) == "https://localhost:8118/login"
+
+
+def test_verify_id_token_passes_paired_access_token_to_jose_decode(monkeypatch):
+    decode_kwargs = {}
+
+    def fake_get_unverified_header(token):
+        assert token == "id-token"
+        return {"kid": "kid-123"}
+
+    def fake_decode(
+        token, key, algorithms=None, options=None, issuer=None, audience=None, access_token=None
+    ):
+        decode_kwargs.update(
+            token=token,
+            key=key,
+            algorithms=algorithms,
+            options=options,
+            issuer=issuer,
+            audience=audience,
+            access_token=access_token,
+        )
+        return {"sub": "user-123", "email": "user@example.com"}
+
+    fake_jwt = SimpleNamespace(
+        get_unverified_header=fake_get_unverified_header,
+        decode=fake_decode,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "jose",
+        SimpleNamespace(JWTError=ValueError, jwt=fake_jwt),
+    )
+
+    jwks_cache = SimpleNamespace(get_key=lambda kid: f"jwk-for-{kid}")
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            app_client_id="client-id",
+            region="us-west-2",
+            user_pool_id="pool-id",
+        ),
+        auth=SimpleNamespace(_jwks_cache=jwks_cache),
+        oauth=SimpleNamespace(),
+        jwks=SimpleNamespace(
+            JWKSCache=lambda region, pool_id: pytest.fail("unexpected JWKS cache init")
+        ),
+    )
+
+    claims = binding._verify_id_token("id-token", access_token="access-token")
+
+    assert claims["email"] == "user@example.com"
+    assert decode_kwargs["access_token"] == "access-token"
+    assert decode_kwargs["audience"] == "client-id"
+
+
+def test_decode_id_token_unverified_disables_at_hash_verification(monkeypatch):
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(),
+        auth=SimpleNamespace(),
+        oauth=SimpleNamespace(),
+        jwks=SimpleNamespace(),
+    )
+
+    decode_mock = Mock(return_value={"email": "user@example.com"})
+    monkeypatch.setitem(
+        sys.modules,
+        "jose",
+        SimpleNamespace(
+            JWTError=ValueError,
+            jwt=SimpleNamespace(decode=decode_mock),
+        ),
+    )
+    claims = binding._decode_id_token_unverified("id-token")
+
+    assert claims["email"] == "user@example.com"
+    assert decode_mock.call_args.kwargs["options"]["verify_at_hash"] is False

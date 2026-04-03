@@ -297,7 +297,7 @@ class CognitoBinding:
             )
         )
 
-    def _verify_id_token(self, id_token: str) -> dict[str, Any]:
+    def _verify_id_token(self, id_token: str, *, access_token: str | None = None) -> dict[str, Any]:
         from jose import JWTError, jwt
 
         kid = _clean(jwt.get_unverified_header(id_token).get("kid"))
@@ -324,6 +324,7 @@ class CognitoBinding:
                 },
                 issuer=issuer,
                 audience=self.config.app_client_id,
+                access_token=access_token,
             )
         except JWTError as exc:
             raise ValueError("Invalid Cognito id token") from exc
@@ -343,6 +344,7 @@ class CognitoBinding:
                     "verify_aud": False,
                     "verify_nbf": False,
                     "verify_iat": False,
+                    "verify_at_hash": False,
                 },
             )
         except JWTError as exc:
@@ -365,7 +367,7 @@ class CognitoBinding:
         id_token = _clean(tokens.get("id_token"))
         if id_token:
             try:
-                profile_claims = self._verify_id_token(id_token)
+                profile_claims = self._verify_id_token(id_token, access_token=access_token)
             except ValueError as exc:
                 _log.warning(
                     "Falling back to unverified Cognito id token decode for profile claims: %s",
@@ -392,7 +394,7 @@ class CognitoBinding:
         id_token = _clean(token_payload.get("id_token"))
         if id_token:
             try:
-                profile_claims = self._verify_id_token(id_token)
+                profile_claims = self._verify_id_token(id_token, access_token=access_token)
             except ValueError as exc:
                 _log.warning(
                     "Falling back to unverified Cognito id token decode for profile claims: %s",
