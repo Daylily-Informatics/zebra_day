@@ -60,6 +60,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             raise
 
         elapsed_ms = (time.perf_counter() - start_time) * 1000
+        route = request.scope.get("route")
+        route_template = getattr(route, "path", path)
+
+        observability = getattr(request.app.state, "observability", None)
+        if observability is not None:
+            observability.record_http_request(
+                method=method,
+                route_template=str(route_template or path),
+                status_code=status_code,
+                duration_ms=elapsed_ms,
+            )
 
         # Build log context
         log_context = {

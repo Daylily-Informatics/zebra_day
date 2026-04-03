@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -21,6 +23,15 @@ from zebra_day import __version__
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
+from zebra_day.web.observability import (
+    ZebraObservabilityStore,
+    build_api_health_payload,
+    build_auth_health_payload,
+    build_endpoint_health_payload,
+    build_health_payload,
+    build_my_health_payload,
+    build_obs_services_payload,
+)
 
 _log = get_logger(__name__)
 
@@ -109,6 +120,7 @@ def create_app(
     app.state.css_theme = css_theme
     app.state.local_ip = get_local_ip()
     app.state.pkg_path = _PKG_PATH
+    app.state.observability = ZebraObservabilityStore(auth_mode=app.state.auth_mode)
 
     # Mount static files
     app.mount("/static", StaticFiles(directory=str(_STATIC_PATH)), name="static")
@@ -149,6 +161,73 @@ def create_app(
         if hasattr(app.state, "zp") and app.state.zp is not None:
             return {"status": "ready"}
         return {"status": "not_ready"}, 503
+
+    @app.get("/health")
+    async def health(request: Request) -> JSONResponse:
+        projection, snapshot = app.state.observability.health()
+        return JSONResponse(build_health_payload(request, projection=projection, health_snapshot=snapshot))
+
+    @app.get("/obs_services")
+    async def obs_services(request: Request) -> JSONResponse:
+        projection, snapshot = app.state.observability.obs_services_snapshot()
+        return JSONResponse(
+            build_obs_services_payload(request, projection=projection, snapshot=snapshot)
+        )
+
+    @app.get("/api_health")
+    async def api_health(request: Request) -> JSONResponse:
+        projection, families = app.state.observability.api_health()
+        return JSONResponse(
+            build_api_health_payload(request, projection=projection, families=families)
+        )
+
+    @app.get("/endpoint_health")
+    async def endpoint_health(
+        request: Request,
+        offset: int = 0,
+        limit: int = 25,
+    ) -> JSONResponse:
+        projection, payload = app.state.observability.endpoint_health(offset=offset, limit=limit)
+        return JSONResponse(
+            build_endpoint_health_payload(
+                request,
+                projection=projection,
+                total=int(payload["total"]),
+                offset=int(payload["offset"]),
+                limit=int(payload["limit"]),
+                items=list(payload["items"]),
+            )
+        )
+
+    @app.get("/auth_health")
+    async def auth_health(request: Request) -> JSONResponse:
+        principal_email = ""
+        if getattr(request.state, "user", None):
+            principal_email = str(getattr(request.state, "user", {}).get("email") or "")
+        app.state.observability.record_auth_event(
+            status="ok",
+            mode=app.state.auth_mode,
+            detail=request.url.path,
+            principal_email=principal_email,
+        )
+        projection, payload = app.state.observability.auth_health()
+        return JSONResponse(
+            build_auth_health_payload(request, projection=projection, auth_rollup=payload)
+        )
+
+    if app.state.auth_mode != "none":
+
+        @app.get("/my_health")
+        async def my_health(request: Request) -> JSONResponse:
+            if not getattr(request.state, "user", None):
+                raise HTTPException(status_code=401, detail="Not authenticated")
+            app.state.observability.record_auth_event(
+                status="ok",
+                mode=app.state.auth_mode,
+                detail=request.url.path,
+                principal_email=str(getattr(request.state, "user", {}).get("email") or ""),
+            )
+            return JSONResponse(build_my_health_payload(request))
 
     return app
 
