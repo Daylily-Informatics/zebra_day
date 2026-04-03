@@ -40,11 +40,7 @@ def _stable_deployment_color_hex(name: str) -> str:
     digest = hashlib.sha256(name.encode("utf-8")).digest()
     hue = int.from_bytes(digest[:8], "big") % 360
     red, green, blue = colorsys.hls_to_rgb(hue / 360.0, 0.46, 0.72)
-    return "#{:02x}{:02x}{:02x}".format(
-        round(red * 255),
-        round(green * 255),
-        round(blue * 255),
-    )
+    return f"#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}"
 
 
 def _resolve_deployment_chrome(
