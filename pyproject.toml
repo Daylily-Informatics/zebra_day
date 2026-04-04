@@ -68,7 +68,7 @@ aws = [
     "boto3>=1.26.0",
 ]
 auth = [
-    "daylily-cognito>=0.1.10",
+    "daylily-cognito>=0.4.4",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.26.0",
 ]

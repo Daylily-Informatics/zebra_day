@@ -112,6 +112,37 @@ class TestCLIGuiStatus:
         assert result.exit_code in (0, 1)
 
 
+class TestCLIGuiStart:
+    """Tests for GUI start command behavior."""
+
+    @patch("zebra_day.cli.gui._get_pid", return_value=None)
+    @patch("zebra_day.cli.gui.time.sleep", return_value=None)
+    @patch("zebra_day.cli.gui.subprocess.Popen")
+    @patch("zebra_day.cli.gui._resolve_ssl_paths", return_value=("cert.pem", "key.pem", True, "Using existing certificates"))
+    def test_gui_start_does_not_leak_ssl_env_vars(
+        self,
+        _mock_resolve_ssl_paths,
+        mock_popen,
+        _mock_sleep,
+        _mock_get_pid,
+    ):
+        """Launcher should not export SSL_CERT_PATH/SSL_KEY_PATH to the child environment."""
+        mock_proc = MagicMock()
+        mock_proc.poll.return_value = None
+        mock_popen.return_value = mock_proc
+
+        result = runner.invoke(app, ["gui", "start", "--background", "--auth", "none"])
+        assert result.exit_code == 0
+
+        env = mock_popen.call_args.kwargs["env"]
+        assert "SSL_CERT_FILE" not in env
+        assert "SSL_CERT_PATH" not in env
+        assert "SSL_KEY_FILE" not in env
+        assert "SSL_KEY_PATH" not in env
+        assert env["PYTHONUNBUFFERED"] == "1"
+        assert env["ZEBRA_DAY_AUTH_MODE"] == "none"
+
+
 class TestCLIConfig:
     """Tests for config CLI commands."""
 

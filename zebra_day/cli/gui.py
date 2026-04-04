@@ -72,6 +72,18 @@ def _check_auth_dependencies() -> bool:
         return False
 
 
+def _build_child_env(*, auth: str) -> dict[str, str]:
+    """Build the environment passed to the launched server process."""
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    env["ZEBRA_DAY_AUTH_MODE"] = auth
+    env.pop("SSL_CERT_FILE", None)
+    env.pop("SSL_CERT_PATH", None)
+    env.pop("SSL_KEY_FILE", None)
+    env.pop("SSL_KEY_PATH", None)
+    return env
+
+
 def _resolve_ssl_paths(
     cert: str | None, key: str | None, no_https: bool = False
 ) -> tuple[str | None, str | None, bool, str]:
@@ -214,14 +226,8 @@ def start(
         f"from zebra_day.web.app import run_server; run_server(host='{host}', port={port}, reload={reload}, auth='{auth}'{ssl_args})",
     ]
 
-    # Set up environment
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    env["ZEBRA_DAY_AUTH_MODE"] = auth
-    if cert_path:
-        env["SSL_CERT_PATH"] = cert_path
-    if key_path:
-        env["SSL_KEY_PATH"] = key_path
+    # Set up environment without leaking launcher-only SSL path variables to the child.
+    env = _build_child_env(auth=auth)
 
     if reload:
         background = False
