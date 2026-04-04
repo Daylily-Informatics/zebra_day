@@ -130,6 +130,8 @@ def test_health_and_observability_routes(monkeypatch, tmp_path):
         payload = client.get("/obs_services").json()
     assert payload["contract_version"] == "v3"
     assert payload["service"] == "zebra-day"
+    assert payload["extensions"] == ["zebra_day.observability_v1"]
+    assert "/api/anomalies" not in {item["path"] for item in payload["endpoints"]}
 
 
 def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
