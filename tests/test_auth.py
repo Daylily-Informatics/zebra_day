@@ -239,6 +239,46 @@ def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
     assert binding.logout_uri(SimpleNamespace()) == "https://localhost:8118/login"
 
 
+def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypatch):
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-123")
+    monkeypatch.setenv("COGNITO_DOMAIN", "https://example.auth.us-west-2.amazoncognito.com")
+    monkeypatch.setattr(
+        auth,
+        "get_context_values",
+        lambda: (_ for _ in ()).throw(AssertionError("daycog context should not be read")),
+    )
+
+    contract = auth.load_daycog_contract()
+
+    assert contract["cognito_domain"] == "example.auth.us-west-2.amazoncognito.com"
+    assert contract["region"] == "us-west-2"
+    assert contract["user_pool_id"] == "pool-123"
+    assert contract["app_client_id"] == "client-123"
+
+
+def test_load_daycog_contract_falls_back_to_daycog_context_when_env_missing(monkeypatch):
+    monkeypatch.delenv("COGNITO_REGION", raising=False)
+    monkeypatch.delenv("COGNITO_USER_POOL_ID", raising=False)
+    monkeypatch.delenv("COGNITO_APP_CLIENT_ID", raising=False)
+    monkeypatch.delenv("COGNITO_DOMAIN", raising=False)
+    monkeypatch.setattr(
+        auth,
+        "get_context_values",
+        lambda: {
+            "COGNITO_REGION": "us-west-2",
+            "COGNITO_USER_POOL_ID": "pool-123",
+            "COGNITO_APP_CLIENT_ID": "client-123",
+            "COGNITO_DOMAIN": "https://example.auth.us-west-2.amazoncognito.com",
+        },
+    )
+
+    contract = auth.load_daycog_contract()
+
+    assert contract["cognito_domain"] == "example.auth.us-west-2.amazoncognito.com"
+
+
 def test_verify_id_token_passes_paired_access_token_to_jose_decode(monkeypatch):
     decode_kwargs = {}
 

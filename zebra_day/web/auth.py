@@ -80,6 +80,16 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _normalize_cognito_domain(value: Any) -> str:
+    raw = _clean(value)
+    if not raw:
+        return ""
+    parts = urlsplit(raw)
+    if parts.scheme and parts.netloc:
+        return parts.netloc
+    return raw.removeprefix("https://").removeprefix("http://").rstrip("/")
+
+
 def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> dict[str, Any]:
     merged_claims = dict(claims)
     groups = parse_groups(merged_claims.get("cognito:groups"))
@@ -120,17 +130,14 @@ def get_cognito_import_error() -> str | None:
 
 
 def load_daycog_contract() -> dict[str, str]:
-    """Load the active daycog context values."""
-    values = get_context_values()
-    if not values:
-        raise ValueError("No active daycog context found in ~/.config/daycog/config.yaml")
-
-    contract = {
+    """Load the process env first, then fall back to the active daycog context."""
+    values = {key: _clean(os.environ.get(key)) for key in os.environ}
+    env_contract = {
         "region": _clean(values.get("COGNITO_REGION") or values.get("AWS_REGION")),
         "user_pool_id": _clean(values.get("COGNITO_USER_POOL_ID")),
         "app_client_id": _clean(values.get("COGNITO_APP_CLIENT_ID")),
         "aws_profile": _clean(values.get("AWS_PROFILE")),
-        "cognito_domain": _clean(values.get("COGNITO_DOMAIN")),
+        "cognito_domain": _normalize_cognito_domain(values.get("COGNITO_DOMAIN")),
         "client_name": _clean(values.get("COGNITO_CLIENT_NAME")),
         "callback_url": _clean(
             values.get("COGNITO_CALLBACK_URL")
@@ -139,9 +146,34 @@ def load_daycog_contract() -> dict[str, str]:
         ),
         "logout_url": _clean(values.get("COGNITO_LOGOUT_URL")),
     }
+    required = ("region", "user_pool_id", "app_client_id", "cognito_domain")
+    if all(env_contract[key] for key in required):
+        return env_contract
+
+    context = get_context_values()
+    if not context:
+        raise ValueError("No active daycog context found in ~/.config/daycog/config.yaml")
+
+    contract = {
+        "region": _clean(values.get("COGNITO_REGION") or values.get("AWS_REGION") or context.get("COGNITO_REGION") or context.get("AWS_REGION")),
+        "user_pool_id": _clean(values.get("COGNITO_USER_POOL_ID") or context.get("COGNITO_USER_POOL_ID")),
+        "app_client_id": _clean(values.get("COGNITO_APP_CLIENT_ID") or context.get("COGNITO_APP_CLIENT_ID")),
+        "aws_profile": _clean(values.get("AWS_PROFILE") or context.get("AWS_PROFILE")),
+        "cognito_domain": _normalize_cognito_domain(values.get("COGNITO_DOMAIN") or context.get("COGNITO_DOMAIN")),
+        "client_name": _clean(values.get("COGNITO_CLIENT_NAME") or context.get("COGNITO_CLIENT_NAME")),
+        "callback_url": _clean(
+            values.get("COGNITO_CALLBACK_URL")
+            or values.get("COGNITO_REDIRECT_URI")
+            or values.get("COGNITO_REDIRECT_URL")
+            or context.get("COGNITO_CALLBACK_URL")
+            or context.get("COGNITO_REDIRECT_URI")
+            or context.get("COGNITO_REDIRECT_URL")
+        ),
+        "logout_url": _clean(values.get("COGNITO_LOGOUT_URL") or context.get("COGNITO_LOGOUT_URL")),
+    }
     missing = [
         key
-        for key in ("region", "user_pool_id", "app_client_id", "cognito_domain")
+        for key in required
         if not contract[key]
     ]
     if missing:
@@ -202,7 +234,7 @@ def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionCon
         logout_url = f"{public_base_url}/login"
 
     return CognitoWebSessionConfig(
-        domain=_clean(contract.get("cognito_domain")) or "localhost",
+        domain=_normalize_cognito_domain(contract.get("cognito_domain")) or "localhost",
         client_id=_clean(contract.get("app_client_id")) or settings.tapdb_client_id,
         redirect_uri=callback_url,
         logout_uri=logout_url,

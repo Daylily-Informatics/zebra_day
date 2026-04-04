@@ -213,12 +213,10 @@ def start(
     env["PYTHONUNBUFFERED"] = "1"
     env["ZEBRA_DAY_AUTH_MODE"] = selected_auth
     env["ZEBRA_DAY_DEPLOYMENT_CODE"] = settings.deployment_code
-    if cert_path:
-        env["SSL_CERT_FILE"] = cert_path
-        env["SSL_CERT_PATH"] = cert_path
-    if key_path:
-        env["SSL_KEY_FILE"] = key_path
-        env["SSL_KEY_PATH"] = key_path
+    env.pop("SSL_CERT_FILE", None)
+    env.pop("SSL_CERT_PATH", None)
+    env.pop("SSL_KEY_FILE", None)
+    env.pop("SSL_KEY_PATH", None)
 
     if reload:
         background = False
