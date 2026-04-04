@@ -155,7 +155,6 @@ def _resolve_ssl(
         env=dict(os.environ),
         legacy_cert_env_vars=("SSL_CERT_PATH",),
         legacy_key_env_vars=("SSL_KEY_PATH",),
-        shared_certs_dir=shared_dayhoff_certs_dir(settings.deployment_code),
         fallback_certs_dir=settings.config_dir / "certs",
     )
     return str(resolved.cert_path), str(resolved.key_path), True
