@@ -79,10 +79,10 @@ def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert "https://localhost:8118" in result.output
-    assert calls["env"]["SSL_CERT_FILE"] == str(cert_file)
-    assert calls["env"]["SSL_KEY_FILE"] == str(key_file)
-    assert calls["env"]["SSL_CERT_PATH"] == str(cert_file)
-    assert calls["env"]["SSL_KEY_PATH"] == str(key_file)
+    assert "SSL_CERT_FILE" not in calls["env"]
+    assert "SSL_KEY_FILE" not in calls["env"]
+    assert "SSL_CERT_PATH" not in calls["env"]
+    assert "SSL_KEY_PATH" not in calls["env"]
     assert "ssl_enabled=True" in calls["cmd"][2]
     assert str(cert_file) in calls["cmd"][2]
     assert str(key_file) in calls["cmd"][2]
