@@ -6,7 +6,7 @@ import socket
 from typing import TYPE_CHECKING, Any
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.client import ZebraDayClient
@@ -42,27 +42,27 @@ def list_printers(
         rows.append(payload)
 
     if get_context().json_mode:
-        output.emit_json(rows)
+        ccyo_out.emit_json(rows)
         return
 
     if not rows:
-        output.warning("No printers found")
+        ccyo_out.warning("No printers found")
         return
 
     for row in rows:
         header = f"{row['lab']}/{row['printer_id']}  {row['ip_address']}"
-        output.bullet(header)
-        output.detail(
+        ccyo_out.bullet(header)
+        ccyo_out.detail(
             f"name={row['printer_name'] or '-'} model={row['model'] or '-'} serial={row['serial'] or '-'}"
         )
-        output.detail(
+        ccyo_out.detail(
             f"default_profile={row['default_label_profile'] or '-'} "
             f"profiles={','.join(row['label_profiles']) or '-'} "
             f"status={row['status'] or '-'} state={row['state'] or '-'}"
         )
         if live:
             live_status = row.get("live_status") or {}
-            output.detail(
+            ccyo_out.detail(
                 f"live_online={bool(live_status.get('online'))} "
                 f"paused={bool(live_status.get('paused'))} "
                 f"paper_out={bool(live_status.get('paper_out'))}"
@@ -92,11 +92,11 @@ def scan(
     )
     payload = [printer.to_payload() for printer in found]
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.success(f"Discovered {len(found)} printer(s) in lab '{lab}'")
+    ccyo_out.success(f"Discovered {len(found)} printer(s) in lab '{lab}'")
     for printer in found:
-        output.bullet(
+        ccyo_out.bullet(
             f"{printer.printer_id} {printer.ip_address} {printer.model or '-'} {printer.serial or '-'}"
         )
 
@@ -110,11 +110,11 @@ def sync(
     printer = client.sync_printer_metadata(printer_id, lab)
     payload = printer.to_payload()
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.success(f"Synchronized {lab}/{printer_id}")
-    output.detail(f"Model: {payload['model'] or '-'}")
-    output.detail(f"Serial: {payload['serial'] or '-'}")
+    ccyo_out.success(f"Synchronized {lab}/{printer_id}")
+    ccyo_out.detail(f"Model: {payload['model'] or '-'}")
+    ccyo_out.detail(f"Serial: {payload['serial'] or '-'}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

@@ -6,7 +6,7 @@ import subprocess
 from typing import TYPE_CHECKING, Any
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.settings import ZebraDaySettings
@@ -58,17 +58,17 @@ def status() -> None:
     settings = ZebraDaySettings.from_context()
     payload = _status_payload(settings)
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.heading("Cognito Contract")
-    output.detail(f"Mode: {payload['mode']}")
-    output.detail(f"Expected client name: {payload['expected_client_name']}")
-    output.detail(f"Pool: {payload['user_pool_id']}")
-    output.detail(f"Region: {payload['region']}")
-    output.detail(f"Client ID: {payload['app_client_id']}")
-    output.detail(f"Domain: {payload['domain']}")
-    output.detail(f"Configured redirect URI: {payload['redirect_uri']}")
-    output.detail(f"Configured logout URL: {payload['logout_url']}")
+    ccyo_out.heading("Cognito Contract")
+    ccyo_out.detail(f"Mode: {payload['mode']}")
+    ccyo_out.detail(f"Expected client name: {payload['expected_client_name']}")
+    ccyo_out.detail(f"Pool: {payload['user_pool_id']}")
+    ccyo_out.detail(f"Region: {payload['region']}")
+    ccyo_out.detail(f"Client ID: {payload['app_client_id']}")
+    ccyo_out.detail(f"Domain: {payload['domain']}")
+    ccyo_out.detail(f"Configured redirect URI: {payload['redirect_uri']}")
+    ccyo_out.detail(f"Configured logout URL: {payload['logout_url']}")
 
 
 @cognito_app.command("bind")
@@ -80,24 +80,24 @@ def bind() -> None:
         "logout_url": _runtime_logout_url(settings),
     }
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.heading("zebra_day Cognito Binding")
-    output.detail(f"App client name: {payload['client_name']}")
-    output.detail(f"Callback URL: {payload['callback_url']}")
-    output.detail(f"Logout URL: {payload['logout_url']}")
-    output.detail("Use daycog to create or update the matching app client.")
+    ccyo_out.heading("zebra_day Cognito Binding")
+    ccyo_out.detail(f"App client name: {payload['client_name']}")
+    ccyo_out.detail(f"Callback URL: {payload['callback_url']}")
+    ccyo_out.detail(f"Logout URL: {payload['logout_url']}")
+    ccyo_out.detail("Use daycog to create or update the matching app client.")
 
 
 @cognito_app.command("import")
 def import_context() -> None:
     payload = _status_payload(ZebraDaySettings.from_context())
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.success("Loaded Cognito runtime contract from the active daycog context")
-    output.detail(f"Pool: {payload['user_pool_id']}")
-    output.detail(f"Client name: {payload['app_client_name']}")
+    ccyo_out.success("Loaded Cognito runtime contract from the active daycog context")
+    ccyo_out.detail(f"Pool: {payload['user_pool_id']}")
+    ccyo_out.detail(f"Client name: {payload['app_client_name']}")
 
 
 @cognito_app.command("validate")
@@ -113,16 +113,16 @@ def validate() -> None:
         issues.append("Configured logout URL does not match zebra_day runtime logout URL")
     if issues:
         if get_context().json_mode:
-            output.emit_json({"ok": False, "issues": issues, **payload})
+            ccyo_out.emit_json({"ok": False, "issues": issues, **payload})
         else:
-            output.error("Cognito contract validation failed")
+            ccyo_out.error("Cognito contract validation failed")
             for issue in issues:
-                output.bullet(issue)
+                ccyo_out.bullet(issue)
         raise typer.Exit(1)
     if get_context().json_mode:
-        output.emit_json({"ok": True, **payload})
+        ccyo_out.emit_json({"ok": True, **payload})
         return
-    output.success("Cognito contract validation passed")
+    ccyo_out.success("Cognito contract validation passed")
 
 
 @cognito_app.command(
@@ -131,14 +131,14 @@ def validate() -> None:
 )
 def daycog_passthrough(ctx: typer.Context) -> None:
     if not ctx.args:
-        output.error("Missing daycog arguments")
+        ccyo_out.error("Missing daycog arguments")
         raise typer.Exit(1)
     result = _run_daycog(list(ctx.args))
     if result.stdout:
-        output.print_text(result.stdout.rstrip())
+        ccyo_out.print_text(result.stdout.rstrip())
     if result.returncode != 0:
         if result.stderr:
-            output.error(result.stderr.strip())
+            ccyo_out.error(result.stderr.strip())
         raise typer.Exit(result.returncode)
 
 

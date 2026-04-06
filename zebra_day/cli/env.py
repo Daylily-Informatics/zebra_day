@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from rich.console import Console
 from rich.panel import Panel
 
@@ -49,25 +49,25 @@ def activate():
     project_root = _find_project_root()
 
     if project_root is None:
-        output.error("Could not find zebra_day project root")
-        output.detail("Make sure you're in the zebra_day directory")
+        ccyo_out.error("Could not find zebra_day project root")
+        ccyo_out.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
     activate_script = project_root / "activate"
 
     if not activate_script.exists():
-        output.error(f"Activation script not found: {activate_script}")
+        ccyo_out.error(f"Activation script not found: {activate_script}")
         raise typer.Exit(1)
 
-    console.print(
+    ccyo_out.print_text(
         Panel.fit(
             f"[cyan]source {activate_script} <deploy-name>[/cyan]",
             title="Run this command to activate",
             border_style="green",
         )
     )
-    output.detail("Note: CLI commands cannot modify the parent shell.")
-    output.detail("You must source the script directly.")
+    ccyo_out.detail("Note: CLI commands cannot modify the parent shell.")
+    ccyo_out.detail("You must source the script directly.")
 
 
 @env_app.command("deactivate")
@@ -79,14 +79,14 @@ def deactivate():
     """
     # Check if environment is active
     if not os.environ.get("ZEBRA_DAY_ACTIVE"):
-        output.warning("zebra_day environment is not active")
+        ccyo_out.warning("zebra_day environment is not active")
         return
 
     project_root = _find_project_root()
 
     if project_root is None:
         # Fallback: just tell them to run deactivate
-        console.print(
+        ccyo_out.print_text(
             Panel.fit(
                 "[cyan]source zebra_day_deactivate[/cyan]\n[dim]or[/dim]\n[cyan]deactivate[/cyan]",
                 title="Run one of these commands to deactivate",
@@ -95,7 +95,7 @@ def deactivate():
         )
     else:
         deactivate_script = project_root / "zebra_day_deactivate"
-        console.print(
+        ccyo_out.print_text(
             Panel.fit(
                 f"[cyan]source {deactivate_script}[/cyan]",
                 title="Run this command to deactivate",
@@ -103,8 +103,8 @@ def deactivate():
             )
         )
 
-    output.detail("Note: CLI commands cannot modify the parent shell.")
-    output.detail("You must source the script directly.")
+    ccyo_out.detail("Note: CLI commands cannot modify the parent shell.")
+    ccyo_out.detail("You must source the script directly.")
 
 
 @env_app.command("status")
@@ -117,19 +117,19 @@ def status():
     virtual_env = os.environ.get("VIRTUAL_ENV", "")
     config_path = str(xdg.get_config_file_path())
 
-    output.heading("Environment Status")
+    ccyo_out.heading("Environment Status")
 
     if is_active:
-        output.success("zebra_day environment: Active")
+        ccyo_out.success("zebra_day environment: Active")
         if project_root:
-            output.detail(f"Project root: {project_root}")
+            ccyo_out.detail(f"Project root: {project_root}")
         if virtual_env:
-            output.detail(f"Virtual env:  {virtual_env}")
-        output.detail(f"Config file:  {config_path}")
+            ccyo_out.detail(f"Virtual env:  {virtual_env}")
+        ccyo_out.detail(f"Config file:  {config_path}")
     else:
-        output.detail("zebra_day environment: Not active")
-        output.detail("Run 'zday env activate' for instructions")
-        output.detail(f"Config file:  {config_path}")
+        ccyo_out.detail("zebra_day environment: Not active")
+        ccyo_out.detail("Run 'zday env activate' for instructions")
+        ccyo_out.detail(f"Config file:  {config_path}")
 
 
 @env_app.command("reset")
@@ -142,15 +142,15 @@ def reset():
     project_root = _find_project_root()
 
     if project_root is None:
-        output.error("Could not find zebra_day project root")
-        output.detail("Make sure you're in the zebra_day directory")
+        ccyo_out.error("Could not find zebra_day project root")
+        ccyo_out.detail("Make sure you're in the zebra_day directory")
         raise typer.Exit(1)
 
     activate_script = project_root / "activate"
     deactivate_script = project_root / "zebra_day_deactivate"
 
     if not activate_script.exists():
-        output.error(f"Activation script not found: {activate_script}")
+        ccyo_out.error(f"Activation script not found: {activate_script}")
         raise typer.Exit(1)
 
     # Check if currently active
@@ -158,7 +158,7 @@ def reset():
 
     if is_active and deactivate_script.exists():
         # Show combined command
-        console.print(
+        ccyo_out.print_text(
             Panel.fit(
                 f"[cyan]source {deactivate_script} && source {activate_script} <deploy-name>[/cyan]",
                 title="Run this command to reset",
@@ -167,7 +167,7 @@ def reset():
         )
     else:
         # Just activate (or re-activate)
-        console.print(
+        ccyo_out.print_text(
             Panel.fit(
                 f"[cyan]source {activate_script} <deploy-name>[/cyan]",
                 title="Run this command to activate/reset",
@@ -175,8 +175,8 @@ def reset():
             )
         )
 
-    output.detail("Note: CLI commands cannot modify the parent shell.")
-    output.detail("You must source the script directly.")
+    ccyo_out.detail("Note: CLI commands cannot modify the parent shell.")
+    ccyo_out.detail("You must source the script directly.")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

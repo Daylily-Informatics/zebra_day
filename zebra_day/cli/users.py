@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import boto3
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.settings import ZebraDaySettings
@@ -37,12 +37,12 @@ def status() -> None:
         "group_role_map": settings.cognito_group_role_map,
     }
     if get_context().json_mode:
-        output.emit_json(payload)
+        ccyo_out.emit_json(payload)
         return
-    output.heading("zebra_day User Roles")
-    output.detail(f"Auth mode: {settings.auth_mode}")
+    ccyo_out.heading("zebra_day User Roles")
+    ccyo_out.detail(f"Auth mode: {settings.auth_mode}")
     for group_name, role_name in sorted(settings.cognito_group_role_map.items()):
-        output.bullet(f"{group_name} -> {role_name}")
+        ccyo_out.bullet(f"{group_name} -> {role_name}")
 
 
 @users_app.command("list-groups")
@@ -51,10 +51,10 @@ def list_groups() -> None:
     response = client.list_groups(UserPoolId=contract["user_pool_id"])
     groups = sorted(group["GroupName"] for group in response.get("Groups", []))
     if get_context().json_mode:
-        output.emit_json(groups)
+        ccyo_out.emit_json(groups)
         return
     for group in groups:
-        output.bullet(group)
+        ccyo_out.bullet(group)
 
 
 def _add_user_to_group(username: str, group_name: str) -> None:
@@ -70,13 +70,13 @@ def _add_user_to_group(username: str, group_name: str) -> None:
 def grant_admin(username: str = typer.Argument(..., help="Cognito username or email")) -> None:
     for group_name in ("platform-admin", "zebra-day-admin"):
         _add_user_to_group(username, group_name)
-    output.success(f"Granted admin groups to {username}")
+    ccyo_out.success(f"Granted admin groups to {username}")
 
 
 @users_app.command("grant-operator")
 def grant_operator(username: str = typer.Argument(..., help="Cognito username or email")) -> None:
     _add_user_to_group(username, "zebra-day-operator")
-    output.success(f"Granted operator group to {username}")
+    ccyo_out.success(f"Granted operator group to {username}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

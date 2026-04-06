@@ -6,7 +6,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 
 from zebra_day.settings import ZebraDaySettings
 
@@ -33,10 +33,10 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
         text=True,
     )
     if result.stdout:
-        output.print_text(result.stdout.rstrip())
+        ccyo_out.print_text(result.stdout.rstrip())
     if result.returncode != 0:
         if result.stderr:
-            output.error(result.stderr.strip())
+            ccyo_out.error(result.stderr.strip())
         raise typer.Exit(result.returncode)
 
 
@@ -56,7 +56,7 @@ def bootstrap_local(
 )
 def db_passthrough(ctx: typer.Context) -> None:
     if not ctx.args:
-        output.error("Missing tapdb db arguments")
+        ccyo_out.error("Missing tapdb db arguments")
         raise typer.Exit(1)
     _run_tapdb(ZebraDaySettings.from_context(), ["db", *ctx.args])
 
@@ -67,7 +67,7 @@ def db_passthrough(ctx: typer.Context) -> None:
 )
 def pg_passthrough(ctx: typer.Context) -> None:
     if not ctx.args:
-        output.error("Missing tapdb pg arguments")
+        ccyo_out.error("Missing tapdb pg arguments")
         raise typer.Exit(1)
     _run_tapdb(ZebraDaySettings.from_context(), ["pg", *ctx.args])
 
@@ -78,7 +78,7 @@ def pg_passthrough(ctx: typer.Context) -> None:
 )
 def aurora_passthrough(ctx: typer.Context) -> None:
     if not ctx.args:
-        output.error("Missing tapdb aurora arguments")
+        ccyo_out.error("Missing tapdb aurora arguments")
         raise typer.Exit(1)
     _run_tapdb(ZebraDaySettings.from_context(), ["aurora", *ctx.args])
 

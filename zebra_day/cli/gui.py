@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
@@ -41,8 +41,6 @@ class _ResolveHttpsCerts(Protocol):
         cert_path: str | None,
         key_path: str | None,
         env: Mapping[str, str],
-        legacy_cert_env_vars: tuple[str, ...],
-        legacy_key_env_vars: tuple[str, ...],
         shared_certs_dir: Path,
         fallback_certs_dir: Path,
     ) -> _ResolvedCerts: ...
@@ -153,8 +151,6 @@ def _resolve_ssl(
         cert_path=cert,
         key_path=key,
         env=dict(os.environ),
-        legacy_cert_env_vars=("SSL_CERT_PATH",),
-        legacy_key_env_vars=("SSL_KEY_PATH",),
         fallback_certs_dir=settings.config_dir / "certs",
     )
     return str(resolved.cert_path), str(resolved.key_path), True
@@ -173,7 +169,6 @@ def start(
     auth: str = typer.Option("cognito", "--auth", help="Auth mode: cognito or none"),
     no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
-    no_https: bool = typer.Option(False, "--no-https", help="Deprecated alias for --no-ssl"),
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
     key: str | None = typer.Option(None, "--key", help="SSL private key path"),
 ) -> None:
@@ -182,21 +177,21 @@ def start(
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     selected_auth = "none" if (no_auth or os.environ.get("ZEBRA_DAY_AUTH_MODE") == "none") else auth
     if selected_auth not in {"none", "cognito"}:
-        output.error("auth must be 'cognito' or 'none'")
+        ccyo_out.error("auth must be 'cognito' or 'none'")
         raise typer.Exit(1)
 
     existing_pid = _running_pid(settings)
     if existing_pid:
-        output.warning(f"GUI already running (PID {existing_pid})")
+        ccyo_out.warning(f"GUI already running (PID {existing_pid})")
         return
 
     try:
         _ensure_runtime_ready(settings, selected_auth)
     except Exception as exc:
-        output.error(str(exc))
+        ccyo_out.error(str(exc))
         raise typer.Exit(1) from exc
 
-    https_enabled = ssl and not no_https
+    https_enabled = ssl
     cert_path, key_path, https_enabled = _resolve_ssl(settings, cert, key, https_enabled)
     command = [
         sys.executable,
@@ -213,9 +208,7 @@ def start(
     env["ZEBRA_DAY_AUTH_MODE"] = selected_auth
     env["ZEBRA_DAY_DEPLOYMENT_CODE"] = settings.deployment_code
     env.pop("SSL_CERT_FILE", None)
-    env.pop("SSL_CERT_PATH", None)
     env.pop("SSL_KEY_FILE", None)
-    env.pop("SSL_KEY_PATH", None)
 
     if reload:
         background = False
@@ -236,17 +229,17 @@ def start(
         if process.poll() is not None:
             log_handle.close()
             _clear_runtime_meta(settings)
-            output.error(f"GUI failed to start. See {log_path}")
+            ccyo_out.error(f"GUI failed to start. See {log_path}")
             raise typer.Exit(1)
         _pid_file(settings).write_text(str(process.pid), encoding="utf-8")
-        output.success(f"GUI started at {_display_url(host, port, https_enabled)}")
-        output.detail(f"PID: {process.pid}")
-        output.detail(f"Log: {log_path}")
-        output.detail(f"Auth: {selected_auth}")
+        ccyo_out.success(f"GUI started at {_display_url(host, port, https_enabled)}")
+        ccyo_out.detail(f"PID: {process.pid}")
+        ccyo_out.detail(f"Log: {log_path}")
+        ccyo_out.detail(f"Auth: {selected_auth}")
         return
 
-    output.action(f"Starting GUI at {_display_url(host, port, https_enabled)}")
-    output.detail(f"Auth: {selected_auth}")
+    ccyo_out.action(f"Starting GUI at {_display_url(host, port, https_enabled)}")
+    ccyo_out.detail(f"Auth: {selected_auth}")
     _write_runtime_meta(settings=settings, ssl_enabled=https_enabled, host=host, port=port)
     try:
         completed = subprocess.run(command, cwd=Path.cwd(), env=env)
@@ -260,12 +253,12 @@ def stop() -> None:
     settings = ZebraDaySettings.from_context()
     pid = _running_pid(settings)
     if pid is None:
-        output.warning("GUI is not running")
+        ccyo_out.warning("GUI is not running")
         return
     os.kill(pid, signal.SIGTERM)
     _pid_file(settings).unlink(missing_ok=True)
     _clear_runtime_meta(settings)
-    output.success(f"Stopped GUI process {pid}")
+    ccyo_out.success(f"Stopped GUI process {pid}")
 
 
 @gui_app.command("restart")
@@ -274,13 +267,12 @@ def restart(
     host: str = typer.Option("localhost", "--host", help="Host to bind"),
     no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
-    no_https: bool = typer.Option(False, "--no-https", help="Disable HTTPS"),
 ) -> None:
     settings = ZebraDaySettings.from_context()
     if _running_pid(settings):
         stop()
         time.sleep(1)
-    start(port=port, host=host, no_auth=no_auth, ssl=ssl, no_https=no_https)
+    start(port=port, host=host, no_auth=no_auth, ssl=ssl)
 
 
 @gui_app.command("status")
@@ -289,7 +281,7 @@ def status() -> None:
     pid = _running_pid(settings)
     latest_log = _latest_log(settings)
     if pid is None:
-        output.warning("GUI is not running")
+        ccyo_out.warning("GUI is not running")
     else:
         meta = _read_runtime_meta(settings)
         scheme = "http" if str(meta.get("ssl_enabled")).lower() in {"false", "0", "no"} else "https"
@@ -297,11 +289,11 @@ def status() -> None:
         raw_port = meta.get("port")
         bound_port = raw_port if isinstance(raw_port, int) else int(str(raw_port or settings.port))
         display_host = "localhost" if bound_host in {"0.0.0.0", "::", ""} else bound_host
-        output.success(f"GUI running (PID {pid}) on {scheme}://{display_host}:{bound_port}")
-    output.detail(f"State dir: {settings.state_dir}")
-    output.detail(f"Logs dir: {settings.logs_dir}")
+        ccyo_out.success(f"GUI running (PID {pid}) on {scheme}://{display_host}:{bound_port}")
+    ccyo_out.detail(f"State dir: {settings.state_dir}")
+    ccyo_out.detail(f"Logs dir: {settings.logs_dir}")
     if latest_log is not None:
-        output.detail(f"Latest log: {latest_log}")
+        ccyo_out.detail(f"Latest log: {latest_log}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
