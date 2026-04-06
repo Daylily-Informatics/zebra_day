@@ -99,7 +99,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
 def test_bootstrap_requires_tapdb_config(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="local")
 
-    result = runner.invoke(zebra_cli.app, ["bootstrap", "--skip-scan"])
+    result = runner.invoke(zebra_cli.app, ["config", "bootstrap", "--skip-scan"])
 
     assert result.exit_code == 1
     assert "TapDB config is required." in result.output
