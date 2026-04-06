@@ -59,12 +59,14 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
     (repo_root / "activate").write_text("#!/bin/sh\n", encoding="utf-8")
     (repo_root / "zebra_day_deactivate").write_text("#!/bin/sh\n", encoding="utf-8")
     monkeypatch.chdir(nested)
+    panels: list[object] = []
+    monkeypatch.setattr(env_module.ccyo_out, "print_text", lambda value: panels.append(value))
 
     env_module.activate()
-    activate_out = capsys.readouterr().out.replace("\n", "")
-    assert repo_root.name in activate_out
-    assert "activate <deploy-name>" in activate_out
-    assert "<deploy-name>" in activate_out
+    capsys.readouterr()
+    activate_panel = panels.pop()
+    assert str(repo_root / "activate") in str(activate_panel.renderable)
+    assert "<deploy-name>" in str(activate_panel.renderable)
 
     monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
     monkeypatch.setenv("ZEBRA_DAY_PROJECT_ROOT", str(repo_root))
@@ -80,13 +82,15 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
     assert "zebra-day-config-qa1.yaml" in status_out
 
     env_module.reset()
-    reset_out = capsys.readouterr().out.replace("\n", "")
-    assert "zebra_day_deactivate" in reset_out
-    assert "activate <deploy-name>" in reset_out
+    capsys.readouterr()
+    reset_panel = panels.pop()
+    assert "zebra_day_deactivate" in str(reset_panel.renderable)
+    assert "activate <deploy-name>" in str(reset_panel.renderable)
 
     env_module.deactivate()
-    deactivate_out = capsys.readouterr().out.replace("\n", "")
-    assert "zebra_day_deactivate" in deactivate_out
+    capsys.readouterr()
+    deactivate_panel = panels.pop()
+    assert "zebra_day_deactivate" in str(deactivate_panel.renderable)
 
 
 def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
@@ -94,6 +98,8 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
     monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
+    panels: list[object] = []
+    monkeypatch.setattr(env_module.ccyo_out, "print_text", lambda value: panels.append(value))
 
     env_module.deactivate()
     inactive_out = capsys.readouterr().out
@@ -106,9 +112,10 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
 
     monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
     env_module.deactivate()
-    fallback_out = capsys.readouterr().out.replace("\n", "")
-    assert "zebra_day_deactivate" in fallback_out
-    assert "deactivate" in fallback_out
+    capsys.readouterr()
+    fallback_panel = panels.pop()
+    assert "zebra_day_deactivate" in str(fallback_panel.renderable)
+    assert "deactivate" in str(fallback_panel.renderable)
 
     with pytest.raises(Exit):
         env_module.reset()
