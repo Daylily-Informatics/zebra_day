@@ -7,10 +7,10 @@ import pytest
 from click.exceptions import Abort, Exit
 
 from zebra_day.cli import cognito as cognito_module
+from zebra_day.cli import config_extra as config_extra_module
 from zebra_day.cli import env as env_module
 from zebra_day.cli import logs as logs_module
 from zebra_day.cli import printer as printer_module
-from zebra_day.cli import root_commands as root_commands_module
 from zebra_day.cli import simulator as simulator_cli_module
 from zebra_day.cli import template as template_module
 from zebra_day.client import PrinterRecord
@@ -429,22 +429,20 @@ def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path
                 )
             ]
 
-    monkeypatch.setattr(root_commands_module, "ZebraDayClient", _Client)
+    monkeypatch.setattr(config_extra_module, "ZebraDayClient", _Client)
     monkeypatch.setattr(
-        root_commands_module,
+        config_extra_module,
         "build_default_config_template",
         lambda deployment: f"deployment: {deployment}\n".encode(),
     )
 
     monkeypatch.setattr(
-        root_commands_module,
+        config_extra_module,
         "ZebraDaySettings",
         SimpleNamespace(from_context=lambda: status_settings),
     )
-    monkeypatch.setattr(
-        root_commands_module, "get_context", lambda: SimpleNamespace(json_mode=True)
-    )
-    root_commands_module._status_callback()
+    monkeypatch.setattr(config_extra_module, "get_context", lambda: SimpleNamespace(json_mode=True))
+    config_extra_module._status()
     status_payload = json.loads(capsys.readouterr().out.strip())
     assert status_payload["deployment_code"] == "local"
     assert status_payload["gui"]["pid"] == 43210
@@ -454,25 +452,23 @@ def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path
         def __init__(self, settings):
             raise RuntimeError("tapdb offline")
 
-    monkeypatch.setattr(root_commands_module, "ZebraDayClient", _BrokenClient)
+    monkeypatch.setattr(config_extra_module, "ZebraDayClient", _BrokenClient)
     monkeypatch.setattr(
-        root_commands_module, "get_context", lambda: SimpleNamespace(json_mode=False)
+        config_extra_module, "get_context", lambda: SimpleNamespace(json_mode=False)
     )
     with pytest.raises(Exit):
-        root_commands_module._status_callback()
+        config_extra_module._status()
     failed_out = capsys.readouterr().out
     assert "TapDB unavailable: tapdb offline" in failed_out
 
     monkeypatch.setattr(
-        root_commands_module,
+        config_extra_module,
         "ZebraDaySettings",
         SimpleNamespace(from_context=lambda: bootstrap_settings),
     )
-    monkeypatch.setattr(root_commands_module, "ZebraDayClient", _Client)
-    monkeypatch.setattr(
-        root_commands_module, "get_context", lambda: SimpleNamespace(json_mode=True)
-    )
-    root_commands_module._bootstrap_callback(ip_stub="192.168.50", lab="ops", skip_scan=False)
+    monkeypatch.setattr(config_extra_module, "ZebraDayClient", _Client)
+    monkeypatch.setattr(config_extra_module, "get_context", lambda: SimpleNamespace(json_mode=True))
+    config_extra_module._bootstrap(ip_stub="192.168.50", lab="ops", skip_scan=False)
     bootstrap_payload = json.loads(capsys.readouterr().out.strip())
     assert bootstrap_payload["config_created"] is True
     assert bootstrap_payload["discovered_printers"][0]["serial"] == "SER009"

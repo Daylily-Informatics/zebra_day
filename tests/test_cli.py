@@ -43,6 +43,9 @@ def test_root_no_auth_updates_effective_auth_mode(monkeypatch, tmp_path):
         def list_templates(self):
             return ["tube_2inX1in"]
 
+        def list_label_profiles(self):
+            return ["tube_2inX1in"]
+
     monkeypatch.setattr("zebra_day.cli.config_extra.ZebraDayClient", _FakeClient)
 
     result = runner.invoke(zebra_cli.app, ["--no-auth", "config", "status"])
@@ -99,7 +102,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
 def test_bootstrap_requires_tapdb_config(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="local")
 
-    result = runner.invoke(zebra_cli.app, ["bootstrap", "--skip-scan"])
+    result = runner.invoke(zebra_cli.app, ["config", "bootstrap", "--skip-scan"])
 
     assert result.exit_code == 1
     assert "TapDB config is required." in result.output
