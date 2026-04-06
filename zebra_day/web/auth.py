@@ -7,15 +7,16 @@ import os
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import daylily_cognito as daycog
 from daylily_cognito import jwks
 from daylily_cognito import oauth as cognito_oauth
-from daylily_cognito.config import get_context_values
+from daylily_cognito.config import load_config_file_if_present
 from daylily_cognito.oauth import build_logout_url
 from daylily_cognito.web_session import (
     CognitoWebAuthError,
@@ -129,8 +130,21 @@ def get_cognito_import_error() -> str | None:
         return str(exc)
 
 
+def _daycog_config_path() -> Path:
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+    base_dir = Path(xdg_config_home).expanduser() if xdg_config_home else Path.home() / ".config"
+    return base_dir / "daycog" / "config.yaml"
+
+
+def _load_daycog_file_values() -> dict[str, str]:
+    return cast(
+        dict[str, str],
+        load_config_file_if_present(_daycog_config_path(), require_required_keys=False),
+    )
+
+
 def load_daycog_contract() -> dict[str, str]:
-    """Load the process env first, then fall back to the active daycog context."""
+    """Load the process env first, then fill gaps from the daycog config file."""
     values = {key: _clean(os.environ.get(key)) for key in os.environ}
     env_contract = {
         "region": _clean(values.get("COGNITO_REGION") or values.get("AWS_REGION")),
@@ -150,34 +164,45 @@ def load_daycog_contract() -> dict[str, str]:
     if all(env_contract[key] for key in required):
         return env_contract
 
-    context = get_context_values()
-    if not context:
-        raise ValueError("No active daycog context found in ~/.config/daycog/config.yaml")
+    file_values = _load_daycog_file_values()
+    if not file_values:
+        raise ValueError(f"No daycog config file found at {_daycog_config_path()}")
 
     contract = {
-        "region": _clean(values.get("COGNITO_REGION") or values.get("AWS_REGION") or context.get("COGNITO_REGION") or context.get("AWS_REGION")),
-        "user_pool_id": _clean(values.get("COGNITO_USER_POOL_ID") or context.get("COGNITO_USER_POOL_ID")),
-        "app_client_id": _clean(values.get("COGNITO_APP_CLIENT_ID") or context.get("COGNITO_APP_CLIENT_ID")),
-        "aws_profile": _clean(values.get("AWS_PROFILE") or context.get("AWS_PROFILE")),
-        "cognito_domain": _normalize_cognito_domain(values.get("COGNITO_DOMAIN") or context.get("COGNITO_DOMAIN")),
-        "client_name": _clean(values.get("COGNITO_CLIENT_NAME") or context.get("COGNITO_CLIENT_NAME")),
+        "region": _clean(
+            values.get("COGNITO_REGION")
+            or values.get("AWS_REGION")
+            or file_values.get("COGNITO_REGION")
+            or file_values.get("AWS_REGION")
+        ),
+        "user_pool_id": _clean(
+            values.get("COGNITO_USER_POOL_ID") or file_values.get("COGNITO_USER_POOL_ID")
+        ),
+        "app_client_id": _clean(
+            values.get("COGNITO_APP_CLIENT_ID") or file_values.get("COGNITO_APP_CLIENT_ID")
+        ),
+        "aws_profile": _clean(values.get("AWS_PROFILE") or file_values.get("AWS_PROFILE")),
+        "cognito_domain": _normalize_cognito_domain(
+            values.get("COGNITO_DOMAIN") or file_values.get("COGNITO_DOMAIN")
+        ),
+        "client_name": _clean(
+            values.get("COGNITO_CLIENT_NAME") or file_values.get("COGNITO_CLIENT_NAME")
+        ),
         "callback_url": _clean(
             values.get("COGNITO_CALLBACK_URL")
             or values.get("COGNITO_REDIRECT_URI")
             or values.get("COGNITO_REDIRECT_URL")
-            or context.get("COGNITO_CALLBACK_URL")
-            or context.get("COGNITO_REDIRECT_URI")
-            or context.get("COGNITO_REDIRECT_URL")
+            or file_values.get("COGNITO_CALLBACK_URL")
+            or file_values.get("COGNITO_REDIRECT_URI")
+            or file_values.get("COGNITO_REDIRECT_URL")
         ),
-        "logout_url": _clean(values.get("COGNITO_LOGOUT_URL") or context.get("COGNITO_LOGOUT_URL")),
+        "logout_url": _clean(
+            values.get("COGNITO_LOGOUT_URL") or file_values.get("COGNITO_LOGOUT_URL")
+        ),
     }
-    missing = [
-        key
-        for key in required
-        if not contract[key]
-    ]
+    missing = [key for key in required if not contract[key]]
     if missing:
-        raise ValueError(f"Active daycog context is missing required values: {', '.join(missing)}")
+        raise ValueError("daycog config file is missing required values: " + ", ".join(missing))
     return contract
 
 
@@ -255,9 +280,9 @@ def _principal_to_user_context(
         try:
             parsed = datetime.fromisoformat(authenticated_at)
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=UTC)
+                parsed = parsed.replace(tzinfo=timezone.utc)
             else:
-                parsed = parsed.astimezone(UTC)
+                parsed = parsed.astimezone(timezone.utc)
             expires_at = (parsed + timedelta(hours=12)).isoformat()
         except ValueError:
             expires_at = ""
@@ -453,7 +478,7 @@ class CognitoBinding:
             roles=list(identity["roles"]),
             cognito_groups=list(identity["cognito_groups"]),
             auth_mode=str(identity["auth_mode"] or "cognito_session"),
-            authenticated_at=datetime.now(UTC).isoformat(),
+            authenticated_at=datetime.now(timezone.utc).isoformat(),
             server_instance_id=get_server_instance_id(),
             app_context={},
         )
@@ -467,7 +492,7 @@ def setup_session_auth(app, settings: ZebraDaySettings) -> CognitoWebSessionConf
 
 
 def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
-    """Create a Cognito binding from the active daycog context."""
+    """Create a Cognito binding from the configured daycog runtime contract."""
     if not is_cognito_available():
         raise ImportError(
             "daylily-cognito is required for Cognito authentication. "

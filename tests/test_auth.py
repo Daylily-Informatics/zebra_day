@@ -246,8 +246,8 @@ def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypa
     monkeypatch.setenv("COGNITO_DOMAIN", "https://example.auth.us-west-2.amazoncognito.com")
     monkeypatch.setattr(
         auth,
-        "get_context_values",
-        lambda: (_ for _ in ()).throw(AssertionError("daycog context should not be read")),
+        "_load_daycog_file_values",
+        lambda: (_ for _ in ()).throw(AssertionError("daycog config file should not be read")),
     )
 
     contract = auth.load_daycog_contract()
@@ -258,14 +258,14 @@ def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypa
     assert contract["app_client_id"] == "client-123"
 
 
-def test_load_daycog_contract_falls_back_to_daycog_context_when_env_missing(monkeypatch):
+def test_load_daycog_contract_falls_back_to_daycog_config_file_when_env_missing(monkeypatch):
     monkeypatch.delenv("COGNITO_REGION", raising=False)
     monkeypatch.delenv("COGNITO_USER_POOL_ID", raising=False)
     monkeypatch.delenv("COGNITO_APP_CLIENT_ID", raising=False)
     monkeypatch.delenv("COGNITO_DOMAIN", raising=False)
     monkeypatch.setattr(
         auth,
-        "get_context_values",
+        "_load_daycog_file_values",
         lambda: {
             "COGNITO_REGION": "us-west-2",
             "COGNITO_USER_POOL_ID": "pool-123",

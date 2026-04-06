@@ -24,7 +24,7 @@ def test_config_path_uses_deployment_scoped_filename(monkeypatch, tmp_path):
     cli_module = importlib.reload(zebra_cli)
     result = runner.invoke(cli_module.app, ["config", "path"])
     assert result.exit_code == 0
-    assert "zebra-day-config-qa-1.yaml" in result.output
+    assert "zebra-day-config-qa-1.yaml" in result.output.replace("\n", "")
 
 
 def test_root_no_auth_updates_effective_auth_mode(monkeypatch, tmp_path):

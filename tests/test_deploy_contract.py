@@ -20,8 +20,11 @@ def test_activate_uses_root_environment_yaml_and_repo_only_editable_install() ->
 
     assert "environment.yaml" in activate
     assert "zebra_day_env.yaml" not in activate
-    assert "pip install --no-deps -e" in activate
+    assert 'pip install -e "${ZEBRA_DAY_PROJECT_ROOT}"' in activate
     assert "[dev,lint,auth]" not in activate
+    assert "../daylily-tapdb" not in activate
+    assert "../daylily-cognito" not in activate
+    assert "../cli-core-yo" not in activate
 
 
 def test_env_cli_points_to_contract_env_vars_and_positional_activate() -> None:
