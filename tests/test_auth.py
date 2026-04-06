@@ -239,6 +239,36 @@ def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
     assert binding.logout_uri(SimpleNamespace()) == "https://localhost:8118/login"
 
 
+def test_build_logout_url_uses_callback_uri_for_managed_login(monkeypatch):
+    captured: dict[str, str] = {}
+
+    def _fake_build_logout_url(**kwargs: str) -> str:
+        captured.update(kwargs)
+        return "https://example.com/logout"
+
+    monkeypatch.setattr(auth, "build_logout_url", _fake_build_logout_url)
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            cognito_domain="example.com",
+            app_client_id="client-id",
+            callback_url="https://127.0.0.1:8118/auth/callback",
+            logout_url="https://0.0.0.0:8118/login",
+        ),
+        auth=SimpleNamespace(),
+        oauth=SimpleNamespace(),
+        jwks=SimpleNamespace(),
+    )
+
+    url = binding.build_logout_url(SimpleNamespace())
+
+    assert url == "https://example.com/logout"
+    assert captured["domain"] == "example.com"
+    assert captured["client_id"] == "client-id"
+    assert captured["redirect_uri"] == "https://localhost:8118/auth/callback"
+    assert "logout_uri" not in captured
+
+
 def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypatch):
     monkeypatch.setenv("COGNITO_REGION", "us-west-2")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")

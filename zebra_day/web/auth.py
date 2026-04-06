@@ -350,7 +350,7 @@ class CognitoBinding:
             build_logout_url(
                 domain=self.config.cognito_domain,
                 client_id=self.config.app_client_id,
-                logout_uri=self.logout_uri(request),
+                redirect_uri=self.redirect_uri(request),
             )
         )
 
