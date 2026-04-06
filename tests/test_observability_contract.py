@@ -204,7 +204,7 @@ def test_my_health_and_auth_health_require_and_report_authenticated_sessions(mon
         tmp_path,
         monkeypatch,
         claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
-        profile_claims={"email": "admin@example.com", "name": "Admin User"},
+        profile_claims={"email": "admin@lsmc.bio", "name": "Admin User"},
     )
 
     with TestClient(app, base_url="https://localhost:8118") as client:
@@ -222,7 +222,7 @@ def test_my_health_and_auth_health_require_and_report_authenticated_sessions(mon
 
     _assert_frame(my_health_payload)
     assert "principal" in my_health_payload
-    assert my_health_payload["principal"]["email"] == "admin@example.com"
+    assert my_health_payload["principal"]["email"] == "admin@lsmc.bio"
     assert my_health_payload["principal"]["roles"] == ["ADMIN", "OPERATOR"]
 
     _assert_frame(auth_payload)

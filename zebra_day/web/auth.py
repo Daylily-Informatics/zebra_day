@@ -34,7 +34,7 @@ from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
 from zebra_day.rbac import parse_groups, roles_from_groups
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import DEFAULT_ALLOWED_EMAIL_DOMAINS, ZebraDaySettings
 
 _log = get_logger(__name__)
 
@@ -100,7 +100,8 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
     merged_claims = dict(claims)
     email = _clean(merged_claims.get("email")).lower()
     domain = _email_domain(email)
-    if not email or domain not in {item.lower() for item in settings.allowed_email_domains}:
+    allowed_domains = getattr(settings, "allowed_email_domains", DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    if not email or domain not in {item.lower() for item in allowed_domains}:
         raise CognitoWebAuthError(
             "blocked_domain",
             "Email domain is not allowed",
