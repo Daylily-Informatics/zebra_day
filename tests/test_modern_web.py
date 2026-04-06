@@ -40,7 +40,8 @@ def _make_cognito_binding(claims: dict[str, object], profile_claims: dict[str, o
                 cognito_group_role_map={
                     "zebra-day-admin": "ADMIN",
                     "zebra-day-operator": "OPERATOR",
-                }
+                },
+                allowed_email_domains=["example.com", "lsmc.com"],
             ),
         )
         return SessionPrincipal(
@@ -274,6 +275,37 @@ def test_auth_error_reason_auth_error_returns_sign_in_page(tmp_path, monkeypatch
     assert response.status_code == 403
     assert "/auth/login" in response.text
     assert 'data-testid="auth-error-login"' in response.text
+
+
+def test_auth_error_reason_blocked_domain_returns_domain_message(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
+        profile_claims={"email": "user@example.com", "name": "Example User"},
+    )
+    with _cognito_client(app) as test_client:
+        response = test_client.get("/auth/error?reason=blocked_domain")
+    assert response.status_code == 403
+    assert "Email domain not allowed" in response.text
+
+
+def test_auth_callback_redirects_to_blocked_domain_for_disallowed_email(tmp_path, monkeypatch):
+    app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "atlas-user", "cognito:groups": ["zebra-day-admin"]},
+        profile_claims={"email": "admin@gmail.com", "name": "Admin User"},
+    )
+    with _cognito_client(app) as test_client:
+        login_response = test_client.get("/auth/login", follow_redirects=False)
+        state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+        response = test_client.get(
+            f"/auth/callback?code=code-123&state={state}",
+            follow_redirects=False,
+        )
+    assert response.status_code == 302
+    assert response.headers["location"] == "/auth/error?reason=blocked_domain"
 
 
 def test_prod_deployment_hides_top_banner(tmp_path, monkeypatch):
