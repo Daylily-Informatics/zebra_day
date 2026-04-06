@@ -34,7 +34,7 @@ from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
 from zebra_day.rbac import parse_groups, roles_from_groups
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import DEFAULT_ALLOWED_EMAIL_DOMAINS, ZebraDaySettings
 
 _log = get_logger(__name__)
 
@@ -91,15 +91,30 @@ def _normalize_cognito_domain(value: Any) -> str:
     return raw.removeprefix("https://").removeprefix("http://").rstrip("/")
 
 
+def _email_domain(email: str) -> str:
+    _, _, domain = str(email or "").strip().lower().partition("@")
+    return domain
+
+
 def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> dict[str, Any]:
     merged_claims = dict(claims)
+    email = _clean(merged_claims.get("email")).lower()
+    domain = _email_domain(email)
+    allowed_domains = getattr(settings, "allowed_email_domains", DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    if not email or domain not in {item.lower() for item in allowed_domains}:
+        raise CognitoWebAuthError(
+            "blocked_domain",
+            "Email domain is not allowed",
+            status_code=status.HTTP_403_FORBIDDEN,
+            redirect_to_error=True,
+        )
     groups = parse_groups(merged_claims.get("cognito:groups"))
     roles = roles_from_groups(groups, settings.cognito_group_role_map)
     merged_claims["cognito_groups"] = groups
     merged_claims["roles"] = roles
     return {
         "sub": _clean(merged_claims.get("sub") or merged_claims.get("username")),
-        "email": _clean(merged_claims.get("email")),
+        "email": email,
         "name": _clean(
             merged_claims.get("name")
             or merged_claims.get("cognito:username")
@@ -216,10 +231,7 @@ def get_server_instance_id() -> str:
 
 
 def _session_secret(settings: ZebraDaySettings) -> str:
-    return (
-        os.environ.get("ZEBRA_DAY_SESSION_SECRET")
-        or f"zebra-day-{settings.deployment_code}-dev-secret"
-    )
+    return os.environ.get("ZEBRA_DAY_SESSION_SECRET") or settings.session_secret_key
 
 
 def _runtime_public_base_url(settings: ZebraDaySettings) -> str:

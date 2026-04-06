@@ -5,6 +5,7 @@ from __future__ import annotations
 import colorsys
 import hashlib
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,26 @@ DEFAULT_COGNITO_GROUP_ROLE_MAP = {
     "zebra-day-admin": "ADMIN",
     "zebra-day-operator": "OPERATOR",
 }
+DEFAULT_ALLOWED_EMAIL_DOMAINS = [
+    "lsmc.com",
+    "lsmc.bio",
+    "lsmc.life",
+    "daylilyinformatics.com",
+]
+ZERO_TENANT_ID = "00000000-0000-0000-0000-000000000000"
+_DEFAULT_SESSION_SECRET_KEY = os.environ.get("ZEBRA_DAY_SESSION_SECRET") or secrets.token_urlsafe(
+    64
+)
+
+
+def _normalize_string_list(value: Any) -> list[str]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [part.strip() for part in value.split(",") if part.strip()]
+    return [str(value).strip()]
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -78,9 +99,13 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "mode": DEFAULT_AUTH_MODE,
             "internal_api_key_env": "INTERNAL_API_KEY",
             "session_cookie_name": "zebra_day_session",
+            "session_secret_key": _DEFAULT_SESSION_SECRET_KEY,
             "callback_path": "/auth/callback",
             "logout_path": "/auth/logout",
             "group_role_map": DEFAULT_COGNITO_GROUP_ROLE_MAP,
+            "allowed_email_domains": list(DEFAULT_ALLOWED_EMAIL_DOMAINS),
+            "default_tenant_id": ZERO_TENANT_ID,
+            "auto_provision_allowed_domains": ["lsmc.com"],
         },
         "tapdb": {
             "client_id": DEFAULT_TAPDB_CLIENT_ID,
@@ -131,6 +156,16 @@ def validate_settings_yaml(content: str) -> list[str]:
             if str(key).strip()
         }:
             errors.append("authentication.group_role_map values must be OPERATOR or ADMIN")
+        if not str(auth.get("session_secret_key") or "").strip():
+            errors.append("authentication.session_secret_key is required")
+        if not _normalize_string_list(auth.get("allowed_email_domains")):
+            errors.append("authentication.allowed_email_domains must contain at least one domain")
+        if not str(auth.get("default_tenant_id") or "").strip():
+            errors.append("authentication.default_tenant_id is required")
+        if not _normalize_string_list(auth.get("auto_provision_allowed_domains")):
+            errors.append(
+                "authentication.auto_provision_allowed_domains must contain at least one domain"
+            )
 
     tapdb = config.get("tapdb") or {}
     if isinstance(tapdb, dict):
@@ -161,7 +196,11 @@ class ZebraDaySettings:
     css_theme: str
     auth_mode: str
     internal_api_key: str
+    session_secret_key: str
     session_cookie_name: str
+    allowed_email_domains: list[str]
+    cognito_default_tenant_id: str
+    cognito_auto_provision_allowed_domains: list[str]
     tapdb_client_id: str
     tapdb_database_name: str
     tapdb_env: str
@@ -237,7 +276,19 @@ class ZebraDaySettings:
             internal_api_key=str(
                 os.environ.get(str(auth.get("internal_api_key_env") or "INTERNAL_API_KEY")) or ""
             ).strip(),
+            session_secret_key=str(
+                auth.get("session_secret_key") or _DEFAULT_SESSION_SECRET_KEY
+            ).strip(),
             session_cookie_name=str(auth.get("session_cookie_name") or "zebra_day_session"),
+            allowed_email_domains=_normalize_string_list(
+                auth.get("allowed_email_domains") or DEFAULT_ALLOWED_EMAIL_DOMAINS
+            )
+            or list(DEFAULT_ALLOWED_EMAIL_DOMAINS),
+            cognito_default_tenant_id=str(auth.get("default_tenant_id") or ZERO_TENANT_ID).strip(),
+            cognito_auto_provision_allowed_domains=_normalize_string_list(
+                auth.get("auto_provision_allowed_domains") or ["lsmc.com"]
+            )
+            or ["lsmc.com"],
             tapdb_client_id=client_id,
             tapdb_database_name=database_name,
             tapdb_env=env_name,

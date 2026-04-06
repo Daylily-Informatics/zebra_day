@@ -77,6 +77,11 @@ _AUTH_ERROR_REASONS: dict[str, tuple[str, str, int]] = {
         "Your account is authenticated, but it does not have the ADMIN role needed for this page.",
         403,
     ),
+    "blocked_domain": (
+        "Email domain not allowed",
+        "This account's email domain is not allowed for Zebra Day access.",
+        403,
+    ),
 }
 
 

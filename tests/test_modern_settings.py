@@ -27,10 +27,20 @@ def _set_xdg(monkeypatch, tmp_path, deployment="stage-1") -> None:
 
 def test_default_config_template_is_valid_yaml():
     content = build_default_config_template("dev").decode("utf-8")
+    payload = yaml.safe_load(content)
     assert validate_settings_yaml(content) == []
     assert "database_name: zebra-day-dev" in content
     assert "zebra-day-admin: ADMIN" in content
     assert "deployment:" in content
+    assert payload["authentication"]["session_secret_key"]
+    assert payload["authentication"]["allowed_email_domains"] == [
+        "lsmc.com",
+        "lsmc.bio",
+        "lsmc.life",
+        "daylilyinformatics.com",
+    ]
+    assert payload["authentication"]["default_tenant_id"] == "00000000-0000-0000-0000-000000000000"
+    assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
 
 
 def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
@@ -78,6 +88,15 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.host == "localhost"
     assert settings.port == 8119
     assert settings.auth_mode == "none"
+    assert settings.session_secret_key
+    assert settings.allowed_email_domains == [
+        "lsmc.com",
+        "lsmc.bio",
+        "lsmc.life",
+        "daylilyinformatics.com",
+    ]
+    assert settings.cognito_default_tenant_id == "00000000-0000-0000-0000-000000000000"
+    assert settings.cognito_auto_provision_allowed_domains == ["lsmc.com"]
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
     assert settings.tapdb_env == "sandbox"
     assert settings.deployment == {

@@ -206,7 +206,8 @@ def test_build_user_identity_normalizes_cognito_groups_to_roles():
         cognito_group_role_map={
             "zebra-day-admin": "ADMIN",
             "zebra-day-operator": "OPERATOR",
-        }
+        },
+        allowed_email_domains=["example.com"],
     )
 
     identity = auth.build_user_identity(
@@ -221,6 +222,29 @@ def test_build_user_identity_normalizes_cognito_groups_to_roles():
 
     assert identity["cognito_groups"] == ["zebra-day-admin"]
     assert identity["roles"] == ["ADMIN", "OPERATOR"]
+
+
+def test_build_user_identity_rejects_email_domain_outside_allowlist():
+    settings = SimpleNamespace(
+        cognito_group_role_map={
+            "zebra-day-admin": "ADMIN",
+            "zebra-day-operator": "OPERATOR",
+        },
+        allowed_email_domains=["lsmc.com"],
+    )
+
+    with pytest.raises(auth.CognitoWebAuthError) as exc_info:
+        auth.build_user_identity(
+            {
+                "sub": "abc123",
+                "email": "user@example.com",
+                "name": "Example User",
+                "cognito:groups": ["zebra-day-admin"],
+            },
+            settings,
+        )
+
+    assert exc_info.value.reason == "blocked_domain"
 
 
 def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
