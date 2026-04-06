@@ -37,7 +37,7 @@ dependencies = [
     "itsdangerous>=2.2.0",
     "pydantic>=2.0.0",
     "python-multipart>=0.0.6",
-    "cli-core-yo==0.5.2",
+    "cli-core-yo==1.0.3",
     "daylily-cognito>=0.4.4",
     "daylily-tapdb==3.2.3",
     "typer>=0.21.0,<0.22.0",

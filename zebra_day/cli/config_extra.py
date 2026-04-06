@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
@@ -18,15 +18,15 @@ if TYPE_CHECKING:
 def _status() -> None:
     settings = ZebraDaySettings.from_context()
     client = ZebraDayClient(settings)
-    output.heading("Config Status")
-    output.detail(f"Deployment: {settings.deployment_code}")
-    output.detail(f"Config path: {settings.config_path}")
-    output.detail(f"TapDB config: {settings.tapdb_config_path}")
-    output.detail(f"TapDB namespace: {settings.tapdb_database_name}")
-    output.detail(f"Auth mode: {settings.auth_mode}")
-    output.detail(f"Labs: {len(client.list_labs())}")
-    output.detail(f"Printers: {len(client.list_printers())}")
-    output.detail(f"Templates: {len(client.list_templates())}")
+    ccyo_out.heading("Config Status")
+    ccyo_out.detail(f"Deployment: {settings.deployment_code}")
+    ccyo_out.detail(f"Config path: {settings.config_path}")
+    ccyo_out.detail(f"TapDB config: {settings.tapdb_config_path}")
+    ccyo_out.detail(f"TapDB namespace: {settings.tapdb_database_name}")
+    ccyo_out.detail(f"Auth mode: {settings.auth_mode}")
+    ccyo_out.detail(f"Labs: {len(client.list_labs())}")
+    ccyo_out.detail(f"Printers: {len(client.list_printers())}")
+    ccyo_out.detail(f"Templates: {len(client.list_templates())}")
 
 
 def _routes() -> None:
@@ -59,7 +59,7 @@ def _routes() -> None:
                 continue
             rows.append((method, path))
     for method, path in sorted(rows, key=lambda item: (item[1], item[0])):
-        output.print_text(f"{method:<6} {path}")
+        ccyo_out.print_text(f"{method:<6} {path}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

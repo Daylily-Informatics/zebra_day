@@ -7,7 +7,7 @@ import time
 from typing import TYPE_CHECKING
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -62,20 +62,20 @@ def sim_start(
     try:
         mgr.start_printer(host=host, zpl_port=zpl_port, http_port=http_port, profile=profile)
     except RuntimeError as exc:
-        output.error(str(exc))
+        ccyo_out.error(str(exc))
         raise typer.Exit(1) from None
     except OSError as exc:
-        output.error(f"Cannot bind: {exc}")
+        ccyo_out.error(f"Cannot bind: {exc}")
         raise typer.Exit(1) from None
 
-    output.success(f"Simulator started: {model} (serial={serial})")
-    output.detail(f"ZPL: {host}:{zpl_port}  |  HTTP: http://{host}:{http_port}")
+    ccyo_out.success(f"Simulator started: {model} (serial={serial})")
+    ccyo_out.detail(f"ZPL: {host}:{zpl_port}  |  HTTP: http://{host}:{http_port}")
 
     if foreground:
-        output.action("Press Ctrl+C to stop")
+        ccyo_out.action("Press Ctrl+C to stop")
 
         def _shutdown(signum, frame):
-            output.action("Shutting down simulator...")
+            ccyo_out.action("Shutting down simulator...")
             mgr.stop_all()
             raise typer.Exit(0)
 
@@ -98,12 +98,12 @@ def sim_stop(
     mgr = _get_manager()
     if all_printers:
         count = mgr.stop_all()
-        output.success(f"Stopped {count} simulator(s)")
+        ccyo_out.success(f"Stopped {count} simulator(s)")
         return
     if mgr.stop_printer(host, zpl_port):
-        output.success(f"Stopped simulator at {host}:{zpl_port}")
+        ccyo_out.success(f"Stopped simulator at {host}:{zpl_port}")
     else:
-        output.warning(f"No simulator found at {host}:{zpl_port}")
+        ccyo_out.warning(f"No simulator found at {host}:{zpl_port}")
 
 
 @sim_app.command("list")
@@ -112,11 +112,11 @@ def sim_list() -> None:
     mgr = _get_manager()
     printers = mgr.list_printers()
     if not printers:
-        output.detail("No simulators running")
+        ccyo_out.detail("No simulators running")
         return
     for p in printers:
         status = "running" if p["running"] else "stopped"
-        output.bullet(
+        ccyo_out.bullet(
             f"{p['model']} serial={p['serial']} "
             f"ZPL={p['host']}:{p['zpl_port']} HTTP={p['host']}:{p['http_port']} [{status}]"
         )

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.client import ZebraDayClient
@@ -30,13 +30,13 @@ def list_templates() -> None:
     client = ZebraDayClient.from_context()
     names = client.list_templates()
     if get_context().json_mode:
-        output.emit_json(names)
+        ccyo_out.emit_json(names)
         return
     if not names:
-        output.warning("No templates found")
+        ccyo_out.warning("No templates found")
         return
     for name in names:
-        output.bullet(name)
+        ccyo_out.bullet(name)
 
 
 @template_app.command("show")
@@ -44,12 +44,12 @@ def show(template_name: str = typer.Argument(..., help="Template name")) -> None
     client = ZebraDayClient.from_context()
     template = client.get_template(template_name)
     if template is None:
-        output.error(f"Template not found: {template_name}")
+        ccyo_out.error(f"Template not found: {template_name}")
         raise typer.Exit(1)
     if get_context().json_mode:
-        output.emit_json(template)
+        ccyo_out.emit_json(template)
         return
-    output.print_text(str(template.get("zpl_content") or ""))
+    ccyo_out.print_text(str(template.get("zpl_content") or ""))
 
 
 @template_app.command("save")
@@ -60,10 +60,10 @@ def save(
     client = ZebraDayClient.from_context()
     stem = filename[:-4] if filename.endswith(".zpl") else filename
     if not stem.strip():
-        output.error("filename is required")
+        ccyo_out.error("filename is required")
         raise typer.Exit(1)
     client.save_template(stem, _read_template_source(content), source="user")
-    output.success(f"Saved template: {stem}")
+    ccyo_out.success(f"Saved template: {stem}")
 
 
 @template_app.command("delete")
@@ -75,7 +75,7 @@ def delete(
         raise typer.Abort()
     client = ZebraDayClient.from_context()
     client.delete_template(template_name)
-    output.success(f"Deleted template: {template_name}")
+    ccyo_out.success(f"Deleted template: {template_name}")
 
 
 @template_app.command("preview")
@@ -86,9 +86,9 @@ def preview(
     client = ZebraDayClient.from_context()
     _zpl_string, png_url = client.render_label(template=template_name, uid_barcode=uid_barcode)
     if get_context().json_mode:
-        output.emit_json({"template_name": template_name, "png_url": png_url})
+        ccyo_out.emit_json({"template_name": template_name, "png_url": png_url})
         return
-    output.success(f"Rendered preview: {png_url}")
+    ccyo_out.success(f"Rendered preview: {png_url}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

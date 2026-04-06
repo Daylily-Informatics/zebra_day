@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 
 from zebra_day.settings import ZebraDaySettings
 
@@ -24,7 +24,7 @@ def _latest_log(settings: ZebraDaySettings):
 @logs_app.command("path")
 def path() -> None:
     settings = ZebraDaySettings.from_context()
-    output.print_text(str(settings.logs_dir))
+    ccyo_out.print_text(str(settings.logs_dir))
 
 
 @logs_app.command("latest")
@@ -32,9 +32,9 @@ def latest() -> None:
     settings = ZebraDaySettings.from_context()
     latest_file = _latest_log(settings)
     if latest_file is None:
-        output.warning("No GUI logs found")
+        ccyo_out.warning("No GUI logs found")
         raise typer.Exit(1)
-    output.print_text(str(latest_file))
+    ccyo_out.print_text(str(latest_file))
 
 
 @logs_app.command("show")
@@ -44,10 +44,10 @@ def show(
     settings = ZebraDaySettings.from_context()
     latest_file = _latest_log(settings)
     if latest_file is None:
-        output.warning("No GUI logs found")
+        ccyo_out.warning("No GUI logs found")
         raise typer.Exit(1)
     content = latest_file.read_text(encoding="utf-8").splitlines()
-    output.print_text("\n".join(content[-lines:]))
+    ccyo_out.print_text("\n".join(content[-lines:]))
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:

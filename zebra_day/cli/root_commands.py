@@ -6,7 +6,7 @@ import socket
 from typing import TYPE_CHECKING, Any
 
 import typer
-from cli_core_yo import output
+from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.client import ZebraDayClient
@@ -86,33 +86,33 @@ def _status_callback() -> None:
         }
 
     if get_context().json_mode:
-        output.emit_json(status_data)
+        ccyo_out.emit_json(status_data)
         if error_text:
             raise typer.Exit(1)
         return
 
-    output.heading("zebra_day Status")
-    output.detail(f"Deployment: {settings.deployment_code}")
-    output.detail(f"Config: {settings.config_path}")
-    output.detail(f"TapDB config: {settings.tapdb_config_path}")
-    output.detail(
+    ccyo_out.heading("zebra_day Status")
+    ccyo_out.detail(f"Deployment: {settings.deployment_code}")
+    ccyo_out.detail(f"Config: {settings.config_path}")
+    ccyo_out.detail(f"TapDB config: {settings.tapdb_config_path}")
+    ccyo_out.detail(
         f"TapDB namespace: {settings.tapdb_client_id}/{settings.tapdb_database_name} ({settings.tapdb_env})"
     )
-    output.detail(f"Auth mode: {settings.auth_mode}")
+    ccyo_out.detail(f"Auth mode: {settings.auth_mode}")
     if status_data["gui"]["running"]:
-        output.success(f"GUI server running (PID {status_data['gui']['pid']})")
+        ccyo_out.success(f"GUI server running (PID {status_data['gui']['pid']})")
     else:
-        output.warning("GUI server is not running")
+        ccyo_out.warning("GUI server is not running")
 
     if error_text:
-        output.error(f"TapDB unavailable: {error_text}")
+        ccyo_out.error(f"TapDB unavailable: {error_text}")
         raise typer.Exit(1)
 
-    output.success("TapDB connection verified")
-    output.detail(f"Labs: {', '.join(status_data['fleet']['labs']) or 'none'}")
-    output.detail(f"Printers: {status_data['fleet']['printer_count']}")
-    output.detail(f"Templates: {status_data['fleet']['template_count']}")
-    output.detail(f"Label profiles: {status_data['fleet']['label_profile_count']}")
+    ccyo_out.success("TapDB connection verified")
+    ccyo_out.detail(f"Labs: {', '.join(status_data['fleet']['labs']) or 'none'}")
+    ccyo_out.detail(f"Printers: {status_data['fleet']['printer_count']}")
+    ccyo_out.detail(f"Templates: {status_data['fleet']['template_count']}")
+    ccyo_out.detail(f"Label profiles: {status_data['fleet']['label_profile_count']}")
 
 
 def _bootstrap_callback(
@@ -147,10 +147,10 @@ def _bootstrap_callback(
         )
         if get_context().json_mode:
             result["error"] = message
-            output.emit_json(result)
+            ccyo_out.emit_json(result)
         else:
-            output.error(message)
-            output.detail(f"Deployment config: {settings.config_path}")
+            ccyo_out.error(message)
+            ccyo_out.detail(f"Deployment config: {settings.config_path}")
         raise typer.Exit(1)
 
     client = ZebraDayClient(settings)
@@ -161,20 +161,20 @@ def _bootstrap_callback(
         result["ip_stub"] = resolved_ip_stub
 
     if get_context().json_mode:
-        output.emit_json(result)
+        ccyo_out.emit_json(result)
         return
 
-    output.heading("zebra_day Bootstrap")
+    ccyo_out.heading("zebra_day Bootstrap")
     if config_created:
-        output.success(f"Created config: {settings.config_path}")
+        ccyo_out.success(f"Created config: {settings.config_path}")
     else:
-        output.detail(f"Using config: {settings.config_path}")
-    output.success(f"TapDB config found: {settings.tapdb_config_path}")
+        ccyo_out.detail(f"Using config: {settings.config_path}")
+    ccyo_out.success(f"TapDB config found: {settings.tapdb_config_path}")
     if skip_scan:
-        output.detail("Skipped printer scan")
+        ccyo_out.detail("Skipped printer scan")
     else:
-        output.success(f"Discovered {len(result['discovered_printers'])} printer(s)")
-    output.heading("Next steps")
-    output.detail("zday gui start")
-    output.detail("zday printer list")
-    output.detail("zday config status")
+        ccyo_out.success(f"Discovered {len(result['discovered_printers'])} printer(s)")
+    ccyo_out.heading("Next steps")
+    ccyo_out.detail("zday gui start")
+    ccyo_out.detail("zday printer list")
+    ccyo_out.detail("zday config status")
