@@ -39,10 +39,7 @@ def test_default_config_template_is_valid_yaml():
         "lsmc.life",
         "daylilyinformatics.com",
     ]
-    assert (
-        payload["authentication"]["default_tenant_id"]
-        == "00000000-0000-0000-0000-000000000000"
-    )
+    assert payload["authentication"]["default_tenant_id"] == "00000000-0000-0000-0000-000000000000"
     assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
 
 

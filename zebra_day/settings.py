@@ -35,7 +35,9 @@ DEFAULT_ALLOWED_EMAIL_DOMAINS = [
     "daylilyinformatics.com",
 ]
 ZERO_TENANT_ID = "00000000-0000-0000-0000-000000000000"
-_DEFAULT_SESSION_SECRET_KEY = os.environ.get("ZEBRA_DAY_SESSION_SECRET") or secrets.token_urlsafe(64)
+_DEFAULT_SESSION_SECRET_KEY = os.environ.get("ZEBRA_DAY_SESSION_SECRET") or secrets.token_urlsafe(
+    64
+)
 
 
 def _normalize_string_list(value: Any) -> list[str]:
