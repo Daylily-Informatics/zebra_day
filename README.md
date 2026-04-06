@@ -94,3 +94,4 @@ mypy zebra_day --ignore-missing-imports
 pytest tests/ -v --tb=short
 ```
  
+ 
