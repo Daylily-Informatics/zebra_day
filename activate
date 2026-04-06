@@ -185,7 +185,7 @@ _zday_ensure_postgres_runtime || {
 }
 
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-"${_ZDAY_PYTHON}" -m pip install --no-deps -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
+"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
 
 mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
 mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1

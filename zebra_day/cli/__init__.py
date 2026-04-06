@@ -8,7 +8,6 @@ from typing import Any, cast
 
 import typer
 from cli_core_yo.app import create_app
-from cli_core_yo.runtime import _reset, initialize
 from cli_core_yo.spec import CliSpec, ConfigSpec, EnvSpec, PluginSpec, XdgSpec
 
 from zebra_day import paths as xdg
@@ -65,7 +64,7 @@ spec = CliSpec(
         app_dir_name=xdg.get_app_dir_name(),
     ),
     config=ConfigSpec(
-        primary_filename=xdg.get_config_filename(),
+        xdg_relative_path=xdg.get_config_filename(),
         template_bytes=build_default_config_template(),
         validator=validate_settings_yaml,
     ),
@@ -158,6 +157,13 @@ def _ensure_tapdb_dependency() -> None:
 
 @app.callback()
 def _root_callback(
+    ctx: typer.Context,
+    config: str | None = typer.Option(
+        None,
+        "--config",
+        metavar="PATH",
+        help="Use this config file for this invocation only.",
+    ),
     json_flag: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
     no_auth: bool = typer.Option(
         False,
@@ -165,12 +171,14 @@ def _root_callback(
         help="Disable web and API auth for this invocation",
     ),
 ) -> None:
+    del config
+    del json_flag
     if no_auth:
         os.environ["ZEBRA_DAY_AUTH_MODE"] = "none"
-    _reset()
-    debug = os.environ.get("CLI_CORE_YO_DEBUG") == "1"
-    xdg_paths = cast(Any, app)._cli_core_yo_xdg_paths
-    initialize(spec, xdg_paths, json_mode=json_flag, debug=debug)
+    cli_app = cast(Any, app)
+    ctx.meta["cli_core_yo_spec"] = cli_app._cli_core_yo_spec
+    ctx.meta["cli_core_yo_xdg_paths"] = cli_app._cli_core_yo_xdg_paths
+    ctx.meta["cli_core_yo_default_config_path"] = cli_app._cli_core_yo_config_path
 
 
 def main() -> None:

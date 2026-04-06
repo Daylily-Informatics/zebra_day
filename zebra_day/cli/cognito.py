@@ -95,7 +95,7 @@ def import_context() -> None:
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
         return
-    ccyo_out.success("Loaded Cognito runtime contract from the active daycog context")
+    ccyo_out.success("Loaded Cognito runtime contract from the daycog config file")
     ccyo_out.detail(f"Pool: {payload['user_pool_id']}")
     ccyo_out.detail(f"Client name: {payload['app_client_name']}")
 

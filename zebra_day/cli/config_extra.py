@@ -200,6 +200,13 @@ def _routes() -> None:
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
     del spec
-    registry.add_command("config", "status", _status, "Show zebra_day runtime, TapDB, and GUI status")
-    registry.add_command("config", "bootstrap", _bootstrap, "Create deployment config and optionally scan for printers")
+    registry.add_command(
+        "config", "status", _status, "Show zebra_day runtime, TapDB, and GUI status"
+    )
+    registry.add_command(
+        "config",
+        "bootstrap",
+        _bootstrap,
+        "Create deployment config and optionally scan for printers",
+    )
     registry.add_command("config", "routes", _routes, "List registered web routes")

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
@@ -79,7 +79,7 @@ def _latest_log(settings: ZebraDaySettings) -> Path | None:
 
 
 def _log_file(settings: ZebraDaySettings) -> Path:
-    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return settings.logs_dir / f"gui_{timestamp}.log"
 
 
@@ -151,6 +151,7 @@ def _resolve_ssl(
         cert_path=cert,
         key_path=key,
         env=dict(os.environ),
+        shared_certs_dir=shared_dayhoff_certs_dir(settings.deployment_code),
         fallback_certs_dir=settings.config_dir / "certs",
     )
     return str(resolved.cert_path), str(resolved.key_path), True
@@ -169,6 +170,12 @@ def start(
     auth: str = typer.Option("cognito", "--auth", help="Auth mode: cognito or none"),
     no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
+    no_https: bool = typer.Option(
+        False,
+        "--no-https",
+        help="Deprecated alias for --no-ssl",
+        hidden=True,
+    ),
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
     key: str | None = typer.Option(None, "--key", help="SSL private key path"),
 ) -> None:
@@ -191,7 +198,7 @@ def start(
         ccyo_out.error(str(exc))
         raise typer.Exit(1) from exc
 
-    https_enabled = ssl
+    https_enabled = ssl and not no_https
     cert_path, key_path, https_enabled = _resolve_ssl(settings, cert, key, https_enabled)
     command = [
         sys.executable,
