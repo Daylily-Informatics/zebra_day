@@ -7,6 +7,8 @@ Implementation handoff for the approved `zebra_day` major release.
 This release turns `zebra_day` into a deployment-scoped, TapDB-backed, first-level
 service and library.
 
+For Cognito, Zebra now relies on the `daylily-auth-cognito` 2.0 split: browser sessions use `browser.session`, Hosted UI helpers use `browser.oauth` and `browser.google`, bearer verification uses `runtime.verifier`, and shared Cognito lifecycle stays in `daycog` via `admin.*`. Service runtime code should not import `daylily_auth_cognito.cli`.
+
 - Runtime activation moves to Atlas-style `source ./activate`.
 - Local flat files stop being the runtime source of truth for printer fleet state.
 - TapDB becomes the primary authority for printers, label profiles, templates, and
@@ -156,7 +158,7 @@ Deliverables:
 Ownership:
 - coordinated PRs in `dayhoff`
 - coordinated PRs in `bloom`
-- any required touchpoints in `daylily-cognito` or `daylily-tapdb`
+- any required touchpoints in `daylily-auth-cognito` or `daylily-tapdb`
 
 Deliverables:
 - Dayhoff:

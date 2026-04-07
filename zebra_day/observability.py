@@ -299,7 +299,7 @@ class ZebraDayObservability:
         rich_auth = "none" if auth_mode == "none" else "bearer_token"
         configured_dependencies = ["daylily-tapdb"]
         if auth_mode == "cognito":
-            configured_dependencies.insert(0, "daylily-cognito")
+            configured_dependencies.insert(0, "daylily-auth-cognito")
         endpoints = [
             {"path": "/healthz", "auth": "none", "kind": "liveness"},
             {"path": "/readyz", "auth": "none", "kind": "readiness"},

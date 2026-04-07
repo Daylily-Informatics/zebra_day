@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -85,11 +86,13 @@ def _make_cognito_app(
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
     )
     monkeypatch.setattr(
-        "daylily_cognito.web_session.exchange_authorization_code",
-        lambda **kwargs: {
-            "access_token": "access-token",
-            "id_token": "id-token",
-        },
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
     )
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     return create_app(auth="cognito", client=_seed_client(tmp_path, monkeypatch))

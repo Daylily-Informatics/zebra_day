@@ -5,6 +5,8 @@
 > **Date**: 2026-02-06
 > **Scope**: `zebra_day` — shared printer config + ZPL templates via DynamoDB, with S3 backups
 
+Zebra's Cognito integration now uses `daylily-auth-cognito` 2.0 for browser/session auth, runtime verification, and `daycog`-driven lifecycle management. Keep service runtime code out of `daylily_auth_cognito.cli`.
+
 ---
 
 ## 1. Problem Statement
@@ -598,7 +600,7 @@ aws = [
     "boto3>=1.26.0",
 ]
 auth = [
-    "daylily-cognito>=0.1.10",
+    "daylily-auth-cognito>=0.1.10",
     "python-jose[cryptography]>=3.3.0",
     "boto3>=1.26.0",
 ]
