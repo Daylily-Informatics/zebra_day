@@ -76,7 +76,7 @@ def register_group_commands(
 ) -> None:
     """Register one explicit command group and its command callbacks."""
     if "/" in group_path:
-        parent = registry._resolve_parent(group_path)  # type: ignore[attr-defined]
+        parent = registry._resolve_parent(group_path)
         if parent is None:
             raise ValueError(f"Unable to create command group {group_path!r}")
         if group_help and parent.help_text and parent.help_text != group_help:

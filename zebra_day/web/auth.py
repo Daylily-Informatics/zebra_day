@@ -7,9 +7,11 @@ import ipaddress
 import os
 import secrets
 from collections.abc import Callable
+from concurrent.futures import Future
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
@@ -95,6 +97,27 @@ def _normalize_cognito_domain(value: Any) -> str:
 def _email_domain(email: str) -> str:
     _, _, domain = str(email or "").strip().lower().partition("@")
     return domain
+
+
+def _run_sync(awaitable: Any) -> Any:
+    """Run an awaitable from sync code, even when a loop is already active."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(awaitable)
+
+    result: Future[Any] = Future()
+
+    def _runner() -> None:
+        try:
+            result.set_result(asyncio.run(awaitable))
+        except BaseException as exc:
+            result.set_exception(exc)
+
+    thread = Thread(target=_runner, daemon=True)
+    thread.start()
+    thread.join()
+    return result.result()
 
 
 def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> dict[str, Any]:
@@ -427,7 +450,7 @@ class CognitoBinding:
         return dict(claims)
 
     def exchange_code(self, request: Request, code: str) -> dict[str, Any]:
-        tokens = asyncio.run(
+        tokens = _run_sync(
             cognito_session.exchange_authorization_code_async(
                 domain=self.config.cognito_domain,
                 client_id=self.config.app_client_id,

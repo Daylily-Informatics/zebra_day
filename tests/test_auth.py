@@ -3,6 +3,7 @@ Tests for the zebra_day authentication module.
 """
 
 import sys
+import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -217,6 +218,64 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
 
     assert result["claims"]["sub"] == "access-sub"
     assert result["profile_claims"] == {}
+
+
+def test_exchange_code_works_when_called_inside_running_event_loop():
+    auth_client = SimpleNamespace(
+        verify_token=lambda token: (
+            {"sub": "access-sub", "username": "atlas-user"}
+            if token == "access-token"
+            else pytest.fail("expected access token verification")
+        )
+    )
+    binding = auth.CognitoBinding(
+        settings=SimpleNamespace(),
+        config=SimpleNamespace(
+            cognito_domain="example.com",
+            app_client_id="client-id",
+            region="us-west-2",
+            user_pool_id="pool-id",
+        ),
+        auth=auth_client,
+        jwks=SimpleNamespace(),
+    )
+    binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
+    )
+    original_asyncio_run = auth.asyncio.run
+    main_thread_id = threading.get_ident()
+
+    def _guarded_asyncio_run(awaitable):
+        if threading.get_ident() == main_thread_id:
+            raise RuntimeError("main thread asyncio.run blocked")
+        return original_asyncio_run(awaitable)
+
+    monkeypatch.setattr(auth.asyncio, "get_running_loop", lambda: object())
+    monkeypatch.setattr(auth.asyncio, "run", _guarded_asyncio_run)
+    binding._verify_id_token = lambda token, *, access_token=None: (
+        {
+            "sub": "profile-sub",
+            "email": "user@example.com",
+        }
+        if token == "id-token" and access_token == "access-token"
+        else pytest.fail("expected id token verification")
+    )
+
+    try:
+        result = binding.exchange_code(object(), "auth-code")
+    finally:
+        monkeypatch.undo()
+
+    assert result["claims"]["sub"] == "access-sub"
+    assert result["profile_claims"]["email"] == "user@example.com"
 
 
 def test_build_user_identity_normalizes_cognito_groups_to_roles():

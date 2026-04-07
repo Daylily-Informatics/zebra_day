@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import subprocess
-from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from cli_core_yo import ccyo_out
@@ -19,6 +20,10 @@ if TYPE_CHECKING:
 
 cognito_app = typer.Typer(help="daycog-backed Cognito contract commands")
 _PASSTHROUGH_ARGS = typer.Argument(None, metavar="ARGS...")
+
+
+class _ArgsNamespace:
+    args: Sequence[str] | None
 
 
 def _runtime_callback_url(settings: ZebraDaySettings) -> str:
@@ -37,10 +42,12 @@ def _run_daycog(args: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _passthrough_args(args: list[str] | object | None) -> list[str]:
-    if hasattr(args, "args"):
-        return list(args.args or [])  # type: ignore[attr-defined]
-    return list(args or [])
+def _passthrough_args(args: Sequence[str] | _ArgsNamespace | None) -> list[str]:
+    if args is None:
+        return []
+    if isinstance(args, (list, tuple)):
+        return list(args)
+    return list(cast(_ArgsNamespace, args).args or [])
 
 
 def _status_payload(settings: ZebraDaySettings) -> dict[str, Any]:
