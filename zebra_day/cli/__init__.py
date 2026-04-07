@@ -143,8 +143,7 @@ spec = CliSpec(
                 tags={ZEBRA_RUNTIME_TAG},
                 success_message="Dependency available: daylily-tapdb",
                 failure_message=(
-                    "Missing dependency: daylily-tapdb. "
-                    "Re-run `source ./activate <deploy-name>`."
+                    "Missing dependency: daylily-tapdb. Re-run `source ./activate <deploy-name>`."
                 ),
             ),
             PrereqSpec(

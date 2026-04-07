@@ -170,6 +170,7 @@ def _bootstrap(
 
 def _routes() -> None:
     """List the registered zebra_day web routes."""
+
     class _RouteClient:
         def list_labs(self):
             return []
