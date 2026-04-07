@@ -180,5 +180,6 @@ def reset():
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    """cli-core-yo plugin: register the env command group (custom, not built-in)."""
-    registry.add_typer_app(None, env_app, "env", "Development environment management")
+    """The framework-owned EnvSpec surface is the only active env CLI."""
+    del registry
+    del spec

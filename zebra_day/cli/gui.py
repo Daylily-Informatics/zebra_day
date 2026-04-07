@@ -17,6 +17,12 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 import typer
 from cli_core_yo import ccyo_out
 
+from zebra_day.cli._registry_v2 import (
+    REQUIRED,
+    REQUIRED_MUTATING,
+    REQUIRED_MUTATING_LONG_RUNNING,
+    register_group_commands,
+)
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.auth import load_daycog_contract
@@ -168,7 +174,6 @@ def start(
     ),
     reload: bool = typer.Option(False, "--reload", help="Enable auto reload"),
     auth: str = typer.Option("cognito", "--auth", help="Auth mode: cognito or none"),
-    no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
     no_https: bool = typer.Option(
         False,
@@ -179,10 +184,11 @@ def start(
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
     key: str | None = typer.Option(None, "--key", help="SSL private key path"),
 ) -> None:
+    """Start the zebra_day web GUI."""
     settings = ZebraDaySettings.from_context()
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
     settings.state_dir.mkdir(parents=True, exist_ok=True)
-    selected_auth = "none" if (no_auth or os.environ.get("ZEBRA_DAY_AUTH_MODE") == "none") else auth
+    selected_auth = "none" if settings.auth_mode == "none" else auth
     if selected_auth not in {"none", "cognito"}:
         ccyo_out.error("auth must be 'cognito' or 'none'")
         raise typer.Exit(1)
@@ -257,6 +263,7 @@ def start(
 
 @gui_app.command("stop")
 def stop() -> None:
+    """Stop the zebra_day web GUI."""
     settings = ZebraDaySettings.from_context()
     pid = _running_pid(settings)
     if pid is None:
@@ -272,18 +279,19 @@ def stop() -> None:
 def restart(
     port: int = typer.Option(8118, "--port", "-p", help="Port to bind"),
     host: str = typer.Option("localhost", "--host", help="Host to bind"),
-    no_auth: bool = typer.Option(False, "--no-auth", help="Disable auth for this server process"),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
 ) -> None:
+    """Restart the zebra_day web GUI."""
     settings = ZebraDaySettings.from_context()
     if _running_pid(settings):
         stop()
         time.sleep(1)
-    start(port=port, host=host, no_auth=no_auth, ssl=ssl)
+    start(port=port, host=host, ssl=ssl)
 
 
 @gui_app.command("status")
 def status() -> None:
+    """Show zebra_day GUI process and log status."""
     settings = ZebraDaySettings.from_context()
     pid = _running_pid(settings)
     latest_log = _latest_log(settings)
@@ -304,5 +312,15 @@ def status() -> None:
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, gui_app, "gui", "Web GUI management")
+    _ = spec
+    register_group_commands(
+        registry,
+        "gui",
+        "Web GUI management",
+        [
+            ("start", start, REQUIRED_MUTATING_LONG_RUNNING),
+            ("stop", stop, REQUIRED_MUTATING),
+            ("restart", restart, REQUIRED_MUTATING_LONG_RUNNING),
+            ("status", status, REQUIRED),
+        ],
+    )

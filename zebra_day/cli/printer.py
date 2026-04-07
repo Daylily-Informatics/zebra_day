@@ -9,6 +9,11 @@ import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day.cli._registry_v2 import (
+    REQUIRED_JSON,
+    REQUIRED_MUTATING_JSON,
+    register_group_commands,
+)
 from zebra_day.client import ZebraDayClient
 from zebra_day.cmd_mgr import get_cached_status
 
@@ -31,6 +36,7 @@ def list_printers(
     live: bool = typer.Option(False, "--live", help="Fetch current live printer state"),
     timeout: float = typer.Option(2.0, "--timeout", help="Live status timeout"),
 ) -> None:
+    """List tracked printers, optionally with live status."""
     client = ZebraDayClient.from_context()
     rows: list[dict[str, Any]] = []
     for printer in client.list_printers(lab):
@@ -83,6 +89,7 @@ def scan(
         help="Optional HTTP port to probe alongside ZPL",
     ),
 ) -> None:
+    """Discover reachable Zebra printers on the local network."""
     client = ZebraDayClient.from_context()
     resolved_ip_stub = ip_stub or _local_ip_stub()
     found = client.discover_printers(
@@ -106,6 +113,7 @@ def sync(
     lab: str = typer.Option(..., "--lab", help="Lab containing the printer"),
     printer_id: str = typer.Argument(..., help="Printer ID to sync"),
 ) -> None:
+    """Refresh one printer's metadata from the live device."""
     client = ZebraDayClient.from_context()
     printer = client.sync_printer_metadata(printer_id, lab)
     payload = printer.to_payload()
@@ -118,5 +126,14 @@ def sync(
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, printer_app, "printer", "Printer fleet operations")
+    _ = spec
+    register_group_commands(
+        registry,
+        "printer",
+        "Printer fleet operations",
+        [
+            ("list", list_printers, REQUIRED_JSON),
+            ("scan", scan, REQUIRED_JSON),
+            ("sync", sync, REQUIRED_MUTATING_JSON),
+        ],
+    )

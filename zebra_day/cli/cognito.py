@@ -9,6 +9,7 @@ import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day.cli._registry_v2 import REQUIRED_JSON, REQUIRED_MUTATING, register_group_commands
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.auth import load_daycog_contract
 
@@ -17,6 +18,7 @@ if TYPE_CHECKING:
     from cli_core_yo.spec import CliSpec
 
 cognito_app = typer.Typer(help="daycog-backed Cognito contract commands")
+_PASSTHROUGH_ARGS = typer.Argument(None, metavar="ARGS...")
 
 
 def _runtime_callback_url(settings: ZebraDaySettings) -> str:
@@ -33,6 +35,12 @@ def _run_daycog(args: list[str]) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
     )
+
+
+def _passthrough_args(args: list[str] | object | None) -> list[str]:
+    if hasattr(args, "args"):
+        return list(args.args or [])  # type: ignore[attr-defined]
+    return list(args or [])
 
 
 def _status_payload(settings: ZebraDaySettings) -> dict[str, Any]:
@@ -55,6 +63,7 @@ def _status_payload(settings: ZebraDaySettings) -> dict[str, Any]:
 
 @cognito_app.command("status")
 def status() -> None:
+    """Show the resolved zebra_day Cognito contract."""
     settings = ZebraDaySettings.from_context()
     payload = _status_payload(settings)
     if get_context().json_mode:
@@ -73,6 +82,7 @@ def status() -> None:
 
 @cognito_app.command("bind")
 def bind() -> None:
+    """Print the runtime callback and logout URLs zebra_day expects."""
     settings = ZebraDaySettings.from_context()
     payload = {
         "client_name": "zebra-day",
@@ -91,6 +101,7 @@ def bind() -> None:
 
 @cognito_app.command("import")
 def import_context() -> None:
+    """Load the active Cognito runtime contract from daycog."""
     payload = _status_payload(ZebraDaySettings.from_context())
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
@@ -102,6 +113,7 @@ def import_context() -> None:
 
 @cognito_app.command("validate")
 def validate() -> None:
+    """Validate the bound Cognito contract against zebra_day expectations."""
     settings = ZebraDaySettings.from_context()
     payload = _status_payload(settings)
     issues: list[str] = []
@@ -125,15 +137,16 @@ def validate() -> None:
     ccyo_out.success("Cognito contract validation passed")
 
 
-@cognito_app.command(
-    "daycog",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-def daycog_passthrough(ctx: typer.Context) -> None:
-    if not ctx.args:
+@cognito_app.command("daycog")
+def daycog_passthrough(
+    args: list[str] = _PASSTHROUGH_ARGS,
+) -> None:
+    """Pass through to `daycog ...`."""
+    resolved_args = _passthrough_args(args)
+    if not resolved_args:
         ccyo_out.error("Missing daycog arguments")
         raise typer.Exit(1)
-    result = _run_daycog(list(ctx.args))
+    result = _run_daycog(resolved_args)
     if result.stdout:
         ccyo_out.print_text(result.stdout.rstrip())
     if result.returncode != 0:
@@ -143,5 +156,16 @@ def daycog_passthrough(ctx: typer.Context) -> None:
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, cognito_app, "cognito", "Cognito/daycog integration")
+    _ = spec
+    register_group_commands(
+        registry,
+        "cognito",
+        "Cognito/daycog integration",
+        [
+            ("status", status, REQUIRED_JSON),
+            ("bind", bind, REQUIRED_JSON),
+            ("import", import_context, REQUIRED_JSON),
+            ("validate", validate, REQUIRED_JSON),
+            ("daycog", daycog_passthrough, REQUIRED_MUTATING),
+        ],
+    )

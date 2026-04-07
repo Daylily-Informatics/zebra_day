@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
@@ -16,6 +17,8 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
+    monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / deployment))
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
 
 
@@ -63,6 +66,7 @@ def test_dynamo_command_is_removed():
 def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="dev1")
     monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-dev1")
+    monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / "dev1"))
     recorded: dict[str, object] = {}
 
     class _Completed:
@@ -74,7 +78,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
         recorded["cmd"] = cmd
         return _Completed()
 
-    monkeypatch.setattr("zebra_day.cli.tapdb.subprocess.run", fake_run)
+    monkeypatch.setattr("zebra_day.cli.tapdb.subprocess", SimpleNamespace(run=fake_run))
 
     result = runner.invoke(zebra_cli.app, ["tapdb", "db", "status"])
 

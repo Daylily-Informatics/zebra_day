@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import typer
 from cli_core_yo import ccyo_out
 
+from zebra_day.cli._registry_v2 import REQUIRED, register_group_commands
 from zebra_day.settings import ZebraDaySettings
 
 if TYPE_CHECKING:
@@ -23,12 +24,14 @@ def _latest_log(settings: ZebraDaySettings):
 
 @logs_app.command("path")
 def path() -> None:
+    """Print the zebra_day GUI log directory."""
     settings = ZebraDaySettings.from_context()
     ccyo_out.print_text(str(settings.logs_dir))
 
 
 @logs_app.command("latest")
 def latest() -> None:
+    """Print the most recent zebra_day GUI log file path."""
     settings = ZebraDaySettings.from_context()
     latest_file = _latest_log(settings)
     if latest_file is None:
@@ -41,6 +44,7 @@ def latest() -> None:
 def show(
     lines: int = typer.Option(80, "--lines", "-n", help="Number of lines to show"),
 ) -> None:
+    """Print the tail of the most recent zebra_day GUI log."""
     settings = ZebraDaySettings.from_context()
     latest_file = _latest_log(settings)
     if latest_file is None:
@@ -51,5 +55,14 @@ def show(
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, logs_app, "logs", "Inspect zebra_day logs")
+    _ = spec
+    register_group_commands(
+        registry,
+        "logs",
+        "Inspect zebra_day logs",
+        [
+            ("path", path, REQUIRED),
+            ("latest", latest, REQUIRED),
+            ("show", show, REQUIRED),
+        ],
+    )

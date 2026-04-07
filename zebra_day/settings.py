@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from cli_core_yo.runtime import get_context
 
 from zebra_day import paths as xdg
 from zebra_day.rbac import normalize_group_role_map
@@ -271,7 +272,10 @@ class ZebraDaySettings:
             port=int(service.get("port") or DEFAULT_PORT),
             css_theme=str(service.get("css_theme") or "lsmc.css"),
             auth_mode=str(
-                os.environ.get("ZEBRA_DAY_AUTH_MODE") or auth.get("mode") or DEFAULT_AUTH_MODE
+                _runtime_auth_mode_override()
+                or os.environ.get("ZEBRA_DAY_AUTH_MODE")
+                or auth.get("mode")
+                or DEFAULT_AUTH_MODE
             ).strip(),
             internal_api_key=str(
                 os.environ.get(str(auth.get("internal_api_key_env") or "INTERNAL_API_KEY")) or ""
@@ -306,3 +310,11 @@ class ZebraDaySettings:
                 else None
             ),
         )
+
+
+def _runtime_auth_mode_override() -> str | None:
+    try:
+        invocation = get_context().invocation
+    except Exception:
+        return None
+    return "none" if bool(invocation.get("no_auth")) else None
