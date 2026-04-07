@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import os
 import secrets
@@ -10,15 +11,13 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
-import daylily_cognito as daycog
-from daylily_cognito import jwks
-from daylily_cognito import oauth as cognito_oauth
-from daylily_cognito.config import load_config_file_if_present
-from daylily_cognito.oauth import build_logout_url
-from daylily_cognito.web_session import (
+import yaml
+from daylily_auth_cognito.browser import session as cognito_session
+from daylily_auth_cognito.browser.oauth import build_logout_url
+from daylily_auth_cognito.browser.session import (
     CognitoWebAuthError,
     CognitoWebSessionConfig,
     SessionPrincipal,
@@ -28,6 +27,8 @@ from daylily_cognito.web_session import (
     load_session_principal,
     start_cognito_login,
 )
+from daylily_auth_cognito.runtime import jwks
+from daylily_auth_cognito.runtime.verifier import CognitoTokenVerifier
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
@@ -129,7 +130,7 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
 
 def is_cognito_available() -> bool:
     try:
-        import daylily_cognito  # noqa: F401
+        import daylily_auth_cognito  # noqa: F401
 
         return True
     except ImportError:
@@ -138,7 +139,7 @@ def is_cognito_available() -> bool:
 
 def get_cognito_import_error() -> str | None:
     try:
-        import daylily_cognito  # noqa: F401
+        import daylily_auth_cognito  # noqa: F401
 
         return None
     except ImportError as exc:
@@ -152,10 +153,16 @@ def _daycog_config_path() -> Path:
 
 
 def _load_daycog_file_values() -> dict[str, str]:
-    return cast(
-        dict[str, str],
-        load_config_file_if_present(_daycog_config_path(), require_required_keys=False),
-    )
+    path = _daycog_config_path()
+    if not path.exists():
+        return {}
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(key): str(value) for key, value in payload.items() if value is not None}
 
 
 def load_daycog_contract() -> dict[str, str]:
@@ -316,7 +323,6 @@ class CognitoBinding:
     settings: ZebraDaySettings
     config: Any
     auth: Any
-    oauth: Any
     jwks: Any
     web_session_config: CognitoWebSessionConfig | None = None
 
@@ -349,7 +355,7 @@ class CognitoBinding:
         state = secrets.token_urlsafe(24)
         request.session["oauth_state"] = state
         return str(
-            self.oauth.build_authorization_url(
+            cognito_session.build_authorization_url(
                 domain=self.config.cognito_domain,
                 client_id=self.config.app_client_id,
                 redirect_uri=self.redirect_uri(request),
@@ -362,7 +368,7 @@ class CognitoBinding:
             build_logout_url(
                 domain=self.config.cognito_domain,
                 client_id=self.config.app_client_id,
-                redirect_uri=self.redirect_uri(request),
+                logout_uri=self.logout_uri(request),
             )
         )
 
@@ -373,7 +379,7 @@ class CognitoBinding:
         if not kid:
             raise ValueError("Cognito id token is missing a kid header")
 
-        cache = getattr(self.auth, "_jwks_cache", None)
+        cache = getattr(self.auth, "cache", None)
         if cache is None:
             cache = self.jwks.JWKSCache(self.config.region, self.config.user_pool_id)
         key = cache.get_key(kid)
@@ -421,11 +427,13 @@ class CognitoBinding:
         return dict(claims)
 
     def exchange_code(self, request: Request, code: str) -> dict[str, Any]:
-        tokens = self.oauth.exchange_authorization_code(
-            domain=self.config.cognito_domain,
-            client_id=self.config.app_client_id,
-            code=code,
-            redirect_uri=self.redirect_uri(request),
+        tokens = asyncio.run(
+            cognito_session.exchange_authorization_code_async(
+                domain=self.config.cognito_domain,
+                client_id=self.config.app_client_id,
+                code=code,
+                redirect_uri=self.redirect_uri(request),
+            )
         )
         access_token = _clean(tokens.get("access_token"))
         if not access_token:
@@ -507,22 +515,20 @@ def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
     """Create a Cognito binding from the configured daycog runtime contract."""
     if not is_cognito_available():
         raise ImportError(
-            "daylily-cognito is required for Cognito authentication. "
+            "daylily-auth-cognito is required for Cognito authentication. "
             f"Import error: {get_cognito_import_error()}"
         )
     contract = load_daycog_contract()
     config = SimpleNamespace(**contract)
-    auth = daycog.CognitoAuth(
+    auth = CognitoTokenVerifier(
         region=config.region,
         user_pool_id=config.user_pool_id,
         app_client_id=config.app_client_id,
-        profile=_clean(config.aws_profile) or None,
     )
     return CognitoBinding(
         settings=settings,
         config=config,
         auth=auth,
-        oauth=cognito_oauth,
         jwks=jwks,
         web_session_config=build_web_session_config(settings),
     )

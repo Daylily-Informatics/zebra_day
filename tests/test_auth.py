@@ -4,7 +4,7 @@ Tests for the zebra_day authentication module.
 
 import sys
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -55,20 +55,14 @@ class TestSetupCognitoAuth:
     """Tests for setup_cognito_auth function."""
 
     def test_setup_cognito_raises_import_error_when_unavailable(self):
-        """Test setup_cognito_auth raises ImportError when daylily-cognito not installed."""
+        """Test setup_cognito_auth raises ImportError when daylily-auth-cognito not installed."""
         if not auth.is_cognito_available():
             with pytest.raises(ImportError) as exc_info:
                 auth.setup_cognito_auth(None, None)
-            assert "daylily-cognito" in str(exc_info.value)
+            assert "daylily-auth-cognito" in str(exc_info.value)
 
 
 def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
-    oauth = SimpleNamespace(
-        exchange_authorization_code=lambda **kwargs: {
-            "access_token": "access-token",
-            "id_token": "id-token",
-        }
-    )
     auth_client = SimpleNamespace(
         verify_token=lambda token: (
             {"sub": "access-sub", "username": "atlas-user"}
@@ -86,10 +80,19 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
             user_pool_id="pool-id",
         ),
         auth=auth_client,
-        oauth=oauth,
         jwks=jwks,
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
+    )
 
     def _verify_id_token(token, *, access_token=None):
         assert access_token == "access-token"
@@ -104,19 +107,16 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
 
     binding._verify_id_token = _verify_id_token
 
-    result = binding.exchange_code(object(), "auth-code")
+    try:
+        result = binding.exchange_code(object(), "auth-code")
+    finally:
+        monkeypatch.undo()
 
     assert result["claims"]["sub"] == "access-sub"
     assert result["profile_claims"]["email"] == "user@example.com"
 
 
 def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
-    oauth = SimpleNamespace(
-        exchange_authorization_code=lambda **kwargs: {
-            "access_token": "access-token",
-            "id_token": "id-token",
-        }
-    )
     auth_client = SimpleNamespace(
         verify_token=lambda token: (
             {"sub": "access-sub", "username": "atlas-user"}
@@ -133,10 +133,19 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
             user_pool_id="pool-id",
         ),
         auth=auth_client,
-        oauth=oauth,
         jwks=SimpleNamespace(),
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
+    )
 
     def _verify_id_token(token, *, access_token=None):
         assert access_token == "access-token"
@@ -152,19 +161,16 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
         else pytest.fail("expected id token fallback decode")
     )
 
-    result = binding.exchange_code(object(), "auth-code")
+    try:
+        result = binding.exchange_code(object(), "auth-code")
+    finally:
+        monkeypatch.undo()
 
     assert result["claims"]["sub"] == "access-sub"
     assert result["profile_claims"]["email"] == "fallback@example.com"
 
 
 def test_exchange_code_continues_when_id_token_cannot_be_decoded():
-    oauth = SimpleNamespace(
-        exchange_authorization_code=lambda **kwargs: {
-            "access_token": "access-token",
-            "id_token": "id-token",
-        }
-    )
     auth_client = SimpleNamespace(
         verify_token=lambda token: (
             {"sub": "access-sub", "username": "atlas-user"}
@@ -181,10 +187,19 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
             user_pool_id="pool-id",
         ),
         auth=auth_client,
-        oauth=oauth,
         jwks=SimpleNamespace(),
     )
     binding.redirect_uri = lambda request: "https://localhost:8118/auth/callback"
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
+    )
 
     def _verify_id_token(token, *, access_token=None):
         assert access_token == "access-token"
@@ -195,7 +210,10 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
         ValueError("payload failed")
     )
 
-    result = binding.exchange_code(object(), "auth-code")
+    try:
+        result = binding.exchange_code(object(), "auth-code")
+    finally:
+        monkeypatch.undo()
 
     assert result["claims"]["sub"] == "access-sub"
     assert result["profile_claims"] == {}
@@ -255,7 +273,6 @@ def test_redirect_and_logout_uris_prefer_daycog_contract_urls():
             logout_url="https://0.0.0.0:8118/login",
         ),
         auth=SimpleNamespace(),
-        oauth=SimpleNamespace(),
         jwks=SimpleNamespace(),
     )
 
@@ -280,7 +297,6 @@ def test_build_logout_url_uses_callback_uri_for_managed_login(monkeypatch):
             logout_url="https://0.0.0.0:8118/login",
         ),
         auth=SimpleNamespace(),
-        oauth=SimpleNamespace(),
         jwks=SimpleNamespace(),
     )
 
@@ -289,8 +305,7 @@ def test_build_logout_url_uses_callback_uri_for_managed_login(monkeypatch):
     assert url == "https://example.com/logout"
     assert captured["domain"] == "example.com"
     assert captured["client_id"] == "client-id"
-    assert captured["redirect_uri"] == "https://localhost:8118/auth/callback"
-    assert "logout_uri" not in captured
+    assert captured["logout_uri"] == "https://localhost:8118/login"
 
 
 def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypatch):
@@ -372,8 +387,7 @@ def test_verify_id_token_passes_paired_access_token_to_jose_decode(monkeypatch):
             region="us-west-2",
             user_pool_id="pool-id",
         ),
-        auth=SimpleNamespace(_jwks_cache=jwks_cache),
-        oauth=SimpleNamespace(),
+        auth=SimpleNamespace(cache=jwks_cache),
         jwks=SimpleNamespace(
             JWKSCache=lambda region, pool_id: pytest.fail("unexpected JWKS cache init")
         ),
@@ -391,7 +405,6 @@ def test_decode_id_token_unverified_disables_at_hash_verification(monkeypatch):
         settings=SimpleNamespace(),
         config=SimpleNamespace(),
         auth=SimpleNamespace(),
-        oauth=SimpleNamespace(),
         jwks=SimpleNamespace(),
     )
 

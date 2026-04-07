@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -87,11 +88,13 @@ def _make_cognito_app(
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
     )
     monkeypatch.setattr(
-        "daylily_cognito.web_session.exchange_authorization_code",
-        lambda **kwargs: {
-            "access_token": "access-token",
-            "id_token": "id-token",
-        },
+        "daylily_auth_cognito.browser.session.exchange_authorization_code_async",
+        AsyncMock(
+            return_value={
+                "access_token": "access-token",
+                "id_token": "id-token",
+            }
+        ),
     )
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     return create_app(auth="cognito", client=_seed_client(tmp_path, monkeypatch))
@@ -370,7 +373,7 @@ def test_cognito_session_expired_after_restart_redirects_to_error(tmp_path, monk
             server_instance_id="new-server-instance",
         )
         app.state.web_session_config = new_config
-        app.state.__dict__["_daylily_cognito_web_session_config"] = new_config
+        app.state.__dict__["_daylily_auth_cognito_web_session_config"] = new_config
         response = test_client.get("/printers", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "/auth/error?reason=session_expired"
