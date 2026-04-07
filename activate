@@ -33,10 +33,9 @@ _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
-_ZDAY_WORKSPACE_ROOT="$(cd "${ZEBRA_DAY_PROJECT_ROOT}/../.." && pwd)"
-_ZDAY_DAYLILY_TAPDB_ROOT="${_ZDAY_WORKSPACE_ROOT}/daylily/daylily-tapdb"
-_ZDAY_DAYLILY_AUTH_COGNITO_ROOT="${_ZDAY_WORKSPACE_ROOT}/daylily-auth-cognito"
 _ZDAY_CLI_CORE_YO_VERSION="2.0.0"
+_ZDAY_DAYLILY_TAPDB_VERSION="5.0.4"
+_ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.0.2"
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
@@ -163,30 +162,20 @@ _zday_distribution_version_is() {
     "${_ZDAY_PYTHON:-python}" -c "from importlib.metadata import version; import sys; sys.exit(0 if version('${dist_name}') == '${expected}' else 1)" >/dev/null 2>&1
 }
 
-_zday_ensure_editable_repo() {
+_zday_ensure_published_distribution() {
     local label="$1"
     local module_name="$2"
-    local repo_root="$3"
-    local dist_name="$4"
-    if [[ -z "$repo_root" ]] || [[ ! -d "$repo_root" ]]; then
-        echo -e "  ${_YELLOW}✗${_NC} Missing local ${label} checkout: ${repo_root}"
-        return 1
-    fi
-    if _zday_distribution_is_editable_from_repo "$dist_name" "$repo_root"; then
-        echo -e "  ${_GREEN}✓${_NC} Using local ${label} checkout: ${repo_root}"
-        return 0
-    fi
-    echo -e "  ${_CYAN}→${_NC} Installing local ${label} checkout..."
-    if ! "${_ZDAY_PYTHON:-python}" -m pip install -e "$repo_root" -q; then
-        echo -e "  ${_YELLOW}✗${_NC} Failed to install local ${label} checkout from ${repo_root}"
-        return 1
-    fi
-    if ! _zday_distribution_is_editable_from_repo "$dist_name" "$repo_root"; then
-        echo -e "  ${_YELLOW}✗${_NC} ${label} is not installed editable from ${repo_root}"
-        return 1
+    local dist_name="$3"
+    local expected_version="$4"
+    if ! _zday_distribution_version_is "$dist_name" "$expected_version"; then
+        echo -e "  ${_CYAN}→${_NC} Installing published ${label} ${expected_version}..."
+        if ! "${_ZDAY_PYTHON:-python}" -m pip install "${dist_name}==${expected_version}" -q; then
+            echo -e "  ${_YELLOW}✗${_NC} Failed to install published ${label} ${expected_version}"
+            return 1
+        fi
     fi
     _zday_require_python_import "$module_name" "$dist_name" || return 1
-    echo -e "  ${_GREEN}✓${_NC} Using local ${label} checkout: ${repo_root}"
+    echo -e "  ${_GREEN}✓${_NC} Published ${label} ${expected_version} installed."
 }
 
 if [[ "$#" -ne 1 ]]; then
@@ -256,18 +245,18 @@ _zday_ensure_postgres_runtime || {
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
 "${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
 
-if ! _zday_ensure_editable_repo \
+if ! _zday_ensure_published_distribution \
     "daylily-tapdb" \
     "daylily_tapdb" \
-    "${_ZDAY_DAYLILY_TAPDB_ROOT}" \
-    "daylily-tapdb"; then
+    "daylily-tapdb" \
+    "${_ZDAY_DAYLILY_TAPDB_VERSION}"; then
     return 1
 fi
-if ! _zday_ensure_editable_repo \
+if ! _zday_ensure_published_distribution \
     "daylily-auth-cognito" \
     "daylily_auth_cognito" \
-    "${_ZDAY_DAYLILY_AUTH_COGNITO_ROOT}" \
-    "daylily-auth-cognito"; then
+    "daylily-auth-cognito" \
+    "${_ZDAY_DAYLILY_AUTH_COGNITO_VERSION}"; then
     return 1
 fi
 if ! _zday_distribution_version_is "cli-core-yo" "${_ZDAY_CLI_CORE_YO_VERSION}"; then
