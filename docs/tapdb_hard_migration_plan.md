@@ -74,9 +74,9 @@ Deliverables:
 - Add zebra_day-native management groups:
   - `zday gui ...`
   - `zday logs ...`
-  - `zday printers ...`
+  - `zday printer ...`
   - `zday users ...`
-- Add a root/global `--no-auth` option on the CLI runtime so `zday --no-auth ...` and `zday gui start --no-auth` disable web/API auth for that invocation.
+- Add a root/global `--no-auth` option on the CLI runtime so `zday --no-auth ...` and `zday --no-auth gui start ...` disable web/API auth for that invocation.
 - Keep default auth mode as Cognito in config and startup validation; `--no-auth` is an explicit runtime override, not the default.
 
 ### Agent 4: Web/API/UI Contract Rewrite

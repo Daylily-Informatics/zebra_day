@@ -21,7 +21,7 @@ Default mode is Cognito session auth backed by the active `daycog` context.
 
 - HTML routes redirect to `/auth/login` when auth is enabled
 - machine clients may use `Bearer INTERNAL_API_KEY`
-- `zday --no-auth ...` or `zday gui start --no-auth` disables auth for that server process
+- `zday --no-auth ...` disables auth for that invocation, including `zday --no-auth gui start`
 
 The dedicated `/auth/error` page is used for failed callbacks and authorization failures. It does not reuse the dashboard shell.
 

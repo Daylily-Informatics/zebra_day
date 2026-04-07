@@ -9,6 +9,7 @@ import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day.cli._registry_v2 import REQUIRED_JSON, REQUIRED_MUTATING, register_group_commands
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.auth import load_daycog_contract
 
@@ -31,6 +32,7 @@ def _cognito_client():
 
 @users_app.command("status")
 def status() -> None:
+    """Show the resolved Zebra auth mode and group-role mapping."""
     settings = ZebraDaySettings.from_context()
     payload = {
         "auth_mode": settings.auth_mode,
@@ -47,6 +49,7 @@ def status() -> None:
 
 @users_app.command("list-groups")
 def list_groups() -> None:
+    """List available Cognito groups from the bound user pool."""
     client, contract = _cognito_client()
     response = client.list_groups(UserPoolId=contract["user_pool_id"])
     groups = sorted(group["GroupName"] for group in response.get("Groups", []))
@@ -68,6 +71,7 @@ def _add_user_to_group(username: str, group_name: str) -> None:
 
 @users_app.command("grant-admin")
 def grant_admin(username: str = typer.Argument(..., help="Cognito username or email")) -> None:
+    """Grant zebra-day admin groups to one Cognito user."""
     for group_name in ("platform-admin", "zebra-day-admin"):
         _add_user_to_group(username, group_name)
     ccyo_out.success(f"Granted admin groups to {username}")
@@ -75,10 +79,21 @@ def grant_admin(username: str = typer.Argument(..., help="Cognito username or em
 
 @users_app.command("grant-operator")
 def grant_operator(username: str = typer.Argument(..., help="Cognito username or email")) -> None:
+    """Grant the zebra-day operator group to one Cognito user."""
     _add_user_to_group(username, "zebra-day-operator")
     ccyo_out.success(f"Granted operator group to {username}")
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, users_app, "users", "Cognito user/group management")
+    _ = spec
+    register_group_commands(
+        registry,
+        "users",
+        "Cognito user/group management",
+        [
+            ("status", status, REQUIRED_JSON),
+            ("list-groups", list_groups, REQUIRED_JSON),
+            ("grant-admin", grant_admin, REQUIRED_MUTATING),
+            ("grant-operator", grant_operator, REQUIRED_MUTATING),
+        ],
+    )

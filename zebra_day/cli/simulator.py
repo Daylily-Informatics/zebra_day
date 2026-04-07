@@ -9,6 +9,13 @@ from typing import TYPE_CHECKING
 import typer
 from cli_core_yo import ccyo_out
 
+from zebra_day.cli._registry_v2 import (
+    REQUIRED,
+    REQUIRED_MUTATING,
+    REQUIRED_MUTATING_LONG_RUNNING,
+    register_group_commands,
+)
+
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
     from cli_core_yo.spec import CliSpec
@@ -124,4 +131,14 @@ def sim_list() -> None:
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
     """cli-core-yo plugin: register the simulator command group."""
-    registry.add_typer_app(None, sim_app, "simulator", "Mock Zebra printer simulator")
+    _ = spec
+    register_group_commands(
+        registry,
+        "simulator",
+        "Mock Zebra printer simulator",
+        [
+            ("start", sim_start, REQUIRED_MUTATING_LONG_RUNNING),
+            ("stop", sim_stop, REQUIRED_MUTATING),
+            ("list", sim_list, REQUIRED),
+        ],
+    )

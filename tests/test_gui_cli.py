@@ -17,6 +17,8 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
+    monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / deployment))
 
 
 def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):

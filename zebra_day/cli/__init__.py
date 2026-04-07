@@ -4,14 +4,26 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Any, cast
 
-import typer
-from cli_core_yo.app import create_app
-from cli_core_yo.spec import CliSpec, ConfigSpec, EnvSpec, PluginSpec, XdgSpec
+from cli_core_yo.app import create_app, run
+from cli_core_yo.spec import (
+    BackendDetectSpec,
+    BackendValidationSpec,
+    CliSpec,
+    ConfigSpec,
+    ContextOptionSpec,
+    EnvSpec,
+    ExecutionBackendSpec,
+    InvocationContextSpec,
+    PluginSpec,
+    PolicySpec,
+    PrereqSpec,
+    RuntimeSpec,
+    XdgSpec,
+)
 
 from zebra_day import paths as xdg
-from zebra_day.optional_deps import import_from_sibling
+from zebra_day.cli._registry_v2 import ZEBRA_RUNTIME_TAG
 from zebra_day.settings import (
     ZebraDaySettings,
     build_default_config_template,
@@ -63,6 +75,7 @@ spec = CliSpec(
     xdg=XdgSpec(
         app_dir_name=xdg.get_app_dir_name(),
     ),
+    policy=PolicySpec(),
     config=ConfigSpec(
         xdg_relative_path=xdg.get_config_filename(),
         template_bytes=build_default_config_template(),
@@ -73,6 +86,91 @@ spec = CliSpec(
         project_root_env_var="ZEBRA_DAY_PROJECT_ROOT",
         activate_script_name="activate <deploy-name>",
         deactivate_script_name="zebra_day_deactivate",
+        preferred_backend="zebra-day-conda",
+    ),
+    runtime=RuntimeSpec(
+        supported_backends=[
+            ExecutionBackendSpec(
+                name="zebra-day-conda",
+                kind="conda",
+                entry_guidance="source ./activate <deploy-name>",
+                detect=BackendDetectSpec(env_vars=("CONDA_PREFIX",)),
+                validation=BackendValidationSpec(env_vars=("CONDA_PREFIX",)),
+            )
+        ],
+        default_backend="zebra-day-conda",
+        guard_mode="enforced",
+        prereqs=[
+            PrereqSpec(
+                key="zebra-day-conda-active-env",
+                kind="env_var",
+                value="CONDA_DEFAULT_ENV",
+                help="Activate zebra_day with source ./activate <deploy-name>.",
+                applies_to_backends={"zebra-day-conda"},
+                tags={ZEBRA_RUNTIME_TAG},
+                success_message="Deployment-scoped conda environment is active.",
+                failure_message=(
+                    "zebra_day CLI requires an active deployment-scoped conda environment. "
+                    "Run `source ./activate <deploy-name>`."
+                ),
+            ),
+            PrereqSpec(
+                key="zebra-day-conda-env-name",
+                kind="command_probe",
+                value=(
+                    sys.executable,
+                    "-c",
+                    "import os, sys; "
+                    "deploy = os.environ.get('ZEBRA_DAY_DEPLOYMENT_CODE', '').strip() or 'local'; "
+                    "env = os.environ.get('CONDA_DEFAULT_ENV', '').strip(); "
+                    "sys.exit(0 if env == f'ZEBRA_DAY-{deploy}' else 1)",
+                ),
+                help="Use the deployment-scoped conda env created by source ./activate <deploy-name>.",
+                applies_to_backends={"zebra-day-conda"},
+                tags={ZEBRA_RUNTIME_TAG},
+                success_message="Deployment-scoped conda environment name matches the deployment.",
+                failure_message=(
+                    "zebra_day CLI requires CONDA_DEFAULT_ENV to match "
+                    "`ZEBRA_DAY-<deploy-name>`. Run `source ./activate <deploy-name>`."
+                ),
+            ),
+            PrereqSpec(
+                key="zebra-day-daylily-tapdb",
+                kind="python_import",
+                value="daylily_tapdb",
+                help="Install daylily-tapdb into the active zebra_day environment.",
+                applies_to_backends={"zebra-day-conda"},
+                tags={ZEBRA_RUNTIME_TAG},
+                success_message="Dependency available: daylily-tapdb",
+                failure_message=(
+                    "Missing dependency: daylily-tapdb. Re-run `source ./activate <deploy-name>`."
+                ),
+            ),
+            PrereqSpec(
+                key="zebra-day-daylily-auth-cognito",
+                kind="python_import",
+                value="daylily_auth_cognito",
+                help="Install daylily-auth-cognito into the active zebra_day environment.",
+                applies_to_backends={"zebra-day-conda"},
+                tags={ZEBRA_RUNTIME_TAG},
+                success_message="Dependency available: daylily-auth-cognito",
+                failure_message=(
+                    "Missing dependency: daylily-auth-cognito. "
+                    "Re-run `source ./activate <deploy-name>`."
+                ),
+            ),
+        ],
+    ),
+    context=InvocationContextSpec(
+        options=[
+            ContextOptionSpec(
+                name="no_auth",
+                option_flags=("--no-auth",),
+                value_type="bool",
+                default=False,
+                help="Disable web and API auth for this invocation.",
+            )
+        ]
     ),
     plugins=PluginSpec(
         explicit=[
@@ -91,100 +189,11 @@ spec = CliSpec(
 )
 
 app = create_app(spec)
-
-_CONDA_ENV_CHECK_EXEMPT_COMMANDS = frozenset({"version", "info", "env", "help", "config"})
-
-
-def _strip_global_flags(args: list[str]) -> list[str]:
-    filtered: list[str] = []
-    skip_next = False
-    for index, arg in enumerate(args):
-        if skip_next:
-            skip_next = False
-            continue
-        if arg in {"--json", "-j", "--no-auth"}:
-            continue
-        if arg in {"--help", "-h"}:
-            filtered.append(arg)
-            continue
-        if arg == "--install-completion" and index + 1 < len(args):
-            filtered.append(arg)
-            skip_next = True
-            continue
-        filtered.append(arg)
-    return filtered
-
-
-def _command_requires_conda_env_check(args: list[str]) -> bool:
-    filtered = _strip_global_flags(args)
-    if not filtered or "--help" in filtered or "-h" in filtered:
-        return False
-    for arg in filtered:
-        if not arg or arg.startswith("-"):
-            continue
-        return arg not in _CONDA_ENV_CHECK_EXEMPT_COMMANDS
-    return False
-
-
-def _enforce_conda_env_contract(args: list[str]) -> None:
-    if not _command_requires_conda_env_check(args):
-        return
-
-    active_env = os.environ.get("CONDA_DEFAULT_ENV", "").strip()
-    deployment_code = xdg.get_deployment_code()
-    expected_env = f"ZEBRA_DAY-{deployment_code}"
-    if not active_env:
-        raise SystemExit(
-            "zebra_day requires an active deployment-scoped conda environment. "
-            f"Activate '{expected_env}' with 'source ./activate {deployment_code}'."
-        )
-    if active_env != expected_env:
-        raise SystemExit(
-            "zebra_day requires the deployment-scoped conda environment to match the active "
-            f"deployment. Expected CONDA_DEFAULT_ENV='{expected_env}', got '{active_env}'."
-        )
-
-
-def _ensure_tapdb_dependency() -> None:
-    try:
-        import_from_sibling("daylily_tapdb", "daylily-tapdb")
-    except ImportError as exc:
-        raise SystemExit(
-            "zebra_day CLI startup failed because daylily-tapdb is unavailable. "
-            "Install the supported package before running zday."
-        ) from exc
-
-
-@app.callback()
-def _root_callback(
-    ctx: typer.Context,
-    config: str | None = typer.Option(
-        None,
-        "--config",
-        metavar="PATH",
-        help="Use this config file for this invocation only.",
-    ),
-    json_flag: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
-    no_auth: bool = typer.Option(
-        False,
-        "--no-auth",
-        help="Disable web and API auth for this invocation",
-    ),
-) -> None:
-    del config
-    del json_flag
-    if no_auth:
-        os.environ["ZEBRA_DAY_AUTH_MODE"] = "none"
-    cli_app = cast(Any, app)
-    ctx.meta["cli_core_yo_spec"] = cli_app._cli_core_yo_spec
-    ctx.meta["cli_core_yo_xdg_paths"] = cli_app._cli_core_yo_xdg_paths
-    ctx.meta["cli_core_yo_default_config_path"] = cli_app._cli_core_yo_config_path
+cli = app
 
 
 def main() -> None:
-    _ensure_tapdb_dependency()
-    _enforce_conda_env_contract(sys.argv[1:])
-    raise SystemExit(app())
+    raise SystemExit(run(spec))
 
 
 if __name__ == "__main__":

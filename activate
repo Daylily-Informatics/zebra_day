@@ -33,6 +33,10 @@ _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
+_ZDAY_WORKSPACE_ROOT="$(cd "${ZEBRA_DAY_PROJECT_ROOT}/../.." && pwd)"
+_ZDAY_DAYLILY_TAPDB_ROOT="${_ZDAY_WORKSPACE_ROOT}/daylily/daylily-tapdb"
+_ZDAY_DAYLILY_AUTH_COGNITO_ROOT="${_ZDAY_WORKSPACE_ROOT}/daylily-auth-cognito"
+_ZDAY_CLI_CORE_YO_VERSION="2.0.0"
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
@@ -120,6 +124,71 @@ _zday_ensure_postgres_runtime() {
     command -v initdb >/dev/null 2>&1 && command -v pg_ctl >/dev/null 2>&1
 }
 
+_zday_require_python_import() {
+    local module_name="$1"
+    local package_name="$2"
+    if "${_ZDAY_PYTHON:-python}" -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('${module_name}') else 1)" >/dev/null 2>&1; then
+        return 0
+    fi
+    echo -e "  ${_YELLOW}✗${_NC} Missing Python package: ${package_name}"
+    return 1
+}
+
+_zday_distribution_is_editable_from_repo() {
+    local dist_name="$1"
+    local repo_root="$2"
+    local pip_show_output=""
+    local editable_project_location=""
+    pip_show_output="$("${_ZDAY_PYTHON:-python}" -m pip show "$dist_name" 2>/dev/null || true)"
+    if [[ -z "$pip_show_output" ]]; then
+        return 2
+    fi
+    editable_project_location="$(printf '%s\n' "$pip_show_output" | awk -F': ' '$1 == "Editable project location" { print $2; exit }')"
+    if [[ -z "$editable_project_location" ]]; then
+        return 2
+    fi
+    editable_project_location="$(cd "$editable_project_location" 2>/dev/null && pwd)"
+    if [[ -z "$editable_project_location" ]]; then
+        return 1
+    fi
+    if [[ "$editable_project_location" != "$repo_root" ]]; then
+        return 1
+    fi
+    return 0
+}
+
+_zday_distribution_version_is() {
+    local dist_name="$1"
+    local expected="$2"
+    "${_ZDAY_PYTHON:-python}" -c "from importlib.metadata import version; import sys; sys.exit(0 if version('${dist_name}') == '${expected}' else 1)" >/dev/null 2>&1
+}
+
+_zday_ensure_editable_repo() {
+    local label="$1"
+    local module_name="$2"
+    local repo_root="$3"
+    local dist_name="$4"
+    if [[ -z "$repo_root" ]] || [[ ! -d "$repo_root" ]]; then
+        echo -e "  ${_YELLOW}✗${_NC} Missing local ${label} checkout: ${repo_root}"
+        return 1
+    fi
+    if _zday_distribution_is_editable_from_repo "$dist_name" "$repo_root"; then
+        echo -e "  ${_GREEN}✓${_NC} Using local ${label} checkout: ${repo_root}"
+        return 0
+    fi
+    echo -e "  ${_CYAN}→${_NC} Installing local ${label} checkout..."
+    if ! "${_ZDAY_PYTHON:-python}" -m pip install -e "$repo_root" -q; then
+        echo -e "  ${_YELLOW}✗${_NC} Failed to install local ${label} checkout from ${repo_root}"
+        return 1
+    fi
+    if ! _zday_distribution_is_editable_from_repo "$dist_name" "$repo_root"; then
+        echo -e "  ${_YELLOW}✗${_NC} ${label} is not installed editable from ${repo_root}"
+        return 1
+    fi
+    _zday_require_python_import "$module_name" "$dist_name" || return 1
+    echo -e "  ${_GREEN}✓${_NC} Using local ${label} checkout: ${repo_root}"
+}
+
 if [[ "$#" -ne 1 ]]; then
     echo -e "  ${_YELLOW}✗${_NC} zebra_day activation requires exactly one deploy-name."
     echo "Usage: source ./activate <deploy-name>"
@@ -186,6 +255,26 @@ _zday_ensure_postgres_runtime || {
 
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
 "${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
+
+if ! _zday_ensure_editable_repo \
+    "daylily-tapdb" \
+    "daylily_tapdb" \
+    "${_ZDAY_DAYLILY_TAPDB_ROOT}" \
+    "daylily-tapdb"; then
+    return 1
+fi
+if ! _zday_ensure_editable_repo \
+    "daylily-auth-cognito" \
+    "daylily_auth_cognito" \
+    "${_ZDAY_DAYLILY_AUTH_COGNITO_ROOT}" \
+    "daylily-auth-cognito"; then
+    return 1
+fi
+if ! _zday_distribution_version_is "cli-core-yo" "${_ZDAY_CLI_CORE_YO_VERSION}"; then
+    echo -e "  ${_CYAN}→${_NC} Installing published cli-core-yo ${_ZDAY_CLI_CORE_YO_VERSION}..."
+    "${_ZDAY_PYTHON}" -m pip install "cli-core-yo==${_ZDAY_CLI_CORE_YO_VERSION}" -q || return 1
+fi
+_zday_require_python_import "cli_core_yo" "cli-core-yo" || return 1
 
 mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
 mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1

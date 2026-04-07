@@ -9,6 +9,7 @@ import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day.cli._registry_v2 import EXEMPT, EXEMPT_JSON, EXEMPT_MUTATING_JSON
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings, build_default_config_template
 from zebra_day.web.app import create_app
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
 
 
 def _status() -> None:
+    """Show zebra_day runtime, TapDB, and GUI status."""
     settings = ZebraDaySettings.from_context()
     pid_file = settings.state_dir / "gui.pid"
     gui_data: dict[str, Any] = {"running": False, "pid": None}
@@ -109,6 +111,7 @@ def _bootstrap(
     lab: str = typer.Option("default", "--lab", help="Lab name for discovered printers"),
     skip_scan: bool = typer.Option(False, "--skip-scan", help="Do not scan for printers"),
 ) -> None:
+    """Create a deployment config and optionally scan for printers."""
     settings = ZebraDaySettings.from_context()
     config_created = False
     if not settings.config_path.exists():
@@ -166,6 +169,8 @@ def _bootstrap(
 
 
 def _routes() -> None:
+    """List the registered zebra_day web routes."""
+
     class _RouteClient:
         def list_labs(self):
             return []
@@ -199,14 +204,25 @@ def _routes() -> None:
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
+    _ = spec
     registry.add_command(
-        "config", "status", _status, "Show zebra_day runtime, TapDB, and GUI status"
+        "config",
+        "status",
+        _status,
+        help_text="Show zebra_day runtime, TapDB, and GUI status",
+        policy=EXEMPT_JSON,
     )
     registry.add_command(
         "config",
         "bootstrap",
         _bootstrap,
-        "Create deployment config and optionally scan for printers",
+        help_text="Create deployment config and optionally scan for printers",
+        policy=EXEMPT_MUTATING_JSON,
     )
-    registry.add_command("config", "routes", _routes, "List registered web routes")
+    registry.add_command(
+        "config",
+        "routes",
+        _routes,
+        help_text="List registered web routes",
+        policy=EXEMPT,
+    )

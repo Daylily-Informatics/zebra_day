@@ -9,6 +9,12 @@ import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day.cli._registry_v2 import (
+    REQUIRED_JSON,
+    REQUIRED_MUTATING,
+    REQUIRED_MUTATING_INTERACTIVE,
+    register_group_commands,
+)
 from zebra_day.client import ZebraDayClient
 
 if TYPE_CHECKING:
@@ -27,6 +33,7 @@ def _read_template_source(content: str) -> str:
 
 @template_app.command("list")
 def list_templates() -> None:
+    """List available ZPL templates."""
     client = ZebraDayClient.from_context()
     names = client.list_templates()
     if get_context().json_mode:
@@ -41,6 +48,7 @@ def list_templates() -> None:
 
 @template_app.command("show")
 def show(template_name: str = typer.Argument(..., help="Template name")) -> None:
+    """Print the raw ZPL for one template."""
     client = ZebraDayClient.from_context()
     template = client.get_template(template_name)
     if template is None:
@@ -57,6 +65,7 @@ def save(
     filename: str = typer.Argument(..., help="Template name or filename"),
     content: str = typer.Option(..., "--content", "-c", help="Raw ZPL or path to a .zpl file"),
 ) -> None:
+    """Create or replace a stored ZPL template."""
     client = ZebraDayClient.from_context()
     stem = filename[:-4] if filename.endswith(".zpl") else filename
     if not stem.strip():
@@ -71,6 +80,7 @@ def delete(
     template_name: str = typer.Argument(..., help="Template name"),
     force: bool = typer.Option(False, "--force", help="Skip confirmation"),
 ) -> None:
+    """Delete a stored ZPL template."""
     if not force and not typer.confirm(f"Delete template '{template_name}' from TapDB?"):
         raise typer.Abort()
     client = ZebraDayClient.from_context()
@@ -83,6 +93,7 @@ def preview(
     template_name: str = typer.Argument(..., help="Template name"),
     uid_barcode: str = typer.Option("", "--uid-barcode", help="UID barcode value"),
 ) -> None:
+    """Render a preview for one template."""
     client = ZebraDayClient.from_context()
     _zpl_string, png_url = client.render_label(template=template_name, uid_barcode=uid_barcode)
     if get_context().json_mode:
@@ -92,5 +103,16 @@ def preview(
 
 
 def register(registry: CommandRegistry, spec: CliSpec) -> None:
-    del spec
-    registry.add_typer_app(None, template_app, "template", "Template operations")
+    _ = spec
+    register_group_commands(
+        registry,
+        "template",
+        "Template operations",
+        [
+            ("list", list_templates, REQUIRED_JSON),
+            ("show", show, REQUIRED_JSON),
+            ("save", save, REQUIRED_MUTATING),
+            ("delete", delete, REQUIRED_MUTATING_INTERACTIVE),
+            ("preview", preview, REQUIRED_JSON),
+        ],
+    )
