@@ -102,12 +102,14 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(env_module.ccyo_out, "print_text", lambda value: panels.append(value))
 
     env_module.deactivate()
-    inactive_out = capsys.readouterr().out
+    inactive_capture = capsys.readouterr()
+    inactive_out = inactive_capture.out + inactive_capture.err
     assert "environment is not active" in inactive_out
 
     with pytest.raises(Exit):
         env_module.activate()
-    activate_out = capsys.readouterr().out
+    activate_capture = capsys.readouterr()
+    activate_out = activate_capture.out + activate_capture.err
     assert "Could not find zebra_day project root" in activate_out
 
     monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
@@ -119,7 +121,8 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
 
     with pytest.raises(Exit):
         env_module.reset()
-    reset_out = capsys.readouterr().out
+    reset_capture = capsys.readouterr()
+    reset_out = reset_capture.out + reset_capture.err
     assert "Could not find zebra_day project root" in reset_out
 
 
@@ -187,7 +190,8 @@ def test_cognito_commands_cover_status_bind_import_validate_and_passthrough(
 
     with pytest.raises(Exit):
         cognito_module.daycog_passthrough(SimpleNamespace(args=[]))
-    missing_out = capsys.readouterr().out
+    missing_capture = capsys.readouterr()
+    missing_out = missing_capture.out + missing_capture.err
     assert "Missing daycog arguments" in missing_out
 
     monkeypatch.setattr(
@@ -206,7 +210,8 @@ def test_cognito_commands_cover_status_bind_import_validate_and_passthrough(
     )
     with pytest.raises(Exit):
         cognito_module.daycog_passthrough(SimpleNamespace(args=["broken"]))
-    failure_out = capsys.readouterr().out
+    failure_capture = capsys.readouterr()
+    failure_out = failure_capture.out + failure_capture.err
     assert "boom" in failure_out
 
 
@@ -258,7 +263,8 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
     monkeypatch.setattr(printer_module, "get_context", lambda: SimpleNamespace(json_mode=False))
 
     printer_module.list_printers(lab="missing", live=False, timeout=2.0)
-    empty_out = capsys.readouterr().out
+    empty_capture = capsys.readouterr()
+    empty_out = empty_capture.out + empty_capture.err
     assert "No printers found" in empty_out
 
     printer_module.list_printers(lab="default", live=True, timeout=2.0)
@@ -312,7 +318,8 @@ def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, 
     monkeypatch.setattr(template_module, "get_context", lambda: SimpleNamespace(json_mode=False))
 
     template_module.list_templates()
-    empty_out = capsys.readouterr().out
+    empty_capture = capsys.readouterr()
+    empty_out = empty_capture.out + empty_capture.err
     assert "No templates found" in empty_out
 
     template_file = tmp_path / "tube.zpl"
@@ -332,7 +339,8 @@ def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, 
 
     with pytest.raises(Exit):
         template_module.show(template_name="missing")
-    missing_out = capsys.readouterr().out
+    missing_capture = capsys.readouterr()
+    missing_out = missing_capture.out + missing_capture.err
     assert "Template not found: missing" in missing_out
 
     monkeypatch.setattr(template_module, "get_context", lambda: SimpleNamespace(json_mode=True))
@@ -383,7 +391,8 @@ def test_logs_commands_cover_present_and_missing_logs(monkeypatch, tmp_path, cap
     )
     with pytest.raises(Exit):
         logs_module.latest()
-    missing_out = capsys.readouterr().out
+    missing_capture = capsys.readouterr()
+    missing_out = missing_capture.out + missing_capture.err
     assert "No GUI logs found" in missing_out
 
 
@@ -458,7 +467,8 @@ def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path
     )
     with pytest.raises(Exit):
         config_extra_module._status()
-    failed_out = capsys.readouterr().out
+    failed_capture = capsys.readouterr()
+    failed_out = failed_capture.out + failed_capture.err
     assert "TapDB unavailable: tapdb offline" in failed_out
 
     monkeypatch.setattr(
@@ -533,7 +543,8 @@ def test_simulator_cli_start_stop_list_and_errors(monkeypatch, tmp_path, capsys)
     assert "Stopped simulator at 127.0.0.1:9100" in stopped_out
 
     simulator_cli_module.sim_stop(host="127.0.0.2", zpl_port=9101, all_printers=False)
-    missing_out = capsys.readouterr().out
+    missing_capture = capsys.readouterr()
+    missing_out = missing_capture.out + missing_capture.err
     assert "No simulator found at 127.0.0.2:9101" in missing_out
 
     simulator_cli_module.sim_stop(all_printers=True)
@@ -559,7 +570,8 @@ def test_simulator_cli_start_stop_list_and_errors(monkeypatch, tmp_path, capsys)
             paused=False,
             foreground=False,
         )
-    runtime_error_out = capsys.readouterr().out
+    runtime_error_capture = capsys.readouterr()
+    runtime_error_out = runtime_error_capture.out + runtime_error_capture.err
     assert "already running" in runtime_error_out
 
     class _OSErrorManager(_Manager):
@@ -581,7 +593,8 @@ def test_simulator_cli_start_stop_list_and_errors(monkeypatch, tmp_path, capsys)
             paused=False,
             foreground=False,
         )
-    os_error_out = capsys.readouterr().out
+    os_error_capture = capsys.readouterr()
+    os_error_out = os_error_capture.out + os_error_capture.err
     assert "Cannot bind" in os_error_out
 
 
