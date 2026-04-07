@@ -2,11 +2,11 @@
 # zebra_day activation entrypoint.
 #
 # Source from the repository root:
-#   source ./activate <deploy-name>
+#   source ./activate [deploy-name] [--debug]
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "Error: this script must be sourced, not executed."
-    echo "Usage: source ./activate <deploy-name>"
+    echo "Usage: source ./activate [deploy-name] [--debug]"
     exit 1
 fi
 
@@ -29,18 +29,39 @@ _GREEN='\033[0;32m'
 _YELLOW='\033[1;33m'
 _BLUE='\033[0;34m'
 _CYAN='\033[0;36m'
+_RED='\033[0;31m'
 _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
+_ZDAY_ENV_MAX_DEPLOY_LEN=24
+_ZDAY_USAGE="Usage: source ./activate [deploy-name] [--debug]"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
 _ZDAY_CLI_CORE_YO_VERSION="2.0.0"
 _ZDAY_DAYLILY_TAPDB_VERSION="5.0.4"
 _ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.0.2"
+_ZDAY_CREATED_ENV=0
+_ZDAY_DEBUG=0
+_ZDAY_FINALIZED=0
+_ZDAY_FAILURE_REASON=""
+_ZDAY_PREVIOUS_CONDA_ENV="${CONDA_DEFAULT_ENV:-}"
 
 _zday_sanitize_deployment_code() {
     local raw_value="$1"
     local sanitized=""
     sanitized="$(printf '%s' "$raw_value" | LC_ALL=C sed -E 's/[^A-Za-z0-9-]+/-/g; s/^-+//; s/-+$//')"
+    if [[ -z "$sanitized" ]]; then
+        sanitized="local"
+    fi
+    printf '%s\n' "$sanitized"
+}
+
+_zday_normalize_default_deploy_name() {
+    local raw_value="$1"
+    local sanitized=""
+    sanitized="$(_zday_sanitize_deployment_code "$raw_value")"
+    sanitized="${sanitized:0:${_ZDAY_ENV_MAX_DEPLOY_LEN}}"
+    sanitized="${sanitized%-}"
+    sanitized="${sanitized#-}"
     if [[ -z "$sanitized" ]]; then
         sanitized="local"
     fi
@@ -53,6 +74,72 @@ _zday_validate_deploy_name() {
         echo -e "  ${_YELLOW}✗${_NC} deploy-name must match ^[A-Za-z0-9-]{2,24}$"
         return 1
     fi
+}
+
+_zday_fail() {
+    _ZDAY_FAILURE_REASON="$1"
+    return 1
+}
+
+_zday_resolve_package_version() {
+    local version_python=""
+    local static_version=""
+    local scm_version=""
+    local git_tag=""
+
+    if command -v python3 >/dev/null 2>&1; then
+        version_python="python3"
+    elif command -v python >/dev/null 2>&1; then
+        version_python="python"
+    fi
+
+    if [[ -n "$version_python" ]]; then
+        static_version="$("$version_python" - "${ZEBRA_DAY_PROJECT_ROOT}/pyproject.toml" <<'PY' 2>/dev/null || true
+import pathlib
+import sys
+
+if sys.version_info < (3, 11):
+    raise SystemExit(0)
+
+import tomllib
+
+pyproject = pathlib.Path(sys.argv[1])
+data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+print(data.get("project", {}).get("version", ""))
+PY
+)"
+        static_version="${static_version##*$'\n'}"
+        if [[ -n "$static_version" ]]; then
+            printf '%s\n' "$static_version"
+            return 0
+        fi
+
+        scm_version="$(
+            cd "${ZEBRA_DAY_PROJECT_ROOT}" &&
+                "$version_python" -m setuptools_scm 2>/dev/null || true
+        )"
+        scm_version="${scm_version##*$'\n'}"
+        if [[ -n "$scm_version" ]]; then
+            printf '%s\n' "$scm_version"
+            return 0
+        fi
+    fi
+
+    if command -v git >/dev/null 2>&1; then
+        git_tag="$(git -C "${ZEBRA_DAY_PROJECT_ROOT}" describe --tags --exact-match --match '[0-9]*' 2>/dev/null || true)"
+        if [[ -n "$git_tag" ]]; then
+            printf '%s\n' "$git_tag"
+            return 0
+        fi
+    fi
+
+    printf '0.0.0\n'
+}
+
+_zday_resolve_default_deploy_name() {
+    local raw_version=""
+    raw_version="$(_zday_resolve_package_version)"
+    _zday_normalize_default_deploy_name "$raw_version"
 }
 
 _zday_config_path() {
@@ -129,31 +216,7 @@ _zday_require_python_import() {
     if "${_ZDAY_PYTHON:-python}" -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('${module_name}') else 1)" >/dev/null 2>&1; then
         return 0
     fi
-    echo -e "  ${_YELLOW}✗${_NC} Missing Python package: ${package_name}"
-    return 1
-}
-
-_zday_distribution_is_editable_from_repo() {
-    local dist_name="$1"
-    local repo_root="$2"
-    local pip_show_output=""
-    local editable_project_location=""
-    pip_show_output="$("${_ZDAY_PYTHON:-python}" -m pip show "$dist_name" 2>/dev/null || true)"
-    if [[ -z "$pip_show_output" ]]; then
-        return 2
-    fi
-    editable_project_location="$(printf '%s\n' "$pip_show_output" | awk -F': ' '$1 == "Editable project location" { print $2; exit }')"
-    if [[ -z "$editable_project_location" ]]; then
-        return 2
-    fi
-    editable_project_location="$(cd "$editable_project_location" 2>/dev/null && pwd)"
-    if [[ -z "$editable_project_location" ]]; then
-        return 1
-    fi
-    if [[ "$editable_project_location" != "$repo_root" ]]; then
-        return 1
-    fi
-    return 0
+    _zday_fail "Missing Python package: ${package_name}"
 }
 
 _zday_distribution_version_is() {
@@ -170,7 +233,7 @@ _zday_ensure_published_distribution() {
     if ! _zday_distribution_version_is "$dist_name" "$expected_version"; then
         echo -e "  ${_CYAN}→${_NC} Installing published ${label} ${expected_version}..."
         if ! "${_ZDAY_PYTHON:-python}" -m pip install "${dist_name}==${expected_version}" -q; then
-            echo -e "  ${_YELLOW}✗${_NC} Failed to install published ${label} ${expected_version}"
+            _zday_fail "Failed to install published ${label} ${expected_version}"
             return 1
         fi
     fi
@@ -178,109 +241,264 @@ _zday_ensure_published_distribution() {
     echo -e "  ${_GREEN}✓${_NC} Published ${label} ${expected_version} installed."
 }
 
-if [[ "$#" -ne 1 ]]; then
-    echo -e "  ${_YELLOW}✗${_NC} zebra_day activation requires exactly one deploy-name."
-    echo "Usage: source ./activate <deploy-name>"
-    return 1
-fi
-
-_zday_deployment_code="$1"
-if ! _zday_validate_deploy_name "${_zday_deployment_code}"; then
-    return 1
-fi
-_zday_deployment_code="$(_zday_sanitize_deployment_code "${_zday_deployment_code}")"
-export ZEBRA_DAY_DEPLOYMENT_CODE="${_zday_deployment_code}"
-export DEPLOYMENT_CODE="${_zday_deployment_code}"
-export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
-export ZEBRA_DAY_PROJECT_ROOT
-export ZDAY_PROJECT_ROOT="${ZEBRA_DAY_PROJECT_ROOT}"
-export ZEBRA_DAY_ACTIVE=1
-_ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
-_ZDAY_TAPDB_CLIENT_ID="zebra-day"
-_ZDAY_TAPDB_DATABASE_NAME="zebra-day-${_zday_deployment_code}"
-_ZDAY_TAPDB_ENV="dev"
-_ZDAY_TAPDB_CONFIG_PATH="$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")"
-export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
-
-echo -e "${_BLUE}Activating zebra_day environment...${_NC}"
-
-if ! command -v conda >/dev/null 2>&1; then
-    echo -e "  ${_YELLOW}✗${_NC} conda is required for zebra_day activation."
-    return 1
-fi
-
-source "$(conda info --base)/etc/profile.d/conda.sh" 2>/dev/null || true
-
-if conda info --envs | grep -q "${_ZDAY_ENV_NAME}"; then
-    echo -e "  ${_GREEN}✓${_NC} Activating conda environment: ${_ZDAY_ENV_NAME}"
-else
-    echo -e "  ${_CYAN}→${_NC} Creating conda environment: ${_ZDAY_ENV_NAME}"
-    conda env create -n "${_ZDAY_ENV_NAME}" -f "${_ZDAY_ENV_FILE}" || return 1
-fi
-
-conda activate "${_ZDAY_ENV_NAME}" || return 1
-
-if [[ "${CONDA_DEFAULT_ENV:-}" != "${_ZDAY_ENV_NAME}" ]]; then
-    echo -e "  ${_YELLOW}✗${_NC} Failed to activate ${_ZDAY_ENV_NAME}"
-    return 1
-fi
-
-if [[ -n "${CONDA_PREFIX:-}" ]] && [[ -d "${CONDA_PREFIX}/bin" ]]; then
-    export PATH="${CONDA_PREFIX}/bin:$PATH"
-    _ZDAY_PYTHON="${CONDA_PREFIX}/bin/python"
-else
-    _ZDAY_PYTHON="python"
-fi
-
-if [[ ! -x "${_ZDAY_PYTHON}" ]]; then
-    echo -e "  ${_YELLOW}✗${_NC} Missing python interpreter in ${CONDA_PREFIX:-<unset>}"
-    return 1
-fi
-
-_zday_ensure_postgres_runtime || {
-    echo -e "  ${_YELLOW}✗${_NC} PostgreSQL runtime tools are required (initdb, pg_ctl)"
-    return 1
+_zday_emit_failure_banner() {
+    local cleanup_message="$1"
+    local restore_message="$2"
+    echo
+    echo -e "${_RED}╔══════════════════════════════════════════════════════════════╗${_NC}"
+    echo -e "${_RED}║ zebra_day activation failed                                 ║${_NC}"
+    echo -e "${_RED}╚══════════════════════════════════════════════════════════════╝${_NC}"
+    if [[ -n "${_ZDAY_FAILURE_REASON:-}" ]]; then
+        echo -e "  ${_YELLOW}Reason:${_NC} ${_ZDAY_FAILURE_REASON}"
+    fi
+    if [[ -n "${_ZDAY_ENV_NAME:-}" ]]; then
+        echo -e "  ${_YELLOW}Target env:${_NC} ${_ZDAY_ENV_NAME}"
+    fi
+    if [[ -n "${_zday_deployment_code:-}" ]]; then
+        echo -e "  ${_YELLOW}Deploy name:${_NC} ${_zday_deployment_code}"
+    fi
+    echo -e "  ${_YELLOW}Cleanup:${_NC} ${cleanup_message}"
+    if [[ -n "$restore_message" ]]; then
+        echo -e "  ${_YELLOW}Restore:${_NC} ${restore_message}"
+    fi
 }
 
-echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
+_zday_finalize_failure() {
+    local status="${1:-0}"
+    local cleanup_message=""
+    local restore_message=""
+    local current_env="${CONDA_DEFAULT_ENV:-}"
 
-if ! _zday_ensure_published_distribution \
-    "daylily-tapdb" \
-    "daylily_tapdb" \
-    "daylily-tapdb" \
-    "${_ZDAY_DAYLILY_TAPDB_VERSION}"; then
-    return 1
-fi
-if ! _zday_ensure_published_distribution \
-    "daylily-auth-cognito" \
-    "daylily_auth_cognito" \
-    "daylily-auth-cognito" \
-    "${_ZDAY_DAYLILY_AUTH_COGNITO_VERSION}"; then
-    return 1
-fi
-if ! _zday_distribution_version_is "cli-core-yo" "${_ZDAY_CLI_CORE_YO_VERSION}"; then
-    echo -e "  ${_CYAN}→${_NC} Installing published cli-core-yo ${_ZDAY_CLI_CORE_YO_VERSION}..."
-    "${_ZDAY_PYTHON}" -m pip install "cli-core-yo==${_ZDAY_CLI_CORE_YO_VERSION}" -q || return 1
-fi
-_zday_require_python_import "cli_core_yo" "cli-core-yo" || return 1
+    if [[ "${_ZDAY_FINALIZED}" == "1" ]]; then
+        return "$status"
+    fi
+    _ZDAY_FINALIZED=1
 
-mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || return 1
-mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || return 1
+    if [[ "$status" -eq 0 ]]; then
+        return 0
+    fi
 
-hash -r 2>/dev/null || true
+    if [[ -n "${_ZDAY_ENV_NAME:-}" && "$current_env" == "${_ZDAY_ENV_NAME}" ]] && typeset -f conda >/dev/null 2>&1; then
+        conda deactivate >/dev/null 2>&1 || true
+    fi
 
-echo -e "  ${_GREEN}✓${_NC} Deployment: ${_zday_deployment_code}"
-echo -e "  ${_GREEN}✓${_NC} CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV}"
-echo -e "  ${_GREEN}✓${_NC} Config path: ${ZEBRA_DAY_CONFIG_PATH}"
-echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${_ZDAY_TAPDB_CONFIG_PATH}"
-echo -e "  ${_GREEN}✓${_NC} Runtime namespace: ${_ZDAY_TAPDB_CLIENT_ID}/${_ZDAY_TAPDB_DATABASE_NAME}"
-echo
-echo "  Next:"
-echo "    zday config init"
-echo "    zday config status"
-echo "    zday gui start"
+    if [[ "${_ZDAY_CREATED_ENV}" == "1" ]]; then
+        if [[ "${_ZDAY_DEBUG}" == "1" ]]; then
+            cleanup_message="Preserved newly created env ${_ZDAY_ENV_NAME} because --debug was passed."
+        elif command -v conda >/dev/null 2>&1; then
+            if conda env remove -y -n "${_ZDAY_ENV_NAME}" >/dev/null 2>&1; then
+                cleanup_message="Removed newly created env ${_ZDAY_ENV_NAME}."
+            else
+                cleanup_message="Failed to remove newly created env ${_ZDAY_ENV_NAME}; cleanup may be required manually."
+            fi
+        else
+            cleanup_message="Unable to remove newly created env ${_ZDAY_ENV_NAME} because conda is unavailable."
+        fi
+    else
+        cleanup_message="No cleanup needed; target env existed before activation."
+    fi
+
+    if [[ -n "${_ZDAY_PREVIOUS_CONDA_ENV:-}" && "${_ZDAY_PREVIOUS_CONDA_ENV}" != "${_ZDAY_ENV_NAME:-}" ]] && typeset -f conda >/dev/null 2>&1; then
+        if conda activate "${_ZDAY_PREVIOUS_CONDA_ENV}" >/dev/null 2>&1; then
+            restore_message="Restored previous conda env ${_ZDAY_PREVIOUS_CONDA_ENV}."
+        else
+            restore_message="Failed to restore previous conda env ${_ZDAY_PREVIOUS_CONDA_ENV}."
+        fi
+    fi
+
+    _zday_emit_failure_banner "$cleanup_message" "$restore_message"
+    return "$status"
+}
+
+_zday_trap_handler() {
+    local status="${1:-$?}"
+    trap - RETURN 2>/dev/null || true
+    trap - EXIT 2>/dev/null || true
+    _zday_finalize_failure "$status"
+    return "$status"
+}
+
+_zday_parse_args() {
+    _zday_deployment_code=""
+    while [[ "$#" -gt 0 ]]; do
+        case "$1" in
+            --debug)
+                _ZDAY_DEBUG=1
+                shift
+                ;;
+            --help|-h)
+                echo "$_ZDAY_USAGE"
+                return 2
+                ;;
+            --*)
+                echo -e "  ${_YELLOW}✗${_NC} Unknown activate argument: $1"
+                echo "$_ZDAY_USAGE"
+                return 1
+                ;;
+            *)
+                if [[ -n "${_zday_deployment_code}" ]]; then
+                    echo -e "  ${_YELLOW}✗${_NC} zebra_day activation accepts at most one deploy-name."
+                    echo "$_ZDAY_USAGE"
+                    return 1
+                fi
+                _zday_deployment_code="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "${_zday_deployment_code}" ]]; then
+        _zday_deployment_code="$(_zday_resolve_default_deploy_name)"
+    fi
+
+    if ! _zday_validate_deploy_name "${_zday_deployment_code}"; then
+        return 1
+    fi
+}
+
+_zday_activate_impl() {
+    _zday_parse_args "$@"
+    local parse_status=$?
+    if [[ "$parse_status" -ne 0 ]]; then
+        if [[ "$parse_status" -eq 2 ]]; then
+            return 0
+        fi
+        return "$parse_status"
+    fi
+
+    export ZEBRA_DAY_DEPLOYMENT_CODE="${_zday_deployment_code}"
+    export DEPLOYMENT_CODE="${_zday_deployment_code}"
+    export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
+    export ZEBRA_DAY_PROJECT_ROOT
+    export ZDAY_PROJECT_ROOT="${ZEBRA_DAY_PROJECT_ROOT}"
+    export ZEBRA_DAY_ACTIVE=1
+    _ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
+    _ZDAY_TAPDB_CLIENT_ID="zebra-day"
+    _ZDAY_TAPDB_DATABASE_NAME="zebra-day-${_zday_deployment_code}"
+    _ZDAY_TAPDB_ENV="dev"
+    _ZDAY_TAPDB_CONFIG_PATH="$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")" || return 1
+    export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
+
+    echo -e "${_BLUE}Activating zebra_day environment...${_NC}"
+
+    if ! command -v conda >/dev/null 2>&1; then
+        _zday_fail "conda is required for zebra_day activation."
+        return 1
+    fi
+
+    source "$(conda info --base)/etc/profile.d/conda.sh" 2>/dev/null || true
+
+    if conda info --envs | grep -q "${_ZDAY_ENV_NAME}"; then
+        echo -e "  ${_GREEN}✓${_NC} Activating conda environment: ${_ZDAY_ENV_NAME}"
+    else
+        echo -e "  ${_CYAN}→${_NC} Creating conda environment: ${_ZDAY_ENV_NAME}"
+        if ! conda env create -n "${_ZDAY_ENV_NAME}" -f "${_ZDAY_ENV_FILE}"; then
+            _zday_fail "Failed to create conda environment ${_ZDAY_ENV_NAME}."
+            return 1
+        fi
+        _ZDAY_CREATED_ENV=1
+    fi
+
+    if ! conda activate "${_ZDAY_ENV_NAME}"; then
+        _zday_fail "Failed to activate ${_ZDAY_ENV_NAME}."
+        return 1
+    fi
+
+    if [[ "${CONDA_DEFAULT_ENV:-}" != "${_ZDAY_ENV_NAME}" ]]; then
+        _zday_fail "Failed to activate ${_ZDAY_ENV_NAME}."
+        return 1
+    fi
+
+    if [[ -n "${CONDA_PREFIX:-}" ]] && [[ -d "${CONDA_PREFIX}/bin" ]]; then
+        export PATH="${CONDA_PREFIX}/bin:$PATH"
+        _ZDAY_PYTHON="${CONDA_PREFIX}/bin/python"
+    else
+        _ZDAY_PYTHON="python"
+    fi
+
+    if [[ ! -x "${_ZDAY_PYTHON}" ]]; then
+        _zday_fail "Missing python interpreter in ${CONDA_PREFIX:-<unset>}."
+        return 1
+    fi
+
+    if ! _zday_ensure_postgres_runtime; then
+        _zday_fail "PostgreSQL runtime tools are required (initdb, pg_ctl)."
+        return 1
+    fi
+
+    echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
+    if ! "${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q; then
+        _zday_fail "Failed to install zebra_day editable checkout."
+        return 1
+    fi
+
+    _zday_ensure_published_distribution \
+        "daylily-tapdb" \
+        "daylily_tapdb" \
+        "daylily-tapdb" \
+        "${_ZDAY_DAYLILY_TAPDB_VERSION}" || return 1
+    _zday_ensure_published_distribution \
+        "daylily-auth-cognito" \
+        "daylily_auth_cognito" \
+        "daylily-auth-cognito" \
+        "${_ZDAY_DAYLILY_AUTH_COGNITO_VERSION}" || return 1
+
+    if ! _zday_distribution_version_is "cli-core-yo" "${_ZDAY_CLI_CORE_YO_VERSION}"; then
+        echo -e "  ${_CYAN}→${_NC} Installing published cli-core-yo ${_ZDAY_CLI_CORE_YO_VERSION}..."
+        if ! "${_ZDAY_PYTHON}" -m pip install "cli-core-yo==${_ZDAY_CLI_CORE_YO_VERSION}" -q; then
+            _zday_fail "Failed to install published cli-core-yo ${_ZDAY_CLI_CORE_YO_VERSION}."
+            return 1
+        fi
+    fi
+    _zday_require_python_import "cli_core_yo" "cli-core-yo" || return 1
+
+    mkdir -p "$(dirname "${ZEBRA_DAY_CONFIG_PATH}")" || {
+        _zday_fail "Failed to prepare zebra_day config directory."
+        return 1
+    }
+    mkdir -p "$(dirname "${_ZDAY_TAPDB_CONFIG_PATH}")" || {
+        _zday_fail "Failed to prepare TapDB config directory."
+        return 1
+    }
+
+    hash -r 2>/dev/null || true
+
+    echo -e "  ${_GREEN}✓${_NC} Deployment: ${_zday_deployment_code}"
+    echo -e "  ${_GREEN}✓${_NC} CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV}"
+    echo -e "  ${_GREEN}✓${_NC} Config path: ${ZEBRA_DAY_CONFIG_PATH}"
+    echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${_ZDAY_TAPDB_CONFIG_PATH}"
+    echo -e "  ${_GREEN}✓${_NC} Runtime namespace: ${_ZDAY_TAPDB_CLIENT_ID}/${_ZDAY_TAPDB_DATABASE_NAME}"
+    echo
+    echo "  Next:"
+    echo "    zday config init"
+    echo "    zday config status"
+    echo "    zday gui start"
+
+    return 0
+}
+
+_zday_activate_main() {
+    if [[ -n "${BASH_VERSION:-}" ]]; then
+        trap '_zday_trap_handler' RETURN
+    elif [[ -n "${ZSH_VERSION:-}" ]]; then
+        setopt localtraps
+        trap '_zday_trap_handler' EXIT
+    fi
+    _zday_activate_impl "$@"
+}
+
+_zday_activate_main "$@"
+_zday_status=$?
+_zday_return_status="$_zday_status"
 
 unset _zday_deployment_code
 unset _ZDAY_ENV_NAME
 unset _ZDAY_PYTHON
+unset _ZDAY_CREATED_ENV
+unset _ZDAY_DEBUG
+unset _ZDAY_FINALIZED
+unset _ZDAY_FAILURE_REASON
+unset _ZDAY_PREVIOUS_CONDA_ENV
+unset _zday_status
+
+return "${_zday_return_status}"

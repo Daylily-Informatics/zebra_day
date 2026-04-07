@@ -84,7 +84,7 @@ spec = CliSpec(
     env=EnvSpec(
         active_env_var="ZEBRA_DAY_ACTIVE",
         project_root_env_var="ZEBRA_DAY_PROJECT_ROOT",
-        activate_script_name="activate <deploy-name>",
+        activate_script_name="activate [deploy-name] [--debug]",
         deactivate_script_name="zebra_day_deactivate",
         preferred_backend="zebra-day-conda",
     ),
@@ -93,7 +93,7 @@ spec = CliSpec(
             ExecutionBackendSpec(
                 name="zebra-day-conda",
                 kind="conda",
-                entry_guidance="source ./activate <deploy-name>",
+                entry_guidance="source ./activate [deploy-name] [--debug]",
                 detect=BackendDetectSpec(env_vars=("CONDA_PREFIX",)),
                 validation=BackendValidationSpec(env_vars=("CONDA_PREFIX",)),
             )
@@ -105,13 +105,13 @@ spec = CliSpec(
                 key="zebra-day-conda-active-env",
                 kind="env_var",
                 value="CONDA_DEFAULT_ENV",
-                help="Activate zebra_day with source ./activate <deploy-name>.",
+                help="Activate zebra_day with source ./activate [deploy-name] [--debug].",
                 applies_to_backends={"zebra-day-conda"},
                 tags={ZEBRA_RUNTIME_TAG},
                 success_message="Deployment-scoped conda environment is active.",
                 failure_message=(
                     "zebra_day CLI requires an active deployment-scoped conda environment. "
-                    "Run `source ./activate <deploy-name>`."
+                    "Run `source ./activate [deploy-name] [--debug]`."
                 ),
             ),
             PrereqSpec(
@@ -125,13 +125,13 @@ spec = CliSpec(
                     "env = os.environ.get('CONDA_DEFAULT_ENV', '').strip(); "
                     "sys.exit(0 if env == f'ZEBRA_DAY-{deploy}' else 1)",
                 ),
-                help="Use the deployment-scoped conda env created by source ./activate <deploy-name>.",
+                help="Use the deployment-scoped conda env created by source ./activate [deploy-name] [--debug].",
                 applies_to_backends={"zebra-day-conda"},
                 tags={ZEBRA_RUNTIME_TAG},
                 success_message="Deployment-scoped conda environment name matches the deployment.",
                 failure_message=(
                     "zebra_day CLI requires CONDA_DEFAULT_ENV to match "
-                    "`ZEBRA_DAY-<deploy-name>`. Run `source ./activate <deploy-name>`."
+                    "`ZEBRA_DAY-<deploy-name>`. Run `source ./activate [deploy-name] [--debug]`."
                 ),
             ),
             PrereqSpec(
@@ -143,7 +143,7 @@ spec = CliSpec(
                 tags={ZEBRA_RUNTIME_TAG},
                 success_message="Dependency available: daylily-tapdb",
                 failure_message=(
-                    "Missing dependency: daylily-tapdb. Re-run `source ./activate <deploy-name>`."
+                    "Missing dependency: daylily-tapdb. Re-run `source ./activate [deploy-name] [--debug]`."
                 ),
             ),
             PrereqSpec(
@@ -156,7 +156,7 @@ spec = CliSpec(
                 success_message="Dependency available: daylily-auth-cognito",
                 failure_message=(
                     "Missing dependency: daylily-auth-cognito. "
-                    "Re-run `source ./activate <deploy-name>`."
+                    "Re-run `source ./activate [deploy-name] [--debug]`."
                 ),
             ),
         ],

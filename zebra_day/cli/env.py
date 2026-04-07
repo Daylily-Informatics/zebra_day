@@ -61,7 +61,7 @@ def activate():
 
     ccyo_out.print_text(
         Panel.fit(
-            f"[cyan]source {activate_script} <deploy-name>[/cyan]",
+            f"[cyan]source {activate_script} [deploy-name] [--debug][/cyan]",
             title="Run this command to activate",
             border_style="green",
         )
@@ -160,7 +160,7 @@ def reset():
         # Show combined command
         ccyo_out.print_text(
             Panel.fit(
-                f"[cyan]source {deactivate_script} && source {activate_script} <deploy-name>[/cyan]",
+                f"[cyan]source {deactivate_script} && source {activate_script} [deploy-name] [--debug][/cyan]",
                 title="Run this command to reset",
                 border_style="cyan",
             )
@@ -169,7 +169,7 @@ def reset():
         # Just activate (or re-activate)
         ccyo_out.print_text(
             Panel.fit(
-                f"[cyan]source {activate_script} <deploy-name>[/cyan]",
+                f"[cyan]source {activate_script} [deploy-name] [--debug][/cyan]",
                 title="Run this command to activate/reset",
                 border_style="green",
             )
