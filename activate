@@ -269,7 +269,7 @@ _zday_finalize_failure() {
     local restore_message=""
     local current_env="${CONDA_DEFAULT_ENV:-}"
 
-    if [[ "${_ZDAY_FINALIZED}" == "1" ]]; then
+    if [[ "${_ZDAY_FINALIZED:-0}" == "1" ]]; then
         return "$status"
     fi
     _ZDAY_FINALIZED=1

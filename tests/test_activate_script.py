@@ -141,6 +141,26 @@ def _source_activate(
     )
 
 
+def _source_activate_from_strict_parent(
+    env: dict[str, str],
+    *,
+    deploy_name: str | None = None,
+    extra_args: tuple[str, ...] = (),
+) -> subprocess.CompletedProcess[str]:
+    argv = ["set -euo pipefail", f"source {shlex.quote(str(ACTIVATE_SCRIPT))}"]
+    if deploy_name is not None:
+        argv.append(shlex.quote(deploy_name))
+    argv.extend(shlex.quote(arg) for arg in extra_args)
+    command = " ".join(argv) + "; printf 'wrapper-ok\\n'"
+    return subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-c", command],
+        cwd=PROJECT_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+
 def test_activate_defaults_deploy_name_from_package_version(tmp_path: Path) -> None:
     conda_base = _build_fake_conda(tmp_path)
     _write_fake_python3(tmp_path)
@@ -197,6 +217,30 @@ def test_activate_accepts_nine_character_hyphenated_deploy_name(tmp_path: Path) 
     assert "deploy-name must match" not in result.stdout
     conda_calls = conda_log.read_text(encoding="utf-8")
     assert f"env create -n ZEBRA_DAY-abc-12345 -f {PROJECT_ROOT / 'environment.yaml'}" in conda_calls
+
+
+def test_activate_returns_cleanly_to_strict_parent_shell(tmp_path: Path) -> None:
+    conda_base = _build_fake_conda(tmp_path)
+    _write_fake_python3(tmp_path)
+    conda_log = tmp_path / "conda.log"
+    pip_log = tmp_path / "pip.log"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path / 'bin'}:{conda_base / 'bin'}:/usr/bin:/bin"
+    env["FAKE_CONDA_CALL_LOG"] = str(conda_log)
+    env["FAKE_PIP_LOG"] = str(pip_log)
+    env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
+    env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = "ZEBRA_DAY-abc-12345"
+    env.pop("CONDA_DEFAULT_ENV", None)
+    env.pop("CONDA_PREFIX", None)
+
+    result = _source_activate_from_strict_parent(env, deploy_name="abc-12345")
+
+    assert result.returncode == 0
+    assert "wrapper-ok" in result.stdout
+    assert "_ZDAY_FINALIZED: unbound variable" not in result.stdout
+    assert "_ZDAY_FINALIZED: unbound variable" not in result.stderr
 
 
 def test_activate_truncates_default_deploy_name_to_nine_chars(tmp_path: Path) -> None:
