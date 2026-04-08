@@ -32,7 +32,7 @@ _CYAN='\033[0;36m'
 _RED='\033[0;31m'
 _NC='\033[0m'
 _ZDAY_ENV_BASE="ZEBRA_DAY"
-_ZDAY_ENV_MAX_DEPLOY_LEN=24
+_ZDAY_ENV_MAX_DEPLOY_LEN=9
 _ZDAY_USAGE="Usage: source ./activate [deploy-name] [--debug]"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
@@ -62,7 +62,7 @@ _zday_normalize_default_deploy_name() {
     sanitized="${sanitized:0:${_ZDAY_ENV_MAX_DEPLOY_LEN}}"
     sanitized="${sanitized%-}"
     sanitized="${sanitized#-}"
-    if [[ -z "$sanitized" ]]; then
+    if [[ "${#sanitized}" -lt 3 ]]; then
         sanitized="local"
     fi
     printf '%s\n' "$sanitized"
@@ -70,8 +70,8 @@ _zday_normalize_default_deploy_name() {
 
 _zday_validate_deploy_name() {
     local deploy_name="$1"
-    if [[ ! "$deploy_name" =~ ^[A-Za-z0-9-]{2,24}$ ]]; then
-        echo -e "  ${_YELLOW}✗${_NC} deploy-name must match ^[A-Za-z0-9-]{2,24}$"
+    if [[ ! "$deploy_name" =~ ^[A-Za-z0-9-]{3,9}$ ]]; then
+        echo -e "  ${_YELLOW}✗${_NC} deploy-name must match ^[A-Za-z0-9-]{3,9}$"
         return 1
     fi
 }

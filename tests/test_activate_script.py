@@ -21,14 +21,7 @@ def _build_fake_conda(tmp_path: Path) -> Path:
     conda_base = tmp_path / "fake-conda"
     conda_exe = conda_base / "bin" / "conda"
 
-    env_bin = conda_base / "envs" / f"ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}" / "bin"
-    env_bin.mkdir(parents=True, exist_ok=True)
-    for tool_name in ("initdb", "pg_ctl"):
-        _write_executable(env_bin / tool_name, "#!/usr/bin/env bash\nexit 0\n")
-
-    _write_executable(
-        env_bin / "python",
-        """#!/usr/bin/env bash
+    env_python_script = """#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "-c" ]]; then
   exit 0
@@ -41,8 +34,14 @@ if [[ "${1:-}" == "-m" && "${2:-}" == "pip" && "${3:-}" == "install" ]]; then
   exit 0
 fi
 exit 0
-""",
-    )
+"""
+
+    for deploy_name in {DEFAULT_DEPLOY_NAME, "abc-12345", "5-1-34567"}:
+        env_bin = conda_base / "envs" / f"ZEBRA_DAY-{deploy_name}" / "bin"
+        env_bin.mkdir(parents=True, exist_ok=True)
+        for tool_name in ("initdb", "pg_ctl"):
+            _write_executable(env_bin / tool_name, "#!/usr/bin/env bash\nexit 0\n")
+        _write_executable(env_bin / "python", env_python_script)
 
     _write_executable(
         conda_exe,
@@ -53,8 +52,10 @@ if [[ "${{1:-}}" == "info" && "${{2:-}}" == "--base" ]]; then
   exit 0
 fi
 if [[ "${{1:-}}" == "info" && "${{2:-}}" == "--envs" ]]; then
+  env_name="${{FAKE_ZDAY_ENV_NAME:-ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}}}"
+  env_path="{conda_base}/envs/${{env_name}}"
   if [[ "${{FAKE_ZDAY_ENV_PRESENT:-0}}" == "1" ]]; then
-    printf '# conda environments:\\n#\\nbase * {conda_base}\\nZEBRA_DAY-{DEFAULT_DEPLOY_NAME} {conda_base}/envs/ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}\\n'
+    printf '# conda environments:\\n#\\nbase * {conda_base}\\n%s %s\\n' "$env_name" "$env_path"
   else
     printf '# conda environments:\\n#\\nbase * {conda_base}\\n'
   fi
@@ -152,6 +153,7 @@ def test_activate_defaults_deploy_name_from_package_version(tmp_path: Path) -> N
     env["FAKE_PIP_LOG"] = str(pip_log)
     env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
     env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = f"ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}"
     env.pop("CONDA_DEFAULT_ENV", None)
     env.pop("CONDA_PREFIX", None)
 
@@ -166,10 +168,59 @@ def test_activate_defaults_deploy_name_from_package_version(tmp_path: Path) -> N
 
 
 def test_activate_rejects_invalid_explicit_deploy_name() -> None:
-    result = _source_activate(os.environ.copy(), deploy_name="bad_name")
+    result = _source_activate(os.environ.copy(), deploy_name="ab")
 
     assert result.returncode == 1
-    assert "deploy-name must match ^[A-Za-z0-9-]{2,24}$" in result.stdout
+    assert "deploy-name must match ^[A-Za-z0-9-]{3,9}$" in result.stdout
+
+
+def test_activate_accepts_nine_character_hyphenated_deploy_name(tmp_path: Path) -> None:
+    conda_base = _build_fake_conda(tmp_path)
+    _write_fake_python3(tmp_path)
+    conda_log = tmp_path / "conda.log"
+    pip_log = tmp_path / "pip.log"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path / 'bin'}:{conda_base / 'bin'}:/usr/bin:/bin"
+    env["FAKE_CONDA_CALL_LOG"] = str(conda_log)
+    env["FAKE_PIP_LOG"] = str(pip_log)
+    env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
+    env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = "ZEBRA_DAY-abc-12345"
+    env.pop("CONDA_DEFAULT_ENV", None)
+    env.pop("CONDA_PREFIX", None)
+
+    result = _source_activate(env, deploy_name="abc-12345")
+
+    assert result.returncode == 0
+    assert "Deployment: abc-12345" in result.stdout
+    assert "deploy-name must match" not in result.stdout
+    conda_calls = conda_log.read_text(encoding="utf-8")
+    assert f"env create -n ZEBRA_DAY-abc-12345 -f {PROJECT_ROOT / 'environment.yaml'}" in conda_calls
+
+
+def test_activate_truncates_default_deploy_name_to_nine_chars(tmp_path: Path) -> None:
+    conda_base = _build_fake_conda(tmp_path)
+    _write_fake_python3(tmp_path)
+    conda_log = tmp_path / "conda.log"
+    pip_log = tmp_path / "pip.log"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{tmp_path / 'bin'}:{conda_base / 'bin'}:/usr/bin:/bin"
+    env["FAKE_CONDA_CALL_LOG"] = str(conda_log)
+    env["FAKE_PIP_LOG"] = str(pip_log)
+    env["FAKE_ZDAY_VERSION"] = "5.1.345678"
+    env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = "ZEBRA_DAY-5-1-34567"
+    env.pop("CONDA_DEFAULT_ENV", None)
+    env.pop("CONDA_PREFIX", None)
+
+    result = _source_activate(env)
+
+    assert result.returncode == 0
+    assert "Deployment: 5-1-34567" in result.stdout
+    conda_calls = conda_log.read_text(encoding="utf-8")
+    assert f"env create -n ZEBRA_DAY-5-1-34567 -f {PROJECT_ROOT / 'environment.yaml'}" in conda_calls
 
 
 def test_activate_cleans_new_env_on_failure(tmp_path: Path) -> None:
@@ -184,6 +235,7 @@ def test_activate_cleans_new_env_on_failure(tmp_path: Path) -> None:
     env["FAKE_PIP_LOG"] = str(pip_log)
     env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
     env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = f"ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}"
     env["FAKE_ZDAY_PIP_INSTALL_FAIL"] = "1"
     env.pop("CONDA_DEFAULT_ENV", None)
     env.pop("CONDA_PREFIX", None)
@@ -211,6 +263,7 @@ def test_activate_debug_preserves_new_env_on_failure(tmp_path: Path) -> None:
     env["FAKE_PIP_LOG"] = str(pip_log)
     env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
     env["FAKE_ZDAY_ENV_PRESENT"] = "0"
+    env["FAKE_ZDAY_ENV_NAME"] = f"ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}"
     env["FAKE_ZDAY_PIP_INSTALL_FAIL"] = "1"
     env.pop("CONDA_DEFAULT_ENV", None)
     env.pop("CONDA_PREFIX", None)
@@ -236,6 +289,7 @@ def test_activate_does_not_delete_preexisting_env_and_restores_previous_env(tmp_
     env["FAKE_PIP_LOG"] = str(pip_log)
     env["FAKE_ZDAY_VERSION"] = DEFAULT_VERSION
     env["FAKE_ZDAY_ENV_PRESENT"] = "1"
+    env["FAKE_ZDAY_ENV_NAME"] = f"ZEBRA_DAY-{DEFAULT_DEPLOY_NAME}"
     env["FAKE_ZDAY_PIP_INSTALL_FAIL"] = "1"
     env["CONDA_DEFAULT_ENV"] = "BASEDEV"
     env["CONDA_PREFIX"] = str(conda_base / "envs" / "BASEDEV")
