@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import os
 from typing import TYPE_CHECKING
 
 import typer
@@ -10,6 +11,7 @@ from cli_core_yo import ccyo_out
 
 from zebra_day.cli._registry_v2 import REQUIRED_MUTATING, register_group_commands
 from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import DEFAULT_MERIDIAN_DOMAIN_CODE, DEFAULT_TAPDB_APP_CODE
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -22,6 +24,11 @@ _PASSTHROUGH_ARGS = typer.Argument(None, metavar="ARGS...")
 
 
 def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
+    env = os.environ.copy()
+    env["MERIDIAN_DOMAIN_CODE"] = os.environ.get(
+        "MERIDIAN_DOMAIN_CODE", DEFAULT_MERIDIAN_DOMAIN_CODE
+    )
+    env["TAPDB_APP_CODE"] = os.environ.get("TAPDB_APP_CODE", DEFAULT_TAPDB_APP_CODE)
     result = subprocess.run(
         [
             "tapdb",
@@ -31,6 +38,7 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
             settings.tapdb_env,
             *args,
         ],
+        env=env,
         capture_output=True,
         text=True,
     )

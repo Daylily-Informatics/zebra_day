@@ -20,6 +20,7 @@ from zebra_day.printer_protocol import (
     send_zpl_code,
 )
 from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import DEFAULT_MERIDIAN_DOMAIN_CODE, DEFAULT_TAPDB_APP_CODE
 
 _log = get_logger(__name__)
 
@@ -172,6 +173,8 @@ class TapDBFleetRepository:
             db_pass=cfg["password"],
             db_name=cfg["database"],
             engine_type=str(cfg.get("engine_type") or "local"),
+            domain_code=DEFAULT_MERIDIAN_DOMAIN_CODE,
+            issuer_app_code=DEFAULT_TAPDB_APP_CODE,
         )
 
     def _session(self, *, commit: bool):

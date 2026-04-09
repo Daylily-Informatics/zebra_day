@@ -74,8 +74,9 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
         stdout = "ok\n"
         stderr = ""
 
-    def fake_run(cmd, capture_output, text):
+    def fake_run(cmd, env, capture_output, text):
         recorded["cmd"] = cmd
+        recorded["env"] = env
         return _Completed()
 
     monkeypatch.setattr("zebra_day.cli.tapdb.subprocess", SimpleNamespace(run=fake_run))
@@ -100,6 +101,8 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
         "db",
         "status",
     ]
+    assert recorded["env"]["MERIDIAN_DOMAIN_CODE"] == "Z"
+    assert recorded["env"]["TAPDB_APP_CODE"] == "Y"
     assert "ok" in result.output
 
 

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
 from tests.fakes import sample_repository
-from zebra_day.client import ZebraDayApiClient, ZebraDayClient
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.client import TapDBFleetRepository, ZebraDayApiClient, ZebraDayClient
+from zebra_day.settings import (
+    DEFAULT_MERIDIAN_DOMAIN_CODE,
+    DEFAULT_TAPDB_APP_CODE,
+    ZebraDaySettings,
+)
 
 
 def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
@@ -22,6 +28,44 @@ def test_direct_client_fails_fast_without_tapdb(monkeypatch, tmp_path):
     settings = ZebraDaySettings.from_context()
     with pytest.raises(FileNotFoundError):
         ZebraDayClient(settings=settings)
+
+
+def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    settings = ZebraDaySettings.from_context()
+
+    captured: dict[str, object] = {}
+
+    def fake_import(module_name: str, _package_name: str):
+        if module_name == "daylily_tapdb":
+            class _TapdbModule:
+                @staticmethod
+                def TAPDBConnection(**kwargs):
+                    captured.update(kwargs)
+                    return SimpleNamespace(session_scope=lambda commit=False: None)
+
+            return _TapdbModule
+        if module_name == "daylily_tapdb.cli.db_config":
+            return SimpleNamespace(
+                get_db_config_for_env=lambda *_args, **_kwargs: {
+                    "host": "localhost",
+                    "port": "5533",
+                    "user": "postgres",
+                    "password": "pw",
+                    "database": "zebra_day",
+                    "engine_type": "local",
+                }
+            )
+        raise AssertionError(f"unexpected import request: {module_name}")
+
+    monkeypatch.setattr("zebra_day.client.import_from_sibling", fake_import)
+
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = settings
+    repository._build_connection()
+
+    assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
+    assert captured["issuer_app_code"] == DEFAULT_TAPDB_APP_CODE
 
 
 def test_api_client_lists_labs_and_submits_print_job(monkeypatch):

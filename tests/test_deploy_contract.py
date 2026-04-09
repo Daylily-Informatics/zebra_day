@@ -28,6 +28,8 @@ def test_activate_uses_root_environment_yaml_and_repo_only_editable_install() ->
     assert '_zday_ensure_published_distribution' in activate
     assert '_zday_sync_tapdb_namespace_metadata' in activate
     assert '_zday_sync_tapdb_namespace_metadata "$user_path" "$client_id" "$database_name"' in activate
+    assert 'export MERIDIAN_DOMAIN_CODE="${MERIDIAN_DOMAIN_CODE:-Z}"' in activate
+    assert 'export TAPDB_APP_CODE="${TAPDB_APP_CODE:-Y}"' in activate
     assert "_zday_ensure_editable_repo" not in activate
     assert "[dev,lint,auth]" not in activate
     assert "../daylily-tapdb" not in activate
