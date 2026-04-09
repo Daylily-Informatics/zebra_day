@@ -104,6 +104,25 @@ def _cognito_client(app):
     return TestClient(app, base_url="https://localhost:8118")
 
 
+def _runtime_inventory(app) -> tuple[set[tuple[str, str]], set[str]]:
+    methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+    routes: set[tuple[str, str]] = set()
+    mounts: set[str] = set()
+    for route in app.routes:
+        path = str(getattr(route, "path", "") or "").strip()
+        if not path:
+            continue
+        route_methods = {
+            method for method in getattr(route, "methods", set()) if method in methods
+        }
+        if route_methods:
+            routes.update((method, path) for method in route_methods)
+            continue
+        if getattr(route, "app", None) is not None:
+            mounts.add(path)
+    return routes, mounts
+
+
 def _authenticate_session(test_client: TestClient) -> None:
     login_response = test_client.get("/auth/login", follow_redirects=False)
     state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
@@ -123,6 +142,79 @@ def test_root_route_renders(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert "LOCAL" in response.text
     assert "TapDB-backed printer fleet state" in response.text
+
+
+def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    base_app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    base_routes, base_mounts = _runtime_inventory(base_app)
+    expected_base_routes = {
+        ("GET", "/"),
+        ("GET", "/admin"),
+        ("GET", "/printers"),
+        ("GET", "/printers/{lab}"),
+        ("GET", "/templates"),
+        ("GET", "/print"),
+        ("GET", "/config"),
+        ("GET", "/api/v1/labs"),
+        ("GET", "/api/v1/labs/{lab}/printers"),
+        ("GET", "/api/v1/labs/{lab}/printers/{printer_id}"),
+        ("PATCH", "/api/v1/labs/{lab}/printers/{printer_id}"),
+        ("POST", "/api/v1/labs/{lab}/discover"),
+        ("POST", "/api/v1/labs/{lab}/printers/{printer_id}/sync"),
+        ("GET", "/api/v1/templates"),
+        ("GET", "/api/v1/templates/{template_name}"),
+        ("POST", "/api/v1/templates"),
+        ("DELETE", "/api/v1/templates/{template_name}"),
+        ("GET", "/api/v1/label-profiles"),
+        ("GET", "/api/v1/label-profiles/{profile_name}"),
+        ("POST", "/api/v1/render"),
+        ("POST", "/api/v1/render/png"),
+        ("POST", "/api/v1/print/resolve"),
+        ("POST", "/api/v1/print"),
+        ("GET", "/api/v1/config"),
+        ("GET", "/healthz"),
+        ("GET", "/readyz"),
+        ("GET", "/health"),
+        ("GET", "/obs_services"),
+        ("GET", "/api_health"),
+        ("GET", "/endpoint_health"),
+        ("GET", "/db_health"),
+        ("GET", "/auth_health"),
+        ("GET", "/auth/login"),
+        ("GET", "/login"),
+        ("GET", "/auth/callback"),
+        ("GET", "/auth/logout"),
+        ("POST", "/auth/logout"),
+        ("GET", "/auth/error"),
+        ("GET", "/openapi.json"),
+        ("GET", "/docs"),
+        ("GET", "/api/docs"),
+        ("GET", "/redoc"),
+        ("GET", "/api/redoc"),
+    }
+    expected_mounts = {"/static", "/generated"}
+    if (base_app.state.pkg_path / "etc").exists():
+        expected_mounts.add("/etc")
+
+    assert base_routes == expected_base_routes
+    assert base_mounts == expected_mounts
+    assert not any(path.startswith("/static/") for _method, path in base_routes)
+    assert not any(path.startswith("/generated/") for _method, path in base_routes)
+    assert not any(path.startswith("/etc/") for _method, path in base_routes)
+
+    cognito_app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
+        profile_claims={"email": "user@example.com", "name": "Example User"},
+    )
+    cognito_routes, cognito_mounts = _runtime_inventory(cognito_app)
+
+    assert cognito_routes == expected_base_routes | {("GET", "/my_health")}
+    assert cognito_mounts == expected_mounts
 
 
 def test_health_and_observability_routes(monkeypatch, tmp_path):
@@ -164,6 +256,100 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
     assert submit.json()["success"] is True
 
 
+def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    monkeypatch.setattr(
+        "zebra_day.client.render_zpl_preview", lambda zpl, path: path.write_bytes(b"png")
+    )
+    monkeypatch.setattr(
+        "zebra_day.client.discover_printers",
+        lambda **_kwargs: [
+            {
+                "printer_id": "printer-2",
+                "ip_address": "192.168.1.60",
+                "printer_name": "Discovery Printer",
+                "model": "ZD421",
+                "serial": "DISC-2",
+                "notes": "zpl+http(80)",
+            }
+        ],
+    )
+
+    class _FakeZebraPrinter:
+        def __init__(self, ip_address: str, port: int = 9100) -> None:
+            self.ip_address = ip_address
+            self.port = port
+
+        def get_host_identification(self, timeout: int):
+            _ = timeout
+            return {"model": "ZD620"}
+
+        def get_serial_number(self, timeout: int):
+            _ = timeout
+            return "SER123"
+
+    monkeypatch.setattr("zebra_day.cmd_mgr.ZebraPrinter", _FakeZebraPrinter)
+
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        printer_detail = client.get("/api/v1/labs/default/printers/printer-1")
+        printer_patch = client.patch(
+            "/api/v1/labs/default/printers/printer-1",
+            json={"printer_name": "Renamed Printer", "lab_location": "Bench 2"},
+        )
+        discover = client.post(
+            "/api/v1/labs/default/discover",
+            json={"ip_stub": "192.168.1", "scan_http_port": 80},
+        )
+        sync = client.post("/api/v1/labs/default/printers/printer-1/sync")
+        template_list = client.get("/api/v1/templates")
+        template_detail = client.get("/api/v1/templates/tube_2inX1in")
+        template_save = client.post(
+            "/api/v1/templates",
+            json={"filename": "custom.zpl", "zpl_content": "^XA^XZ"},
+        )
+        template_delete = client.delete("/api/v1/templates/custom")
+        profile_list = client.get("/api/v1/label-profiles")
+        profile_detail = client.get("/api/v1/label-profiles/tube_2inX1in")
+        render_png = client.post(
+            "/api/v1/render/png",
+            json={"template": "tube_2inX1in", "uid_barcode": "UID-2"},
+        )
+        resolve = client.post(
+            "/api/v1/print/resolve",
+            json={"lab": "default", "printer": "printer-1", "uid_barcode": "UID-3"},
+        )
+
+    assert printer_detail.status_code == 200
+    assert printer_detail.json()["printer_id"] == "printer-1"
+    assert printer_patch.status_code == 200
+    assert printer_patch.json()["printer_name"] == "Renamed Printer"
+    assert printer_patch.json()["lab_location"] == "Bench 2"
+    assert discover.status_code == 200
+    assert discover.json()[0]["printer_id"] == "printer-2"
+    assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
+    assert sync.status_code == 200
+    assert sync.json()["printer_id"] == "printer-1"
+    assert template_list.status_code == 200
+    assert "tube_2inX1in" in template_list.json()
+    assert template_detail.status_code == 200
+    assert template_detail.json()["template_name"] == "tube_2inX1in"
+    assert template_save.status_code == 200
+    assert template_save.json()["template_name"] == "custom"
+    assert template_delete.status_code == 200
+    assert template_delete.json()["success"] is True
+    assert profile_list.status_code == 200
+    assert profile_list.json()[0]["profile_name"] == "tube_2inX1in"
+    assert profile_detail.status_code == 200
+    assert profile_detail.json()["profile_name"] == "tube_2inX1in"
+    assert render_png.status_code == 200
+    assert render_png.headers["content-type"] == "image/png"
+    assert render_png.content == b"png"
+    assert resolve.status_code == 200
+    assert resolve.json()["printer_id"] == "printer-1"
+    assert resolve.json()["copies"] == 1
+
+
 def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
@@ -174,6 +360,42 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     assert "Backend Configuration" not in config_response.text
     assert "Shared Templates" in templates_response.text
     assert "Import Local Templates to DynamoDB" not in templates_response.text
+
+
+def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        printers_by_lab = client.get("/printers/default")
+        print_page = client.get(
+            "/print?lab=default&printer=printer-1&label_zpl_style=tube_2inX1in"
+        )
+        openapi = client.get("/openapi.json")
+        docs = client.get("/docs")
+        api_docs = client.get("/api/docs")
+        redoc = client.get("/redoc")
+        api_redoc = client.get("/api/redoc")
+        logout_get = client.get("/auth/logout", follow_redirects=False)
+        logout_post = client.post("/auth/logout", follow_redirects=False)
+
+    assert printers_by_lab.status_code == 200
+    assert "Bench Printer" in printers_by_lab.text
+    assert print_page.status_code == 200
+    assert "Print Label" in print_page.text
+    assert openapi.status_code == 200
+    assert "/api/v1/print/resolve" in openapi.json()["paths"]
+    assert docs.status_code == 200
+    assert "SwaggerUIBundle" in docs.text
+    assert api_docs.status_code == 200
+    assert "SwaggerUIBundle" in api_docs.text
+    assert redoc.status_code == 200
+    assert "redoc.standalone.js" in redoc.text
+    assert api_redoc.status_code == 200
+    assert "redoc.standalone.js" in api_redoc.text
+    assert logout_get.status_code == 302
+    assert logout_get.headers["location"] == "/login"
+    assert logout_post.status_code == 302
+    assert logout_post.headers["location"] == "/login"
 
 
 def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch):

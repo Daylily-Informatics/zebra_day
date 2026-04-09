@@ -175,14 +175,31 @@ def create_app(
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
 
     @app.get("/healthz")
-    async def healthz():
-        return {"status": "healthy"}
+    async def healthz(request: Request):
+        return app.state.observability.public_healthz_payload(request)
 
     @app.get("/readyz")
-    async def readyz():
-        return {
-            "status": "ready" if getattr(app.state, "zebra_day", None) is not None else "not_ready"
+    async def readyz(request: Request):
+        backend_ready = getattr(app.state, "zebra_day", None) is not None
+        database_check = {
+            "status": "ok" if backend_ready else "error",
+            "latency_ms": 0.0,
+            "detail": "tapdb client ready" if backend_ready else "tapdb client unavailable",
+            "details": {
+                "backend": "tapdb",
+                "env": resolved_settings.tapdb_env,
+                "namespace": {
+                    "client_id": resolved_settings.tapdb_client_id,
+                    "database_name": resolved_settings.tapdb_database_name,
+                },
+            },
         }
+        payload = app.state.observability.public_readyz_payload(
+            request,
+            ready=backend_ready,
+            database_check=database_check,
+        )
+        return JSONResponse(status_code=200 if backend_ready else 503, content=payload)
 
     @app.get("/health")
     async def health(request: Request):

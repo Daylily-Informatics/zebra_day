@@ -24,6 +24,10 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("ZEBRA_DAY_ACTIVE", raising=False)
+    monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
 
 
 def _settings(tmp_path, **overrides):

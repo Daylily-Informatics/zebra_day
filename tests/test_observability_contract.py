@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
+import jsonschema
 from fastapi.testclient import TestClient
 
 from tests.fakes import sample_repository
@@ -11,6 +15,18 @@ from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
+
+
+def _schema_root() -> Path:
+    root = os.environ.get("DAYHOFF_PROJECT_ROOT")
+    if not root:
+        raise RuntimeError("DAYHOFF_PROJECT_ROOT must point at the canonical Dayhoff repo root")
+    return Path(root) / "contracts" / "observability"
+
+
+def _validate(name: str, payload: dict) -> None:
+    schema = json.loads((_schema_root() / name).read_text(encoding="utf-8"))
+    jsonschema.validate(payload, schema)
 
 
 def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
@@ -134,8 +150,8 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
 
     with TestClient(app) as client:
-        client.get("/healthz")
-        client.get("/readyz")
+        healthz_payload = client.get("/healthz").json()
+        readyz_payload = client.get("/readyz").json()
         client.get("/api/v1/labs/default/printers")
 
         health_payload = client.get("/health").json()
@@ -146,6 +162,9 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
         auth_payload = client.get("/auth_health").json()
 
         assert client.get("/my_health").status_code == 404
+
+    _validate("healthz.schema.json", healthz_payload)
+    _validate("readyz.schema.json", readyz_payload)
 
     for payload in (
         health_payload,
@@ -168,6 +187,8 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
         _assert_projection(payload)
 
     assert "checks" in health_payload
+    assert healthz_payload["checks"]["process"]["status"] == "ok"
+    assert "database" in readyz_payload["checks"]
     assert "families" in api_payload
     assert "page" in endpoint_payload
     assert "items" in endpoint_payload

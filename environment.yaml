@@ -6,7 +6,7 @@ dependencies:
   - python=3.12
   - pip
   - bash>=5.0
-  - postgresql
+  - postgresql=16.1
   - jq
   - fd-find
   - rclone

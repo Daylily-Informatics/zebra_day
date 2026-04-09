@@ -34,7 +34,7 @@ _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
 _ZDAY_CLI_CORE_YO_VERSION="2.0.0"
-_ZDAY_DAYLILY_TAPDB_VERSION="5.0.4"
+_ZDAY_DAYLILY_TAPDB_VERSION="5.1.0"
 _ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.0.2"
 
 _zday_sanitize_deployment_code() {
@@ -89,12 +89,51 @@ _zday_tapdb_template_path() {
     return 1
 }
 
+_zday_sync_tapdb_namespace_metadata() {
+    local config_path="$1"
+    local client_id="$2"
+    local database_name="$3"
+    "${_ZDAY_PYTHON:-python}" -c '
+from pathlib import Path
+import re
+import sys
+
+config_path = Path(sys.argv[1])
+client_id = sys.argv[2]
+database_name = sys.argv[3]
+text = config_path.read_text(encoding="utf-8")
+match = re.search(r"(?ms)^meta:\n(?P<body>(?:^[ \t].*\n?)*)", text)
+if match is None:
+    raise SystemExit(f"TapDB config missing meta section: {config_path}")
+body = match.group("body")
+body, client_updates = re.subn(
+    r"(?m)^[ \t]*client_id:\s*.*$",
+    f"  client_id: {client_id}",
+    body,
+    count=1,
+)
+body, database_updates = re.subn(
+    r"(?m)^[ \t]*database_name:\s*.*$",
+    f"  database_name: {database_name}",
+    body,
+    count=1,
+)
+if client_updates != 1 or database_updates != 1:
+    raise SystemExit(
+        f"TapDB config missing meta.client_id/database_name: {config_path}"
+    )
+updated = text[: match.start("body")] + body + text[match.end("body") :]
+config_path.write_text(updated, encoding="utf-8")
+' "$config_path" "$client_id" "$database_name" || return 1
+}
+
 _zday_prepare_tapdb_config_path() {
     local deployment_code="$1"
     local client_id="$2"
     local database_name="$3"
     local user_path="$(_zday_tapdb_config_path "$deployment_code" "$client_id")"
     if [[ -f "$user_path" ]]; then
+        _zday_sync_tapdb_namespace_metadata "$user_path" "$client_id" "$database_name" || return 1
         chmod 600 "$user_path" 2>/dev/null || true
         printf '%s\n' "$user_path"
         return 0
@@ -105,6 +144,7 @@ _zday_prepare_tapdb_config_path() {
     if [[ -n "$template_path" && -f "$template_path" ]]; then
         mkdir -p "$(dirname "${user_path}")" || return 1
         cp "$template_path" "$user_path" || return 1
+        _zday_sync_tapdb_namespace_metadata "$user_path" "$client_id" "$database_name" || return 1
         chmod 600 "$user_path" || return 1
     fi
     printf '%s\n' "$user_path"
