@@ -242,6 +242,7 @@ _ZDAY_TAPDB_CLIENT_ID="zebra-day"
 _ZDAY_TAPDB_DATABASE_NAME="zebra-day-${_zday_deployment_code}"
 _ZDAY_TAPDB_ENV="dev"
 _ZDAY_TAPDB_CONFIG_PATH="$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")"
+export TAPDB_CONFIG_PATH="${_ZDAY_TAPDB_CONFIG_PATH}"
 export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
 
 echo -e "${_BLUE}Activating zebra_day environment...${_NC}"
