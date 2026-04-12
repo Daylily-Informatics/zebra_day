@@ -7,6 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
+from zebra_day import __version__
 from tests.fakes import sample_repository
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
@@ -23,8 +24,8 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
 
 
-def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:
-    _set_xdg(monkeypatch, tmp_path)
+def _seed_client(tmp_path, monkeypatch, deployment="local") -> ZebraDayClient:
+    _set_xdg(monkeypatch, tmp_path, deployment=deployment)
     settings = ZebraDaySettings.from_context()
     return ZebraDayClient(settings=settings, repository=sample_repository())
 
@@ -252,6 +253,7 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
     assert printers.json()[0]["printer_id"] == "printer-1"
     assert printers.json()[0]["default_label_profile"] == "tube_2inX1in"
     assert runtime.json()["tapdb_database_name"] == "zebra-day-local"
+    assert runtime.json()["version"] == __version__
     assert preview.json()["success"] is True
     assert submit.json()["success"] is True
 
@@ -356,10 +358,47 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     with TestClient(app) as client:
         config_response = client.get("/config")
         templates_response = client.get("/templates")
-    assert "TapDB Contract" in config_response.text
+    assert "Effective Config" in config_response.text
+    assert "Active Config Path" in config_response.text
     assert "Backend Configuration" not in config_response.text
     assert "Shared Templates" in templates_response.text
     assert "Import Local Templates to DynamoDB" not in templates_response.text
+    assert __version__ in config_response.text
+
+
+def test_config_page_redacts_secrets_and_admin_footer_contains_git_metadata(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-local.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "authentication:\n"
+            "  session_secret_key: super-secret\n"
+            "tapdb:\n"
+            "  client_id: zebra-day\n"
+            "  database_name: zebra-day-local\n"
+            "ui:\n"
+            "  show_environment_chrome: false\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("INTERNAL_API_KEY", "internal-secret-token")
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+
+    with TestClient(app) as client:
+        config_response = client.get("/config")
+        admin_response = client.get("/admin")
+
+    assert "super-secret" not in config_response.text
+    assert "internal-secret-token" not in config_response.text
+    assert "configured" in config_response.text
+    assert "Active Config Path" in config_response.text
+    assert "branch " in admin_response.text
+    assert "tag " in admin_response.text
+    assert "commit " in admin_response.text
+    assert __version__ in admin_response.text
 
 
 def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp_path):
@@ -425,6 +464,9 @@ def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
     assert "location" not in response.headers
     assert "/auth/login?next=/admin" in response.text
     assert "LOCAL" in response.text
+    assert "branch " in response.text
+    assert "tag " in response.text
+    assert "commit " in response.text
 
 
 def test_cognito_mode_allows_local_docs_without_auth(tmp_path, monkeypatch):
@@ -486,6 +528,8 @@ def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
     assert 'data-testid="auth-error-card"' in response.text
     assert "Zebra Day Dashboard" not in response.text
     assert 'data-testid="auth-error-login"' in response.text
+    assert "branch " in response.text
+    assert "tag " in response.text
 
 
 def test_auth_error_reason_auth_error_returns_sign_in_page(tmp_path, monkeypatch):
@@ -533,22 +577,22 @@ def test_auth_callback_redirects_to_blocked_domain_for_disallowed_email(tmp_path
     assert response.headers["location"] == "/auth/error?reason=blocked_domain"
 
 
-def test_prod_deployment_hides_top_banner(tmp_path, monkeypatch):
+def test_environment_chrome_can_be_disabled_by_config(tmp_path, monkeypatch):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
     config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-qa-1.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
-        "deployment:\n  name: prod\n  color: ''\n",
+        "ui:\n  show_environment_chrome: false\n",
         encoding="utf-8",
     )
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
-    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch, deployment="qa-1"))
 
     with TestClient(app) as client:
         response = client.get("/login")
 
     assert response.status_code == 200
-    assert "PROD" not in response.text
+    assert "background: #21ca91; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;" not in response.text
 
 
 def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):

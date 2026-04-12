@@ -1,0 +1,11 @@
+<div class="footer-info">
+    <span>Zebra Day v{{ version | default('unknown') }}</span>
+    <span class="footer-sep">•</span>
+    <span>IP: {{ local_ip | default('unknown') }}</span>
+    <span class="footer-sep">•</span>
+    <span>branch {{ git_metadata.branch | default('unknown') }}</span>
+    <span class="footer-sep">•</span>
+    <span>tag {{ git_metadata.tag | default('unreleased') }}</span>
+    <span class="footer-sep">•</span>
+    <span title="{{ git_metadata.commit | default('unknown') }}">commit {{ git_metadata.short_commit | default('unknown') }}</span>
+</div>

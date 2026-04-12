@@ -47,8 +47,8 @@
         <div class="table-container" style="box-shadow:none;">
             <table class="table">
                 <tbody>
+                    <tr><th>Active Config Path</th><td><code>{{ config_path }}</code></td></tr>
                     <tr><th>Deployment</th><td>{{ deployment_code }}</td></tr>
-                    <tr><th>Config File</th><td><code>{{ config_path }}</code></td></tr>
                     <tr><th>TapDB Config</th><td><code>{{ tapdb_config_path }}</code></td></tr>
                     <tr><th>Logs</th><td><code>{{ request.app.state.settings.logs_dir }}</code></td></tr>
                     <tr><th>Cache</th><td><code>{{ request.app.state.settings.cache_dir }}</code></td></tr>
@@ -59,16 +59,14 @@
 
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">TapDB Contract</h3>
+            <h3 class="card-title">Effective Config</h3>
         </div>
         <div class="table-container" style="box-shadow:none;">
             <table class="table">
                 <tbody>
-                    <tr><th>Client ID</th><td>{{ runtime.tapdb_client_id }}</td></tr>
-                    <tr><th>Database Name</th><td>{{ runtime.tapdb_database_name }}</td></tr>
-                    <tr><th>Environment</th><td>{{ runtime.tapdb_env }}</td></tr>
-                    <tr><th>Auth Mode</th><td>{{ auth_mode | upper }}</td></tr>
-                    <tr><th>Storage</th><td>TAPDB</td></tr>
+                    {% for row in config_rows %}
+                    <tr><th>{{ row.label }}</th><td>{{ row.value }}</td></tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>

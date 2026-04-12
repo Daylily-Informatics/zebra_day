@@ -339,7 +339,9 @@ async def get_runtime_config(request: Request) -> dict[str, Any]:
     summary = dict(_client(request).runtime_summary())
     summary.update(
         {
+            "version": getattr(request.app.state, "version", ""),
             "auth_mode": settings.auth_mode,
+            "ui_show_environment_chrome": bool(settings.ui_show_environment_chrome),
             "internal_api_key_configured": bool(settings.internal_api_key),
             "config_path": str(settings.config_path),
         }

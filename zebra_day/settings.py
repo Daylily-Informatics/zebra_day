@@ -124,6 +124,9 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "color": "",
             "is_production": False,
         },
+        "ui": {
+            "show_environment_chrome": True,
+        },
     }
     rendered = yaml.safe_dump(payload, sort_keys=False)
     return rendered.encode("utf-8")
@@ -188,6 +191,7 @@ class ZebraDaySettings:
     deployment_name: str
     deployment_color: str
     deployment_is_production: bool
+    ui_show_environment_chrome: bool
     config_path: Path
     config_dir: Path
     data_dir: Path
@@ -229,7 +233,7 @@ class ZebraDaySettings:
         merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
         file_payload = _load_yaml(config_path)
 
-        for section in ("service", "authentication", "tapdb", "discovery", "deployment"):
+        for section in ("service", "authentication", "tapdb", "discovery", "deployment", "ui"):
             file_section = file_payload.get(section)
             if isinstance(file_section, dict):
                 merged.setdefault(section, {})
@@ -239,6 +243,7 @@ class ZebraDaySettings:
         auth = merged.get("authentication") or {}
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
+        ui = merged.get("ui") or {}
         deployment_chrome = _resolve_deployment_chrome(
             name=(merged.get("deployment") or {}).get("name")
             if isinstance(merged.get("deployment"), dict)
@@ -264,6 +269,7 @@ class ZebraDaySettings:
             deployment_name=str(deployment_chrome["name"]),
             deployment_color=str(deployment_chrome["color"]),
             deployment_is_production=bool(deployment_chrome["is_production"]),
+            ui_show_environment_chrome=bool(ui.get("show_environment_chrome", True)),
             config_path=config_path,
             config_dir=xdg.get_config_dir(),
             data_dir=xdg.get_data_dir(),

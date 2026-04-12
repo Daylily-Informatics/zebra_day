@@ -21,6 +21,7 @@ from zebra_day.client import ZebraDayClient
 from zebra_day.logging_config import get_logger
 from zebra_day.observability import ZebraDayObservability
 from zebra_day.settings import ZebraDaySettings
+from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.auth import (
     CognitoAuthMiddleware,
     CognitoWebAuthError,
@@ -115,6 +116,8 @@ def create_app(
     if auth is not None:
         resolved_settings = ZebraDaySettings.from_context(resolved_settings.deployment_code)
         object.__setattr__(resolved_settings, "auth_mode", auth)
+    chrome_context = build_chrome_context(resolved_settings)
+    git_metadata = resolve_git_metadata(Path(__file__).resolve().parents[2]).model_dump()
 
     @asynccontextmanager
     async def _lifespan(app: FastAPI):
@@ -144,6 +147,8 @@ def create_app(
     app.state.pkg_path = _PKG_PATH
     app.state.print_rate_limiter = print_rate_limiter
     app.state.observability = ZebraDayObservability(resolved_settings)
+    app.state.chrome_context = chrome_context
+    app.state.git_metadata = git_metadata
 
     cognito_binding = None
     if resolved_settings.auth_mode == "cognito":

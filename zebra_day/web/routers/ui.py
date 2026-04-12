@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from zebra_day.rbac import ADMIN_ALLOWED_ROLES, has_any_role
+from zebra_day.web.chrome import build_effective_config_rows
 
 router = APIRouter()
 
@@ -18,12 +19,15 @@ def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dic
     """Build common context for modern templates."""
     user = getattr(request.state, "user", {}) or {}
     settings = request.app.state.settings
+    chrome = getattr(request.app.state, "chrome_context", {})
+    git_metadata = getattr(request.app.state, "git_metadata", {})
     return {
         "request": request,
         "active_page": active_page,
         "api_base": "/api/v1",
         "local_ip": request.app.state.local_ip,
         "version": getattr(request.app.state, "version", "unknown"),
+        "git_metadata": git_metadata,
         "cache_bust": str(int(time.time())),
         "auth_mode": settings.auth_mode,
         "auth_enabled": settings.auth_mode != "none",
@@ -35,7 +39,9 @@ def get_modern_context(request: Request, active_page: str = "", **kwargs) -> dic
         "storage_mode": "tapdb",
         "tapdb_namespace": settings.tapdb_database_name,
         "deployment_code": settings.deployment_code,
-        "deployment": settings.deployment,
+        "deployment": chrome.get("deployment", settings.deployment),
+        "environment_chrome": chrome.get("region", {}),
+        "show_environment_chrome": bool(chrome.get("show_environment_chrome", True)),
         **kwargs,
     }
 
@@ -106,6 +112,7 @@ async def admin(request: Request):
         labs=labs,
         printer_count=len(client.list_printers()),
         template_count=len(client.list_templates()),
+        config_rows=build_effective_config_rows(settings),
         auth_summary={
             "mode": settings.auth_mode,
             "enabled": settings.auth_mode != "none",
@@ -205,5 +212,6 @@ async def config_page(request: Request):
         runtime=runtime,
         config_path=str(settings.config_path),
         tapdb_config_path=str(settings.tapdb_config_path),
+        config_rows=build_effective_config_rows(settings),
     )
     return _templates(request).TemplateResponse(request, "modern/config.html", context)

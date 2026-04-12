@@ -41,6 +41,13 @@ def test_default_config_template_is_valid_yaml():
     ]
     assert payload["authentication"]["default_tenant_id"] == "00000000-0000-0000-0000-000000000000"
     assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
+    assert payload["ui"]["show_environment_chrome"] is True
+
+
+def test_deployment_color_vectors_match_the_canonical_contract():
+    assert _stable_deployment_color_hex("510x2") == "#4321ca"
+    assert _stable_deployment_color_hex("inflec3") == "#7521ca"
+    assert _stable_deployment_color_hex("production") == "#ca2183"
 
 
 def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
@@ -99,6 +106,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.cognito_auto_provision_allowed_domains == ["lsmc.com"]
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
     assert settings.tapdb_env == "sandbox"
+    assert settings.ui_show_environment_chrome is True
     assert settings.deployment == {
         "name": "sandbox-g",
         "color": "#123456",

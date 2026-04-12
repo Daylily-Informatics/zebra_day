@@ -13,12 +13,7 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    {% set deployment_info = deployment|default({'name': '', 'is_production': false, 'color': '#AFEEEE'}) %}
-    {% if deployment_info.name and not deployment_info.is_production %}
-    <div style="height: 18px; background: {{ deployment_info.color }}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">
-        {{ deployment_info.name|upper }}
-    </div>
-    {% endif %}
+    {% include "modern/_chrome.html" %}
     <!-- Zebra stripe accent bar -->
     <div class="zebra-stripe-bar"></div>
     
@@ -115,11 +110,7 @@
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
-                <div class="footer-info">
-                    <span>Zebra Day v{{ version | default('unknown') }}</span>
-                    <span class="footer-sep">•</span>
-                    <span>IP: {{ local_ip | default('unknown') }}</span>
-                </div>
+                {% include "modern/_footer_meta.html" %}
                 <div class="footer-links">
                     <a href="/admin"><i class="fas fa-shield-halved"></i> Admin</a>
                     <a href="/docs" target="_blank"><i class="fas fa-book"></i> API Docs</a>

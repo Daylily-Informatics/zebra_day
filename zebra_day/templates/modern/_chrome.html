@@ -1,0 +1,12 @@
+{% if show_environment_chrome %}
+{% if deployment and deployment.name %}
+<div style="height: 18px; line-height: 18px; background: {{ deployment.color }}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">
+    {{ deployment.label | default(deployment.name | upper) }}
+</div>
+{% endif %}
+{% if environment_chrome and environment_chrome.name %}
+<div style="height: 18px; line-height: 18px; background: {{ environment_chrome.color }}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">
+    {{ environment_chrome.label | default(environment_chrome.name | upper) }}
+</div>
+{% endif %}
+{% endif %}
