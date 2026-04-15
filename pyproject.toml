@@ -39,7 +39,7 @@ dependencies = [
     "python-multipart>=0.0.6",
     "cli-core-yo==2.0.0",
     "daylily-auth-cognito==2.0.2",
-    "daylily-tapdb==5.1.0",
+    "daylily-tapdb==6.0.1",
     "typer>=0.21.0,<0.22.0",
     "rich>=14.0.0,<15.0.0",
     "pillow>=10.0.0",

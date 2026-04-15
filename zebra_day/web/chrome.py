@@ -97,8 +97,18 @@ def build_effective_config_rows(settings: ZebraDaySettings) -> list[dict[str, st
         {"label": "Region Label", "value": region_name},
         {"label": "Region Chrome Color", "value": region_color(region_name)},
         {"label": "TapDB Client ID", "value": settings.tapdb_client_id},
+        {"label": "TapDB Owner Repo", "value": settings.tapdb_owner_repo_name},
+        {"label": "TapDB Domain Code", "value": settings.tapdb_domain_code},
         {"label": "TapDB Database Name", "value": settings.tapdb_database_name},
         {"label": "TapDB Environment", "value": settings.tapdb_env},
+        {
+            "label": "TapDB Domain Registry",
+            "value": str(settings.tapdb_domain_registry_path),
+        },
+        {
+            "label": "TapDB Prefix Registry",
+            "value": str(settings.tapdb_prefix_registry_path),
+        },
         {"label": "Auth Mode", "value": settings.auth_mode},
         {"label": "Session Cookie Name", "value": settings.session_cookie_name},
         {

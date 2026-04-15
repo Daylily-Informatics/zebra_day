@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
 import json
+import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,7 +14,6 @@ import httpx
 
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
-from zebra_day.optional_deps import import_from_sibling
 from zebra_day.printer_protocol import (
     build_zpl,
     discover_printers,
@@ -20,7 +21,6 @@ from zebra_day.printer_protocol import (
     send_zpl_code,
 )
 from zebra_day.settings import ZebraDaySettings
-from zebra_day.settings import DEFAULT_MERIDIAN_DOMAIN_CODE, DEFAULT_TAPDB_APP_CODE
 
 _log = get_logger(__name__)
 
@@ -37,6 +37,7 @@ PACKAGE_TEMPLATE_PACK = (
     / "zebra_day"
     / "templates.json"
 )
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _utcnow() -> str:
@@ -53,6 +54,33 @@ def _stable_name(lab: str, printer_id: str) -> str:
 
 def _timestamp_slug() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+
+
+def _pyproject_dependency_version(dependency_name: str) -> str:
+    data = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    for dependency in data["project"]["dependencies"]:
+        if dependency.startswith(f"{dependency_name}=="):
+            return dependency.split("==", 1)[1]
+    raise RuntimeError(f"Missing pinned dependency: {dependency_name}")
+
+
+_DAYLILY_TAPDB_VERSION = _pyproject_dependency_version("daylily-tapdb")
+
+
+def _tapdb_import(module_name: str):
+    try:
+        return importlib.import_module(module_name)
+    except ImportError as exc:
+        raise ImportError(
+            f"daylily-tapdb=={_DAYLILY_TAPDB_VERSION} is required for this zebra_day installation"
+        ) from exc
+
+
+def _public_printer_payload(record: "PrinterRecord") -> dict[str, Any]:
+    payload = record.to_payload()
+    payload["printer_euid"] = _clean(payload.pop("euid", ""))
+    payload.pop("printer_id", None)
+    return payload
 
 
 @dataclass
@@ -100,8 +128,10 @@ class PrinterRecord:
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> PrinterRecord:
+        printer_id = _clean(payload.get("printer_id"))
+        printer_euid = _clean(payload.get("printer_euid") or payload.get("euid"))
         return cls(
-            printer_id=_clean(payload.get("printer_id")),
+            printer_id=printer_id,
             lab=_clean(payload.get("lab")),
             ip_address=_clean(payload.get("ip_address")),
             printer_name=_clean(payload.get("printer_name")),
@@ -118,7 +148,7 @@ class PrinterRecord:
             status=_clean(payload.get("status") or "active"),
             discovery_source=_clean(payload.get("discovery_source")),
             device_manifest=dict(payload.get("device_manifest") or {}),
-            euid=_clean(payload.get("euid")),
+            euid=printer_euid,
         )
 
 
@@ -126,6 +156,7 @@ class FleetRepository(Protocol):
     def list_labs(self) -> list[str]: ...
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]: ...
     def get_printer(self, lab: str, printer_id: str) -> PrinterRecord | None: ...
+    def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None: ...
     def upsert_printer(self, printer: PrinterRecord) -> PrinterRecord: ...
     def list_templates(self) -> list[dict[str, Any]]: ...
     def get_template(self, template_name: str) -> dict[str, Any] | None: ...
@@ -148,18 +179,15 @@ class TapDBFleetRepository:
         if not settings.tapdb_config_path.exists():
             raise FileNotFoundError(f"TapDB config not found: {settings.tapdb_config_path}")
         self._connection = self._build_connection()
-        self._tapdb = import_from_sibling("daylily_tapdb", "daylily-tapdb")
+        self._tapdb = _tapdb_import("daylily_tapdb")
         self._template_manager = self._tapdb.TemplateManager()
-        self._generic_instance = import_from_sibling(
-            "daylily_tapdb.models.instance",
-            "daylily-tapdb",
-        ).generic_instance
+        self._generic_instance = _tapdb_import("daylily_tapdb.models.instance").generic_instance
         self._seed_templates()
         self._seed_package_templates()
 
     def _build_connection(self):
-        tapdb_mod = import_from_sibling("daylily_tapdb", "daylily-tapdb")
-        db_config_mod = import_from_sibling("daylily_tapdb.cli.db_config", "daylily-tapdb")
+        tapdb_mod = _tapdb_import("daylily_tapdb")
+        db_config_mod = _tapdb_import("daylily_tapdb.cli.db_config")
         cfg = db_config_mod.get_db_config_for_env(
             self.settings.tapdb_env,
             config_path=str(self.settings.tapdb_config_path),
@@ -173,8 +201,10 @@ class TapDBFleetRepository:
             db_pass=cfg["password"],
             db_name=cfg["database"],
             engine_type=str(cfg.get("engine_type") or "local"),
-            domain_code=DEFAULT_MERIDIAN_DOMAIN_CODE,
-            issuer_app_code=DEFAULT_TAPDB_APP_CODE,
+            domain_code=self.settings.tapdb_domain_code,
+            owner_repo_name=self.settings.tapdb_owner_repo_name,
+            domain_registry_path=str(self.settings.tapdb_domain_registry_path),
+            prefix_registry_path=str(self.settings.tapdb_prefix_registry_path),
         )
 
     def _session(self, *, commit: bool):
@@ -182,9 +212,8 @@ class TapDBFleetRepository:
 
     def _seed_templates(self) -> None:
         if not PACKAGE_TEMPLATE_PACK.exists():
-            return
-        loader = import_from_sibling("daylily_tapdb.templates.loader", "daylily-tapdb")
-        euid_mod = import_from_sibling("daylily_tapdb.euid", "daylily-tapdb")
+            raise FileNotFoundError(f"TapDB template pack not found: {PACKAGE_TEMPLATE_PACK}")
+        loader = _tapdb_import("daylily_tapdb.templates.loader")
         with self._session(commit=True) as session:
             templates = (
                 json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
@@ -194,7 +223,10 @@ class TapDBFleetRepository:
                 templates,
                 overwrite=False,
                 core_config_dir=loader.find_tapdb_core_config_dir(),
-                core_instance_prefix=euid_mod.resolve_client_scoped_core_prefix("Z"),
+                domain_code=self.settings.tapdb_domain_code,
+                owner_repo_name=self.settings.tapdb_owner_repo_name,
+                domain_registry_path=str(self.settings.tapdb_domain_registry_path),
+                prefix_registry_path=str(self.settings.tapdb_prefix_registry_path),
             )
 
     def _seed_package_templates(self) -> None:
@@ -298,6 +330,24 @@ class TapDBFleetRepository:
                     self._generic_instance.category == "generic",
                     self._generic_instance.subtype == "printer",
                     self._generic_instance.name == _stable_name(lab, printer_id),
+                    self._generic_instance.is_deleted.is_(False),
+                )
+                .first()
+            )
+            if instance is None:
+                return None
+            payload = dict(instance.json_addl or {})
+            payload["euid"] = _clean(getattr(instance, "euid", ""))
+            return PrinterRecord.from_payload(payload)
+
+    def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None:
+        with self._session(commit=False) as session:
+            instance = (
+                session.query(self._generic_instance)
+                .filter(
+                    self._generic_instance.category == "generic",
+                    self._generic_instance.subtype == "printer",
+                    self._generic_instance.euid == printer_euid,
                     self._generic_instance.is_deleted.is_(False),
                 )
                 .first()
@@ -463,13 +513,15 @@ class ZebraDayClient:
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         return self.repository.list_printers(lab)
 
-    def get_printer(self, printer_id: str, lab: str | None = None) -> PrinterRecord | None:
-        if lab is not None:
-            return self.repository.get_printer(lab, printer_id)
-        for candidate in self.repository.list_printers():
-            if candidate.printer_id == printer_id:
-                return candidate
-        return None
+    def get_printer(
+        self, printer_euid: str, lab: str | None = None
+    ) -> PrinterRecord | None:
+        candidate = self.repository.get_printer_by_euid(printer_euid)
+        if candidate is None:
+            return None
+        if lab is not None and candidate.lab != lab:
+            return None
+        return candidate
 
     def list_template_records(self) -> list[dict[str, Any]]:
         return self.repository.list_templates()
@@ -533,15 +585,15 @@ class ZebraDayClient:
         self,
         *,
         lab: str,
-        printer: str,
+        printer_euid: str,
         label_zpl_style: str | None = None,
         zpl_content: str | None = None,
         copies: int = 1,
         **fields: str,
     ) -> dict[str, Any]:
-        printer_record = self.repository.get_printer(lab, printer)
+        printer_record = self.get_printer(printer_euid, lab=lab)
         if printer_record is None:
-            raise KeyError(f"Printer not found: {lab}/{printer}")
+            raise KeyError(f"Printer not found: {lab}/{printer_euid}")
 
         resolved_style = _clean(label_zpl_style) or _clean(printer_record.default_label_profile)
         if not resolved_style:
@@ -559,8 +611,9 @@ class ZebraDayClient:
         return {
             "lab": lab,
             "printer_id": printer_record.printer_id,
+            "printer_euid": printer_record.euid,
             "printer_ip": printer_record.ip_address,
-            "printer": printer_record.to_payload(),
+            "printer": _public_printer_payload(printer_record),
             "template_name": template_name,
             "label_style": resolved_style,
             "zpl_content": zpl_string,
@@ -588,7 +641,7 @@ class ZebraDayClient:
         self,
         *,
         lab: str,
-        printer: str,
+        printer_euid: str,
         label_zpl_style: str | None = None,
         zpl_content: str | None = None,
         copies: int = 1,
@@ -597,7 +650,7 @@ class ZebraDayClient:
     ) -> str:
         resolved = self.resolve_print_request(
             lab=lab,
-            printer=printer,
+            printer_euid=printer_euid,
             label_zpl_style=label_zpl_style,
             zpl_content=zpl_content,
             copies=copies,
@@ -613,9 +666,10 @@ class ZebraDayClient:
         finally:
             self.repository.create_print_job(
                 {
+                    "printer_euid": resolved["printer_euid"],
                     "job_id": _timestamp_slug(),
                     "lab": lab,
-                    "printer_id": printer,
+                    "printer_id": resolved.get("printer_id", ""),
                     "template": resolved.get("template_name") or "",
                     "copies": copies,
                     "client_ip": client_ip,
@@ -681,16 +735,19 @@ class ZebraDayClient:
             found.append(stored)
         return found
 
-    def sync_printer_metadata(self, printer_id: str, lab: str) -> PrinterRecord:
-        printer = self.repository.get_printer(lab, printer_id)
+    def sync_printer_metadata(self, printer_euid: str, lab: str) -> PrinterRecord:
+        printer = self.repository.get_printer_by_euid(printer_euid)
         if printer is None:
-            raise KeyError(f"Printer not found: {lab}/{printer_id}")
+            raise KeyError(f"Printer not found: {lab}/{printer_euid}")
+        if printer.lab != lab:
+            raise KeyError(f"Printer not found: {lab}/{printer_euid}")
 
         from zebra_day.cmd_mgr import ZebraPrinter
 
         observed: dict[str, Any] = {
             "lab": lab,
-            "printer_id": printer_id,
+            "printer_id": printer.printer_id,
+            "printer_euid": printer_euid,
             "ip_address": printer.ip_address,
         }
         try:
@@ -713,7 +770,8 @@ class ZebraDayClient:
             self.repository.record_drift(
                 {
                     "lab": lab,
-                    "printer_id": printer_id,
+                    "printer_id": printer.printer_id,
+                    "printer_euid": printer_euid,
                     "observed_at": _utcnow(),
                     "reason": str(exc),
                 }
@@ -727,7 +785,8 @@ class ZebraDayClient:
             self.repository.record_drift(
                 {
                     "lab": lab,
-                    "printer_id": printer_id,
+                    "printer_id": printer.printer_id,
+                    "printer_euid": printer_euid,
                     "field": "model",
                     "curated_value": payload["model"],
                     "observed_value": observed["model"],
@@ -740,7 +799,8 @@ class ZebraDayClient:
             self.repository.record_drift(
                 {
                     "lab": lab,
-                    "printer_id": printer_id,
+                    "printer_id": printer.printer_id,
+                    "printer_euid": printer_euid,
                     "field": "serial",
                     "curated_value": payload["serial"],
                     "observed_value": observed["serial"],
@@ -749,10 +809,12 @@ class ZebraDayClient:
             )
         return self.repository.upsert_printer(PrinterRecord.from_payload(payload))
 
-    def update_printer_metadata(self, lab: str, printer_id: str, **changes: Any) -> PrinterRecord:
-        printer = self.repository.get_printer(lab, printer_id)
+    def update_printer_metadata(self, lab: str, printer_euid: str, **changes: Any) -> PrinterRecord:
+        printer = self.repository.get_printer_by_euid(printer_euid)
         if printer is None:
-            raise KeyError(f"Printer not found: {lab}/{printer_id}")
+            raise KeyError(f"Printer not found: {lab}/{printer_euid}")
+        if printer.lab != lab:
+            raise KeyError(f"Printer not found: {lab}/{printer_euid}")
         payload = printer.to_payload()
         payload.update({key: value for key, value in changes.items() if value is not None})
         return self.repository.upsert_printer(PrinterRecord.from_payload(payload))
@@ -761,9 +823,13 @@ class ZebraDayClient:
         return {
             "deployment_code": self.settings.deployment_code,
             "tapdb_client_id": self.settings.tapdb_client_id,
+            "tapdb_owner_repo_name": self.settings.tapdb_owner_repo_name,
+            "tapdb_domain_code": self.settings.tapdb_domain_code,
             "tapdb_database_name": self.settings.tapdb_database_name,
             "tapdb_env": self.settings.tapdb_env,
             "tapdb_config_path": str(self.settings.tapdb_config_path),
+            "tapdb_domain_registry_path": str(self.settings.tapdb_domain_registry_path),
+            "tapdb_prefix_registry_path": str(self.settings.tapdb_prefix_registry_path),
             "lab_count": len(self.list_labs()),
             "printer_count": len(self.list_printers()),
             "template_count": len(self.list_templates()),
@@ -820,8 +886,8 @@ class ZebraDayApiClient:
         rows = self._json("GET", f"/api/v1/labs/{lab}/printers")
         return [PrinterRecord.from_payload(item) for item in rows]
 
-    def get_printer(self, printer_id: str, lab: str) -> PrinterRecord:
-        payload = self._json("GET", f"/api/v1/labs/{lab}/printers/{printer_id}")
+    def get_printer(self, printer_euid: str, lab: str) -> PrinterRecord:
+        payload = self._json("GET", f"/api/v1/labs/{lab}/printers/{printer_euid}")
         return PrinterRecord.from_payload(payload)
 
     def list_templates(self) -> list[str]:
@@ -853,7 +919,7 @@ class ZebraDayApiClient:
         self,
         *,
         lab: str,
-        printer: str,
+        printer_euid: str,
         label_zpl_style: str | None = None,
         zpl_content: str | None = None,
         copies: int = 1,
@@ -861,7 +927,7 @@ class ZebraDayApiClient:
     ) -> dict[str, Any]:
         payload = {
             "lab": lab,
-            "printer": printer,
+            "printer_euid": printer_euid,
             "label_zpl_style": label_zpl_style,
             "zpl_content": zpl_content,
             "copies": copies,
@@ -873,7 +939,7 @@ class ZebraDayApiClient:
         self,
         *,
         lab: str,
-        printer: str,
+        printer_euid: str,
         label_zpl_style: str | None = None,
         zpl_content: str | None = None,
         copies: int = 1,
@@ -881,7 +947,7 @@ class ZebraDayApiClient:
     ) -> str:
         resolved = self.resolve_print_request(
             lab=lab,
-            printer=printer,
+            printer_euid=printer_euid,
             label_zpl_style=label_zpl_style,
             zpl_content=zpl_content,
             copies=copies,
@@ -895,7 +961,7 @@ class ZebraDayApiClient:
         self,
         *,
         lab: str,
-        printer: str,
+        printer_euid: str,
         label_zpl_style: str | None = None,
         zpl_content: str | None = None,
         copies: int = 1,
@@ -903,7 +969,7 @@ class ZebraDayApiClient:
     ) -> dict[str, Any]:
         payload = {
             "lab": lab,
-            "printer": printer,
+            "printer_euid": printer_euid,
             "label_zpl_style": label_zpl_style,
             "zpl_content": zpl_content,
             "copies": copies,

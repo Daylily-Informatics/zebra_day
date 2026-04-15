@@ -34,7 +34,6 @@ _ZDAY_ENV_BASE="ZEBRA_DAY"
 _ZDAY_PYTHON=""
 _ZDAY_ENV_FILE="${ZEBRA_DAY_PROJECT_ROOT}/environment.yaml"
 _ZDAY_CLI_CORE_YO_VERSION="2.0.0"
-_ZDAY_DAYLILY_TAPDB_VERSION="5.1.0"
 _ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.0.2"
 
 _zday_sanitize_deployment_code() {
@@ -202,6 +201,50 @@ _zday_distribution_version_is() {
     "${_ZDAY_PYTHON:-python}" -c "from importlib.metadata import version; import sys; sys.exit(0 if version('${dist_name}') == '${expected}' else 1)" >/dev/null 2>&1
 }
 
+_zday_pyproject_dependency_version() {
+    local dependency_name="$1"
+    "${_ZDAY_PYTHON:-python}" - "$dependency_name" "$ZEBRA_DAY_PROJECT_ROOT" <<'PY'
+from pathlib import Path
+import sys
+
+import tomllib
+
+dependency_name = sys.argv[1]
+project_root = Path(sys.argv[2])
+data = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
+for dependency in data["project"]["dependencies"]:
+    if dependency.startswith(f"{dependency_name}=="):
+        print(dependency.split("==", 1)[1])
+        raise SystemExit(0)
+raise SystemExit(f"Missing pinned dependency: {dependency_name}")
+PY
+}
+
+_zday_install_pyproject_dependencies() {
+    "${_ZDAY_PYTHON:-python}" - "$ZEBRA_DAY_PROJECT_ROOT" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+import tomllib
+
+project_root = Path(sys.argv[1])
+data = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
+dependencies = data["project"]["dependencies"]
+tapdb_dependencies = [dep for dep in dependencies if dep.startswith("daylily-tapdb==")]
+other_dependencies = [dep for dep in dependencies if dep not in tapdb_dependencies]
+if other_dependencies:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", *other_dependencies],
+        check=True,
+    )
+if tapdb_dependencies:
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--no-deps", "-q", *tapdb_dependencies],
+        check=True,
+    )
+PY
+}
+
 _zday_ensure_published_distribution() {
     local label="$1"
     local module_name="$2"
@@ -209,7 +252,7 @@ _zday_ensure_published_distribution() {
     local expected_version="$4"
     if ! _zday_distribution_version_is "$dist_name" "$expected_version"; then
         echo -e "  ${_CYAN}→${_NC} Installing published ${label} ${expected_version}..."
-        if ! "${_ZDAY_PYTHON:-python}" -m pip install "${dist_name}==${expected_version}" -q; then
+        if ! "${_ZDAY_PYTHON:-python}" -m pip install --no-deps "${dist_name}==${expected_version}" -q; then
             echo -e "  ${_YELLOW}✗${_NC} Failed to install published ${label} ${expected_version}"
             return 1
         fi
@@ -232,8 +275,11 @@ _zday_deployment_code="$(_zday_sanitize_deployment_code "${_zday_deployment_code
 export ZEBRA_DAY_DEPLOYMENT_CODE="${_zday_deployment_code}"
 export DEPLOYMENT_CODE="${_zday_deployment_code}"
 export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
-export MERIDIAN_DOMAIN_CODE="${MERIDIAN_DOMAIN_CODE:-Z}"
-export TAPDB_APP_CODE="${TAPDB_APP_CODE:-Y}"
+export MERIDIAN_DOMAIN_CODE="Z"
+export TAPDB_OWNER_REPO="zebra-day"
+export TAPDB_DOMAIN_CODE="${MERIDIAN_DOMAIN_CODE}"
+export TAPDB_DOMAIN_REGISTRY_PATH="${HOME}/.config/tapdb/domain_code_registry.json"
+export TAPDB_PREFIX_REGISTRY_PATH="${HOME}/.config/tapdb/prefix_ownership_registry.json"
 export ZEBRA_DAY_PROJECT_ROOT
 export ZDAY_PROJECT_ROOT="${ZEBRA_DAY_PROJECT_ROOT}"
 export ZEBRA_DAY_ACTIVE=1
@@ -280,13 +326,18 @@ if [[ ! -x "${_ZDAY_PYTHON}" ]]; then
     return 1
 fi
 
+_ZDAY_DAYLILY_TAPDB_VERSION="$(_zday_pyproject_dependency_version daylily-tapdb)" || return 1
+
 _zday_ensure_postgres_runtime || {
     echo -e "  ${_YELLOW}✗${_NC} PostgreSQL runtime tools are required (initdb, pg_ctl)"
     return 1
 }
 
 echo -e "  ${_CYAN}→${_NC} Installing zebra_day editable checkout"
-"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q || return 1
+"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" --no-deps -q || return 1
+
+echo -e "  ${_CYAN}→${_NC} Installing published zebra_day runtime dependencies from pyproject.toml..."
+_zday_install_pyproject_dependencies || return 1
 
 if ! _zday_ensure_published_distribution \
     "daylily-tapdb" \
@@ -316,7 +367,10 @@ hash -r 2>/dev/null || true
 echo -e "  ${_GREEN}✓${_NC} Deployment: ${_zday_deployment_code}"
 echo -e "  ${_GREEN}✓${_NC} CONDA_DEFAULT_ENV=${CONDA_DEFAULT_ENV}"
 echo -e "  ${_GREEN}✓${_NC} MERIDIAN_DOMAIN_CODE=${MERIDIAN_DOMAIN_CODE}"
-echo -e "  ${_GREEN}✓${_NC} TAPDB_APP_CODE=${TAPDB_APP_CODE}"
+echo -e "  ${_GREEN}✓${_NC} TAPDB_OWNER_REPO=${TAPDB_OWNER_REPO}"
+echo -e "  ${_GREEN}✓${_NC} TAPDB_DOMAIN_CODE=${TAPDB_DOMAIN_CODE}"
+echo -e "  ${_GREEN}✓${_NC} TAPDB_DOMAIN_REGISTRY_PATH=${TAPDB_DOMAIN_REGISTRY_PATH}"
+echo -e "  ${_GREEN}✓${_NC} TAPDB_PREFIX_REGISTRY_PATH=${TAPDB_PREFIX_REGISTRY_PATH}"
 echo -e "  ${_GREEN}✓${_NC} Config path: ${ZEBRA_DAY_CONFIG_PATH}"
 echo -e "  ${_GREEN}✓${_NC} TapDB config path: ${_ZDAY_TAPDB_CONFIG_PATH}"
 echo -e "  ${_GREEN}✓${_NC} Runtime namespace: ${_ZDAY_TAPDB_CLIENT_ID}/${_ZDAY_TAPDB_DATABASE_NAME}"

@@ -102,7 +102,14 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
         "status",
     ]
     assert recorded["env"]["MERIDIAN_DOMAIN_CODE"] == "Z"
-    assert recorded["env"]["TAPDB_APP_CODE"] == "Y"
+    assert recorded["env"]["TAPDB_OWNER_REPO"] == "zebra-day"
+    assert recorded["env"]["TAPDB_DOMAIN_CODE"] == "Z"
+    assert recorded["env"]["TAPDB_DOMAIN_REGISTRY_PATH"].endswith(
+        "/.config/tapdb/domain_code_registry.json"
+    )
+    assert recorded["env"]["TAPDB_PREFIX_REGISTRY_PATH"].endswith(
+        "/.config/tapdb/prefix_ownership_registry.json"
+    )
     assert "ok" in result.output
 
 

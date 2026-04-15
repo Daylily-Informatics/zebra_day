@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 class PrinterInfo(BaseModel):
-    printer_id: str
+    printer_euid: str
     lab: str
     ip_address: str
     printer_name: str = ""
@@ -31,7 +31,6 @@ class PrinterInfo(BaseModel):
     state: str = "Unknown"
     status: str = "active"
     discovery_source: str = ""
-    euid: str = ""
 
 
 class TemplateInfo(BaseModel):
@@ -50,7 +49,7 @@ class LabelProfileInfo(BaseModel):
 
 class PrintRequest(BaseModel):
     lab: str
-    printer: str
+    printer_euid: str
     label_zpl_style: str | None = None
     zpl_content: str | None = None
     uid_barcode: str = ""
@@ -71,7 +70,7 @@ class PrintResponse(BaseModel):
 
 class ResolvePrintResponse(BaseModel):
     lab: str
-    printer_id: str
+    printer_euid: str
     printer_ip: str
     printer: PrinterInfo
     template_name: str = ""
@@ -114,7 +113,10 @@ def _client(request: Request):
 
 
 def _printer_info(record: PrinterRecord) -> PrinterInfo:
-    return PrinterInfo(**record.to_payload())
+    payload = dict(record.to_payload())
+    payload["printer_euid"] = payload.pop("euid", "")
+    payload.pop("printer_id", None)
+    return PrinterInfo(**payload)
 
 
 @router.get("/labs", response_model=list[str])
@@ -129,23 +131,23 @@ async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
     return [_printer_info(item) for item in _client(request).list_printers(lab)]
 
 
-@router.get("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
-async def get_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
-    printer = _client(request).get_printer(printer_id, lab=lab)
+@router.get("/labs/{lab}/printers/{printer_euid}", response_model=PrinterInfo)
+async def get_printer(request: Request, lab: str, printer_euid: str) -> PrinterInfo:
+    printer = _client(request).get_printer(printer_euid, lab=lab)
     if printer is None:
-        raise HTTPException(status_code=404, detail=f"Printer not found: {lab}/{printer_id}")
+        raise HTTPException(status_code=404, detail=f"Printer not found: {lab}/{printer_euid}")
     return _printer_info(printer)
 
 
-@router.patch("/labs/{lab}/printers/{printer_id}", response_model=PrinterInfo)
+@router.patch("/labs/{lab}/printers/{printer_euid}", response_model=PrinterInfo)
 async def patch_printer(
     request: Request,
     lab: str,
-    printer_id: str,
+    printer_euid: str,
     payload: dict[str, Any],
 ) -> PrinterInfo:
     try:
-        updated = _client(request).update_printer_metadata(lab, printer_id, **payload)
+        updated = _client(request).update_printer_metadata(lab, printer_euid, **payload)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _printer_info(updated)
@@ -165,10 +167,10 @@ async def discover_lab_printers(
     return [_printer_info(item) for item in rows]
 
 
-@router.post("/labs/{lab}/printers/{printer_id}/sync", response_model=PrinterInfo)
-async def sync_printer(request: Request, lab: str, printer_id: str) -> PrinterInfo:
+@router.post("/labs/{lab}/printers/{printer_euid}/sync", response_model=PrinterInfo)
+async def sync_printer(request: Request, lab: str, printer_euid: str) -> PrinterInfo:
     try:
-        updated = _client(request).sync_printer_metadata(printer_id, lab)
+        updated = _client(request).sync_printer_metadata(printer_euid, lab)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _printer_info(updated)
@@ -271,7 +273,7 @@ async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePri
     try:
         resolved = _client(request).resolve_print_request(
             lab=print_req.lab,
-            printer=print_req.printer,
+            printer_euid=print_req.printer_euid,
             label_zpl_style=print_req.label_zpl_style,
             zpl_content=print_req.zpl_content,
             uid_barcode=print_req.uid_barcode,
@@ -289,7 +291,7 @@ async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePri
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ResolvePrintResponse(
         lab=str(resolved["lab"]),
-        printer_id=str(resolved["printer_id"]),
+        printer_euid=str(resolved["printer_euid"]),
         printer_ip=str(resolved["printer_ip"]),
         printer=PrinterInfo(**dict(resolved["printer"])),
         template_name=str(resolved.get("template_name") or ""),
@@ -309,7 +311,7 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
     try:
         zpl_string = _client(request).submit_print_job(
             lab=print_req.lab,
-            printer=print_req.printer,
+            printer_euid=print_req.printer_euid,
             label_zpl_style=print_req.label_zpl_style,
             zpl_content=print_req.zpl_content,
             uid_barcode=print_req.uid_barcode,

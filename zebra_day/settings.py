@@ -21,8 +21,8 @@ DEFAULT_PORT = 8118
 DEFAULT_SERVICE_NAME = "zebra-day"
 DEFAULT_AUTH_MODE = "cognito"
 DEFAULT_TAPDB_CLIENT_ID = "zebra-day"
+DEFAULT_TAPDB_OWNER_REPO = "zebra-day"
 DEFAULT_MERIDIAN_DOMAIN_CODE = "Z"
-DEFAULT_TAPDB_APP_CODE = "Y"
 DEFAULT_DEPLOYMENT_BANNER_COLOR = "#AFEEEE"
 PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
@@ -88,6 +88,14 @@ def _resolve_deployment_chrome(
     }
 
 
+def _default_tapdb_domain_registry_path() -> Path:
+    return Path.home() / ".config" / "tapdb" / "domain_code_registry.json"
+
+
+def _default_tapdb_prefix_registry_path() -> Path:
+    return Path.home() / ".config" / "tapdb" / "prefix_ownership_registry.json"
+
+
 def build_default_config_template(deployment: str | None = None) -> bytes:
     """Build the repo's canonical deployment config template."""
     deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
@@ -112,8 +120,12 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
         },
         "tapdb": {
             "client_id": DEFAULT_TAPDB_CLIENT_ID,
+            "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
+            "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
             "env": "dev",
+            "domain_registry_path": str(_default_tapdb_domain_registry_path()),
+            "prefix_registry_path": str(_default_tapdb_prefix_registry_path()),
         },
         "discovery": {
             "default_scan_wait_seconds": 0.5,
@@ -177,8 +189,16 @@ def validate_settings_yaml(content: str) -> list[str]:
     if isinstance(tapdb, dict):
         if not str(tapdb.get("client_id") or "").strip():
             errors.append("tapdb.client_id is required")
+        if not str(tapdb.get("owner_repo_name") or "").strip():
+            errors.append("tapdb.owner_repo_name is required")
+        if not str(tapdb.get("domain_code") or "").strip():
+            errors.append("tapdb.domain_code is required")
         if not str(tapdb.get("database_name") or "").strip():
             errors.append("tapdb.database_name is required")
+        if not str(tapdb.get("domain_registry_path") or "").strip():
+            errors.append("tapdb.domain_registry_path is required")
+        if not str(tapdb.get("prefix_registry_path") or "").strip():
+            errors.append("tapdb.prefix_registry_path is required")
 
     return errors
 
@@ -209,9 +229,13 @@ class ZebraDaySettings:
     cognito_default_tenant_id: str
     cognito_auto_provision_allowed_domains: list[str]
     tapdb_client_id: str
+    tapdb_owner_repo_name: str
+    tapdb_domain_code: str
     tapdb_database_name: str
     tapdb_env: str
     tapdb_config_path: Path
+    tapdb_domain_registry_path: Path
+    tapdb_prefix_registry_path: Path
     callback_path: str
     logout_path: str
     cognito_group_role_map: dict[str, str]
@@ -255,6 +279,10 @@ class ZebraDaySettings:
         )
 
         client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
+        owner_repo_name = str(
+            tapdb.get("owner_repo_name") or DEFAULT_TAPDB_OWNER_REPO
+        ).strip()
+        domain_code = str(tapdb.get("domain_code") or DEFAULT_MERIDIAN_DOMAIN_CODE).strip()
         database_name = str(
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
@@ -262,6 +290,12 @@ class ZebraDaySettings:
         tapdb_config_path = Path(
             tapdb.get("config_path")
             or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
+        )
+        tapdb_domain_registry_path = Path(
+            tapdb.get("domain_registry_path") or _default_tapdb_domain_registry_path()
+        )
+        tapdb_prefix_registry_path = Path(
+            tapdb.get("prefix_registry_path") or _default_tapdb_prefix_registry_path()
         )
 
         return cls(
@@ -302,9 +336,13 @@ class ZebraDaySettings:
             )
             or ["lsmc.com"],
             tapdb_client_id=client_id,
+            tapdb_owner_repo_name=owner_repo_name,
+            tapdb_domain_code=domain_code,
             tapdb_database_name=database_name,
             tapdb_env=env_name,
             tapdb_config_path=tapdb_config_path,
+            tapdb_domain_registry_path=tapdb_domain_registry_path,
+            tapdb_prefix_registry_path=tapdb_prefix_registry_path,
             callback_path=str(auth.get("callback_path") or "/auth/callback"),
             logout_path=str(auth.get("logout_path") or "/auth/logout"),
             cognito_group_role_map=normalize_group_role_map(

@@ -9,7 +9,7 @@ from tests.fakes import sample_repository
 from zebra_day.client import TapDBFleetRepository, ZebraDayApiClient, ZebraDayClient
 from zebra_day.settings import (
     DEFAULT_MERIDIAN_DOMAIN_CODE,
-    DEFAULT_TAPDB_APP_CODE,
+    DEFAULT_TAPDB_OWNER_REPO,
     ZebraDaySettings,
 )
 
@@ -36,7 +36,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     captured: dict[str, object] = {}
 
-    def fake_import(module_name: str, _package_name: str):
+    def fake_import(module_name: str):
         if module_name == "daylily_tapdb":
             class _TapdbModule:
                 @staticmethod
@@ -58,14 +58,20 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
             )
         raise AssertionError(f"unexpected import request: {module_name}")
 
-    monkeypatch.setattr("zebra_day.client.import_from_sibling", fake_import)
+    monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
 
     repository = object.__new__(TapDBFleetRepository)
     repository.settings = settings
     repository._build_connection()
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
-    assert captured["issuer_app_code"] == DEFAULT_TAPDB_APP_CODE
+    assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
+    assert captured["domain_registry_path"] == str(
+        tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"
+    )
+    assert captured["prefix_registry_path"] == str(
+        tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"
+    )
 
 
 def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
@@ -91,7 +97,9 @@ def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
     api_client = ZebraDayApiClient("https://example.test", client=client)
 
     assert api_client.list_labs() == ["default"]
-    response = api_client.submit_print_job(lab="default", printer="printer-1", uid_barcode="UID-1")
+    response = api_client.submit_print_job(
+        lab="default", printer_euid="default-printer-0001", uid_barcode="UID-1"
+    )
 
     assert response["success"] is True
     assert calls == [("GET", "/api/v1/labs"), ("POST", "/api/v1/print")]
@@ -101,9 +109,12 @@ def test_api_client_direct_print_uses_remote_resolution(monkeypatch):
     repository = sample_repository()
     resolution = {
         "lab": "default",
-        "printer_id": "printer-1",
+        "printer_euid": "default-printer-0001",
         "printer_ip": "192.168.1.50",
-        "printer": repository.get_printer("default", "printer-1").to_payload(),
+        "printer": {
+            **repository.get_printer("default", "printer-1").to_payload(),
+            "printer_euid": repository.get_printer("default", "printer-1").euid,
+        },
         "template_name": "tube_2inX1in",
         "label_style": "tube_2inX1in",
         "zpl_content": "^XA^FO30,30^FDSAMPLE-1^FS^XZ",
@@ -125,7 +136,9 @@ def test_api_client_direct_print_uses_remote_resolution(monkeypatch):
     client = httpx.Client(base_url="https://example.test", transport=transport)
     api_client = ZebraDayApiClient("https://example.test", client=client)
 
-    zpl = api_client.print_label(lab="default", printer="printer-1", uid_barcode="SAMPLE-1")
+    zpl = api_client.print_label(
+        lab="default", printer_euid="default-printer-0001", uid_barcode="SAMPLE-1"
+    )
 
     assert zpl == resolution["zpl_content"]
     assert sent == [

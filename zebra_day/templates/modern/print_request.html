@@ -25,7 +25,7 @@
             </div>
             <div class="form-group">
                 <label class="form-label required">Printer</label>
-                <select id="printer-select" name="printer" class="form-control" required>
+                <select id="printer-select" name="printer_euid" class="form-control" required>
                     <option value="">Select a printer...</option>
                 </select>
             </div>
@@ -97,19 +97,19 @@
 {% block extra_scripts %}
 <script>
 const labsDict = {{ labs_dict | safe }};
-const selectedPrinter = {{ selected_printer | tojson }};
+const selectedPrinterEuid = {{ selected_printer_euid | tojson }};
 
 function populatePrinters() {
     const lab = document.getElementById('lab-select').value;
     const printerSelect = document.getElementById('printer-select');
     printerSelect.innerHTML = '<option value="">Select a printer...</option>';
     const printers = labsDict?.[lab]?.printers || {};
-    Object.keys(printers).sort().forEach((printerId) => {
-        const printer = printers[printerId];
+    Object.keys(printers).sort().forEach((printerEuid) => {
+        const printer = printers[printerEuid];
         const option = document.createElement('option');
-        option.value = printerId;
-        option.textContent = printer.printer_name || printerId;
-        if (printerId === selectedPrinter) {
+        option.value = printerEuid;
+        option.textContent = printer.printer_name || printerEuid;
+        if (printerEuid === selectedPrinterEuid) {
             option.selected = true;
         }
         printerSelect.appendChild(option);
@@ -121,7 +121,7 @@ function formPayload() {
     const formData = new FormData(form);
     return {
         lab: formData.get('lab'),
-        printer: formData.get('printer'),
+        printer_euid: formData.get('printer_euid'),
         label_zpl_style: formData.get('label_zpl_style') || null,
         uid_barcode: formData.get('uid_barcode') || '',
         alt_a: formData.get('alt_a') || '',
@@ -148,7 +148,7 @@ async function resolvePrint() {
             showToast('error', 'Resolve failed', payload.detail || 'Unknown error');
             return;
         }
-        showToast('success', 'Resolved', `${payload.printer.printer_name || payload.printer_id} -> ${payload.template_name || payload.label_style || 'printer default'}`);
+        showToast('success', 'Resolved', `${payload.printer.printer_name || payload.printer.printer_euid} -> ${payload.template_name || payload.label_style || 'printer default'}`);
     } catch (error) {
         hideLoading();
         showToast('error', 'Resolve failed', error.message || 'Unknown error');

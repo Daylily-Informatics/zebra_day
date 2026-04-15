@@ -11,7 +11,6 @@ from cli_core_yo import ccyo_out
 
 from zebra_day.cli._registry_v2 import REQUIRED_MUTATING, register_group_commands
 from zebra_day.settings import ZebraDaySettings
-from zebra_day.settings import DEFAULT_MERIDIAN_DOMAIN_CODE, DEFAULT_TAPDB_APP_CODE
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -25,10 +24,11 @@ _PASSTHROUGH_ARGS = typer.Argument(None, metavar="ARGS...")
 
 def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
     env = os.environ.copy()
-    env["MERIDIAN_DOMAIN_CODE"] = os.environ.get(
-        "MERIDIAN_DOMAIN_CODE", DEFAULT_MERIDIAN_DOMAIN_CODE
-    )
-    env["TAPDB_APP_CODE"] = os.environ.get("TAPDB_APP_CODE", DEFAULT_TAPDB_APP_CODE)
+    env["MERIDIAN_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_OWNER_REPO"] = str(settings.tapdb_owner_repo_name)
+    env["TAPDB_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_DOMAIN_REGISTRY_PATH"] = str(settings.tapdb_domain_registry_path)
+    env["TAPDB_PREFIX_REGISTRY_PATH"] = str(settings.tapdb_prefix_registry_path)
     result = subprocess.run(
         [
             "tapdb",

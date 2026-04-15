@@ -231,6 +231,7 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             serial="SER123",
             label_profiles=["tube"],
             default_label_profile="tube",
+            euid="default-printer-0001",
         )
     ]
     discovered = [
@@ -242,6 +243,7 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             model="ZT411",
             serial="SER999",
             notes="zpl+http(18080)",
+            euid="ops-printer-0009",
         )
     ]
     calls: dict[str, object] = {}
@@ -254,8 +256,8 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             calls["discover"] = (ip_stub, lab, scan_http_port)
             return discovered
 
-        def sync_printer_metadata(self, printer_id, lab):
-            calls["sync"] = (printer_id, lab)
+        def sync_printer_metadata(self, printer_euid, lab):
+            calls["sync"] = (printer_euid, lab)
             return discovered[0]
 
     monkeypatch.setattr(printer_module.ZebraDayClient, "from_context", lambda: _FakeClient())
@@ -273,20 +275,21 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
 
     printer_module.list_printers(lab="default", live=True, timeout=2.0)
     listed_out = capsys.readouterr().out
-    assert "default/printer-1  192.168.1.50" in listed_out
+    assert "default/default-printer-0001  192.168.1.50" in listed_out
     assert "live_online=True" in listed_out
     assert "paper_out=True" in listed_out
 
     monkeypatch.setattr(printer_module, "get_context", lambda: SimpleNamespace(json_mode=True))
     printer_module.scan(lab="ops", ip_stub="192.168.1", scan_http_port=18080)
     scanned_payload = json.loads(capsys.readouterr().out.strip())
-    assert scanned_payload[0]["printer_id"] == "printer-9"
+    assert scanned_payload[0]["printer_euid"]
+    assert "printer_id" not in scanned_payload[0]
     assert calls["discover"] == ("192.168.1", "ops", 18080)
 
-    printer_module.sync(lab="ops", printer_id="printer-9")
+    printer_module.sync(lab="ops", printer_euid=discovered[0].euid)
     synced_payload = json.loads(capsys.readouterr().out.strip())
     assert synced_payload["serial"] == "SER999"
-    assert calls["sync"] == ("printer-9", "ops")
+    assert calls["sync"] == (discovered[0].euid, "ops")
 
 
 def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, tmp_path, capsys):
@@ -439,6 +442,7 @@ def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path
                     ip_address="192.168.50.9",
                     model="ZT411",
                     serial="SER009",
+                    euid="ops-printer-0009",
                 )
             ]
 

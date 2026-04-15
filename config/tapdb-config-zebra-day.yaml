@@ -2,7 +2,10 @@ meta:
   config_version: 3
   client_id: zebra-day
   database_name: zebra-day
-  euid_client_code: Z
+  owner_repo_name: zebra-day
+  domain_code: Z
+  domain_registry_path: ~/.config/tapdb/domain_code_registry.json
+  prefix_registry_path: ~/.config/tapdb/prefix_ownership_registry.json
 environments:
   dev:
     engine_type: local

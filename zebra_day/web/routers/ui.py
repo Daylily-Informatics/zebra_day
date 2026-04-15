@@ -58,9 +58,12 @@ def _labs_dict(request: Request) -> dict[str, Any]:
     client = _client(request)
     payload: dict[str, Any] = {}
     for lab in client.list_labs():
-        printers = {
-            printer.printer_id: printer.to_payload() for printer in client.list_printers(lab)
-        }
+        printers: dict[str, Any] = {}
+        for printer in client.list_printers(lab):
+            printer_payload = dict(printer.to_payload())
+            printer_payload["printer_euid"] = printer_payload.pop("euid", "")
+            printer_payload.pop("printer_id", None)
+            printers[printer_payload["printer_euid"]] = printer_payload
         payload[lab] = {
             "lab_display_name": lab.replace("-", " ").title(),
             "printers": printers,
@@ -183,7 +186,7 @@ async def templates_page(request: Request):
 async def print_page(
     request: Request,
     lab: str | None = None,
-    printer: str | None = None,
+    printer_euid: str | None = None,
     label_zpl_style: str | None = None,
 ):
     client = _client(request)
@@ -194,7 +197,7 @@ async def print_page(
         labs=labs,
         labs_dict=json.dumps(_labs_dict(request)),
         selected_lab=lab or "",
-        selected_printer=printer or "",
+        selected_printer_euid=printer_euid or "",
         selected_template=label_zpl_style or "",
         template_names=client.list_templates(),
     )

@@ -161,10 +161,10 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/config"),
         ("GET", "/api/v1/labs"),
         ("GET", "/api/v1/labs/{lab}/printers"),
-        ("GET", "/api/v1/labs/{lab}/printers/{printer_id}"),
-        ("PATCH", "/api/v1/labs/{lab}/printers/{printer_id}"),
+        ("GET", "/api/v1/labs/{lab}/printers/{printer_euid}"),
+        ("PATCH", "/api/v1/labs/{lab}/printers/{printer_euid}"),
         ("POST", "/api/v1/labs/{lab}/discover"),
-        ("POST", "/api/v1/labs/{lab}/printers/{printer_id}/sync"),
+        ("POST", "/api/v1/labs/{lab}/printers/{printer_euid}/sync"),
         ("GET", "/api/v1/templates"),
         ("GET", "/api/v1/templates/{template_name}"),
         ("POST", "/api/v1/templates"),
@@ -247,10 +247,11 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
         )
         submit = client.post(
             "/api/v1/print",
-            json={"lab": "default", "printer": "printer-1", "uid_barcode": "UID-1"},
+            json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-1"},
         )
     assert labs.json() == ["default"]
-    assert printers.json()[0]["printer_id"] == "printer-1"
+    assert printers.json()[0]["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in printers.json()[0]
     assert printers.json()[0]["default_label_profile"] == "tube_2inX1in"
     assert runtime.json()["tapdb_database_name"] == "zebra-day-local"
     assert runtime.json()["version"] == __version__
@@ -294,16 +295,16 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
 
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
     with TestClient(app) as client:
-        printer_detail = client.get("/api/v1/labs/default/printers/printer-1")
+        printer_detail = client.get("/api/v1/labs/default/printers/default-printer-0001")
         printer_patch = client.patch(
-            "/api/v1/labs/default/printers/printer-1",
+            "/api/v1/labs/default/printers/default-printer-0001",
             json={"printer_name": "Renamed Printer", "lab_location": "Bench 2"},
         )
         discover = client.post(
             "/api/v1/labs/default/discover",
             json={"ip_stub": "192.168.1", "scan_http_port": 80},
         )
-        sync = client.post("/api/v1/labs/default/printers/printer-1/sync")
+        sync = client.post("/api/v1/labs/default/printers/default-printer-0001/sync")
         template_list = client.get("/api/v1/templates")
         template_detail = client.get("/api/v1/templates/tube_2inX1in")
         template_save = client.post(
@@ -319,19 +320,21 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
         )
         resolve = client.post(
             "/api/v1/print/resolve",
-            json={"lab": "default", "printer": "printer-1", "uid_barcode": "UID-3"},
+            json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-3"},
         )
 
     assert printer_detail.status_code == 200
-    assert printer_detail.json()["printer_id"] == "printer-1"
+    assert printer_detail.json()["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in printer_detail.json()
     assert printer_patch.status_code == 200
     assert printer_patch.json()["printer_name"] == "Renamed Printer"
     assert printer_patch.json()["lab_location"] == "Bench 2"
     assert discover.status_code == 200
-    assert discover.json()[0]["printer_id"] == "printer-2"
+    assert discover.json()[0]["printer_euid"]
+    assert "printer_id" not in discover.json()[0]
     assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
     assert sync.status_code == 200
-    assert sync.json()["printer_id"] == "printer-1"
+    assert sync.json()["printer_euid"] == "default-printer-0001"
     assert template_list.status_code == 200
     assert "tube_2inX1in" in template_list.json()
     assert template_detail.status_code == 200
@@ -348,7 +351,8 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert render_png.headers["content-type"] == "image/png"
     assert render_png.content == b"png"
     assert resolve.status_code == 200
-    assert resolve.json()["printer_id"] == "printer-1"
+    assert resolve.json()["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in resolve.json()
     assert resolve.json()["copies"] == 1
 
 
@@ -407,7 +411,7 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
     with TestClient(app) as client:
         printers_by_lab = client.get("/printers/default")
         print_page = client.get(
-            "/print?lab=default&printer=printer-1&label_zpl_style=tube_2inX1in"
+            "/print?lab=default&printer_euid=default-printer-0001&label_zpl_style=tube_2inX1in"
         )
         openapi = client.get("/openapi.json")
         docs = client.get("/docs")
