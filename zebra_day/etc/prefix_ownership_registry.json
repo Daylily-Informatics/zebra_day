@@ -1,0 +1,10 @@
+{
+  "version": "0.4.0",
+  "ownership": {
+    "Z": {
+      "ZGX": {
+        "issuer_app_code": "zebra-day"
+      }
+    }
+  }
+}

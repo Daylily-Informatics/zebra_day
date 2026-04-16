@@ -76,6 +76,70 @@ def _tapdb_import(module_name: str):
         ) from exc
 
 
+def _ensure_prefix_ownership_registry(
+    *,
+    owner_repo_name: str,
+    domain_code: str,
+    prefixes: list[str],
+    registry_path: Path,
+) -> Path:
+    resolved_path = Path(registry_path).expanduser().resolve()
+    if not resolved_path.exists():
+        raise RuntimeError(f"Prefix registry not found: {resolved_path}")
+
+    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Prefix registry must be a JSON object: {resolved_path}")
+
+    ownership = payload.get("ownership")
+    if not isinstance(ownership, dict):
+        raise RuntimeError(f"Prefix registry must define an ownership object: {resolved_path}")
+
+    domain_claims = ownership.get(domain_code)
+    if domain_claims is None:
+        domain_claims = {}
+        ownership[domain_code] = domain_claims
+    if not isinstance(domain_claims, dict):
+        raise RuntimeError(
+            f"Prefix registry claims for domain {domain_code!r} must be an object: {resolved_path}"
+        )
+
+    changed = False
+    for prefix in sorted({str(prefix).strip().upper() for prefix in prefixes if str(prefix).strip()}):
+        existing = domain_claims.get(prefix)
+        if existing is None:
+            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
+            changed = True
+            continue
+        if not isinstance(existing, dict):
+            raise RuntimeError(
+                f"Prefix {prefix!r} claim for domain {domain_code!r} must be an object: "
+                f"{resolved_path}"
+            )
+        current_owner = str(
+            existing.get("issuer_app_code")
+            or existing.get("owner_repo_name")
+            or existing.get("repo_name")
+            or ""
+        ).strip()
+        if current_owner and current_owner != owner_repo_name:
+            raise RuntimeError(
+                f"Prefix {prefix!r} for domain {domain_code!r} is claimed by "
+                f"{current_owner!r}, not {owner_repo_name!r}"
+            )
+        if current_owner != owner_repo_name or existing.get("issuer_app_code") != owner_repo_name:
+            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
+            changed = True
+
+    if changed:
+        resolved_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    return resolved_path
+
+
 def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
     payload = record.to_payload()
     payload["printer_euid"] = _clean(payload.pop("euid", ""))
@@ -226,6 +290,12 @@ class TapDBFleetRepository:
             templates = (
                 json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
             )
+            prefix_registry_path = _ensure_prefix_ownership_registry(
+                owner_repo_name=self.settings.tapdb_owner_repo_name,
+                domain_code=self.settings.tapdb_domain_code,
+                prefixes=[str(template.get("instance_prefix") or "") for template in templates],
+                registry_path=self.settings.tapdb_prefix_registry_path,
+            )
             loader.seed_templates(
                 session,
                 templates,
@@ -234,7 +304,7 @@ class TapDBFleetRepository:
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
                 domain_registry_path=str(self.settings.tapdb_domain_registry_path),
-                prefix_registry_path=str(self.settings.tapdb_prefix_registry_path),
+                prefix_registry_path=str(prefix_registry_path),
             )
 
     def _seed_package_templates(self) -> None:

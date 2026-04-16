@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from tests.fakes import sample_repository
-from zebra_day.client import TapDBFleetRepository, ZebraDayApiClient, ZebraDayClient
+from zebra_day.client import (
+    TapDBFleetRepository,
+    ZebraDayApiClient,
+    ZebraDayClient,
+    _ensure_prefix_ownership_registry,
+)
 from zebra_day.settings import (
     DEFAULT_MERIDIAN_DOMAIN_CODE,
     DEFAULT_TAPDB_OWNER_REPO,
@@ -72,6 +79,125 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     assert captured["prefix_registry_path"] == str(
         tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"
     )
+
+
+def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
+    registry_path = tmp_path / "prefix_ownership_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "version": "0.4.0",
+                "ownership": {
+                    "Z": {
+                        "SYS": {"issuer_app_code": "daylily-tapdb"},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _ensure_prefix_ownership_registry(
+        owner_repo_name="zebra-day",
+        domain_code="Z",
+        prefixes=["zgx", "ZGX", ""],
+        registry_path=registry_path,
+    )
+
+    assert result == registry_path.resolve()
+    payload = json.loads(registry_path.read_text(encoding="utf-8"))
+    assert payload["ownership"]["Z"]["SYS"]["issuer_app_code"] == "daylily-tapdb"
+    assert payload["ownership"]["Z"]["ZGX"]["issuer_app_code"] == "zebra-day"
+
+
+def test_ensure_prefix_ownership_registry_rejects_conflicting_owner(tmp_path):
+    registry_path = tmp_path / "prefix_ownership_registry.json"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "version": "0.4.0",
+                "ownership": {
+                    "Z": {
+                        "ZGX": {"issuer_app_code": "other-app"},
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="claimed by 'other-app', not 'zebra-day'"):
+        _ensure_prefix_ownership_registry(
+            owner_repo_name="zebra-day",
+            domain_code="Z",
+            prefixes=["ZGX"],
+            registry_path=registry_path,
+        )
+
+
+def test_packaged_registry_fixtures_match_zebra_prefix_ownership():
+    fixture_dir = Path(__file__).resolve().parents[1] / "zebra_day" / "etc"
+    domain_registry = json.loads(
+        (fixture_dir / "domain_code_registry.json").read_text(encoding="utf-8")
+    )
+    prefix_registry = json.loads(
+        (fixture_dir / "prefix_ownership_registry.json").read_text(encoding="utf-8")
+    )
+
+    assert set(domain_registry["domains"]) == {"Z"}
+    assert set(prefix_registry["ownership"]) == {"Z"}
+    assert set(prefix_registry["ownership"]["Z"]) == {"ZGX"}
+    assert prefix_registry["ownership"]["Z"]["ZGX"]["issuer_app_code"] == "zebra-day"
+
+
+def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    settings = ZebraDaySettings.from_context()
+    repo = object.__new__(TapDBFleetRepository)
+    repo.settings = settings
+
+    captured: dict[str, object] = {}
+
+    class _Scope:
+        def __enter__(self):
+            return "session"
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    repo._session = lambda *, commit: _Scope()
+
+    def fake_claim(**kwargs):
+        captured["claim_kwargs"] = kwargs
+        return tmp_path / "claimed.json"
+
+    def fake_import(module_name: str):
+        if module_name == "daylily_tapdb.templates.loader":
+            return SimpleNamespace(
+                find_tapdb_core_config_dir=lambda: tmp_path / "core",
+                seed_templates=lambda session, templates, overwrite, **kwargs: captured.update(
+                    {
+                        "seed_session": session,
+                        "template_count": len(templates),
+                        "overwrite": overwrite,
+                        "seed_kwargs": kwargs,
+                    }
+                ),
+            )
+        raise AssertionError(f"unexpected import request: {module_name}")
+
+    monkeypatch.setattr("zebra_day.client._ensure_prefix_ownership_registry", fake_claim)
+    monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
+
+    repo._seed_templates()
+
+    assert captured["claim_kwargs"]["owner_repo_name"] == "zebra-day"
+    assert captured["claim_kwargs"]["domain_code"] == "Z"
+    assert "ZGX" in captured["claim_kwargs"]["prefixes"]
+    assert captured["seed_session"] == "session"
+    assert captured["template_count"] > 0
+    assert captured["overwrite"] is False
+    assert captured["seed_kwargs"]["prefix_registry_path"] == str(tmp_path / "claimed.json")
 
 
 def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
