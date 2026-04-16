@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from zebra_day import paths as xdg
@@ -35,6 +36,10 @@ def test_default_config_template_is_valid_yaml():
     assert "zebra-day-admin: ADMIN" in content
     assert "deployment:" in content
     assert payload["authentication"]["session_secret_key"]
+    assert payload["authentication"]["cognito_region"] == ""
+    assert payload["authentication"]["cognito_user_pool_id"] == ""
+    assert payload["authentication"]["cognito_app_client_id"] == ""
+    assert payload["authentication"]["cognito_domain"] == ""
     assert payload["authentication"]["allowed_email_domains"] == [
         "lsmc.com",
         "lsmc.bio",
@@ -96,6 +101,10 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             "  port: 8119\n"
             "authentication:\n"
             "  mode: none\n"
+            "  cognito_region: us-west-2\n"
+            "  cognito_user_pool_id: pool-123\n"
+            "  cognito_app_client_id: client-123\n"
+            "  cognito_domain: example.auth.us-west-2.amazoncognito.com\n"
             "tapdb:\n"
             "  client_id: zebra-day\n"
             "  database_name: zebra-day-prod-custom\n"
@@ -113,6 +122,10 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.port == 8119
     assert settings.auth_mode == "none"
     assert settings.session_secret_key
+    assert settings.cognito_region == "us-west-2"
+    assert settings.cognito_user_pool_id == "pool-123"
+    assert settings.cognito_app_client_id == "client-123"
+    assert settings.cognito_domain == "example.auth.us-west-2.amazoncognito.com"
     assert settings.allowed_email_domains == [
         "lsmc.com",
         "lsmc.bio",
@@ -131,6 +144,47 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
         "color": "#123456",
         "is_production": False,
     }
+
+
+def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="prodx")
+    config_path = xdg.get_config_file_path()
+    config_path.write_text(
+        (
+            "authentication:\n"
+            "  cognito_region: us-east-1\n"
+            "  cognito_user_pool_id: pool-file\n"
+            "  cognito_app_client_id: client-file\n"
+            "  cognito_domain: example.file.auth.us-west-2.amazoncognito.com\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-env")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-env")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.env.auth.us-west-2.amazoncognito.com")
+
+    settings = ZebraDaySettings.from_context()
+
+    assert settings.cognito_region == "us-west-2"
+    assert settings.cognito_user_pool_id == "pool-env"
+    assert settings.cognito_app_client_id == "client-env"
+    assert settings.cognito_domain == "example.env.auth.us-west-2.amazoncognito.com"
+
+
+def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="prodx")
+    config_path = xdg.get_config_file_path()
+    config_path.write_text(
+        (
+            "authentication:\n"
+            "  cognito_domain: https://example.auth.us-west-2.amazoncognito.com\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="bare host"):
+        ZebraDaySettings.from_context()
 
 
 def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):

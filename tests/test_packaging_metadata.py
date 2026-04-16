@@ -19,6 +19,6 @@ def test_pyproject_pins_release_train_dependencies() -> None:
     tapdb_version = _tapdb_version(dependencies)
 
     assert "cli-core-yo==2.0.0" in dependencies
-    assert "daylily-auth-cognito==2.0.2" in dependencies
+    assert "daylily-auth-cognito==2.0.3" in dependencies
     assert f"daylily-tapdb=={tapdb_version}" in dependencies
     assert all("daylily-cognito" not in dependency for dependency in dependencies)

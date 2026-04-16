@@ -9,7 +9,17 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from zebra_day.settings import ZebraDaySettings
 from zebra_day.web import auth
+
+
+def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
 
 
 class TestCognitoAvailability:
@@ -367,11 +377,11 @@ def test_build_logout_url_uses_callback_uri_for_managed_login(monkeypatch):
     assert captured["logout_uri"] == "https://localhost:8118/login"
 
 
-def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypatch):
+def test_load_daycog_contract_prefers_process_env_and_keeps_bare_host(monkeypatch):
     monkeypatch.setenv("COGNITO_REGION", "us-west-2")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")
     monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-123")
-    monkeypatch.setenv("COGNITO_DOMAIN", "https://example.auth.us-west-2.amazoncognito.com")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.auth.us-west-2.amazoncognito.com")
     monkeypatch.setattr(
         auth,
         "_load_daycog_file_values",
@@ -386,7 +396,22 @@ def test_load_daycog_contract_prefers_process_env_and_normalizes_domain(monkeypa
     assert contract["app_client_id"] == "client-123"
 
 
-def test_load_daycog_contract_falls_back_to_daycog_config_file_when_env_missing(monkeypatch):
+def test_load_daycog_contract_rejects_schemeful_domain(monkeypatch):
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-123")
+    monkeypatch.setenv("COGNITO_DOMAIN", "https://example.auth.us-west-2.amazoncognito.com")
+    monkeypatch.setattr(
+        auth,
+        "_load_daycog_file_values",
+        lambda: (_ for _ in ()).throw(AssertionError("daycog config file should not be read")),
+    )
+
+    with pytest.raises(ValueError, match="bare host"):
+        auth.load_daycog_contract()
+
+
+def test_load_daycog_contract_falls_back_to_daycog_config_file_with_bare_host(monkeypatch):
     monkeypatch.delenv("COGNITO_REGION", raising=False)
     monkeypatch.delenv("COGNITO_USER_POOL_ID", raising=False)
     monkeypatch.delenv("COGNITO_APP_CLIENT_ID", raising=False)
@@ -398,13 +423,40 @@ def test_load_daycog_contract_falls_back_to_daycog_config_file_when_env_missing(
             "COGNITO_REGION": "us-west-2",
             "COGNITO_USER_POOL_ID": "pool-123",
             "COGNITO_APP_CLIENT_ID": "client-123",
-            "COGNITO_DOMAIN": "https://example.auth.us-west-2.amazoncognito.com",
+            "COGNITO_DOMAIN": "example.auth.us-west-2.amazoncognito.com",
         },
     )
 
     contract = auth.load_daycog_contract()
 
     assert contract["cognito_domain"] == "example.auth.us-west-2.amazoncognito.com"
+
+
+def test_setup_cognito_auth_uses_runtime_settings_without_daycog(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-123")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.auth.us-west-2.amazoncognito.com")
+    monkeypatch.setenv("ZEBRA_DAY_PUBLIC_BASE_URL", "https://zebra.example.test")
+    monkeypatch.setattr(
+        auth,
+        "load_daycog_contract",
+        lambda: (_ for _ in ()).throw(AssertionError("runtime must not load daycog")),
+    )
+    settings = ZebraDaySettings.from_context()
+
+    binding = auth.setup_cognito_auth(None, settings)
+
+    assert binding.config.region == "us-west-2"
+    assert binding.config.user_pool_id == "pool-123"
+    assert binding.config.app_client_id == "client-123"
+    assert binding.config.cognito_domain == "example.auth.us-west-2.amazoncognito.com"
+    assert binding.web_session_config is not None
+    assert binding.web_session_config.domain == "example.auth.us-west-2.amazoncognito.com"
+    assert binding.web_session_config.public_base_url == "https://zebra.example.test"
+    assert binding.web_session_config.redirect_uri == "https://zebra.example.test/auth/callback"
+    assert binding.web_session_config.logout_uri == "https://zebra.example.test/login"
 
 
 def test_verify_id_token_passes_paired_access_token_to_jose_decode(monkeypatch):

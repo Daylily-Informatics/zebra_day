@@ -60,6 +60,15 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return content if isinstance(content, dict) else {}
 
 
+def _validate_cognito_domain(value: Any) -> str:
+    domain = str(value or "").strip()
+    if not domain:
+        return ""
+    if any(marker in domain for marker in ("://", "/", "?", "#", ":")):
+        raise ValueError("authentication.cognito_domain must be a bare host without a scheme")
+    return domain
+
+
 def _stable_deployment_color_hex(name: str) -> str:
     digest = hashlib.sha256(name.encode("utf-8")).digest()
     hue = int.from_bytes(digest[:8], "big") % 360
@@ -113,6 +122,10 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "session_secret_key": _DEFAULT_SESSION_SECRET_KEY,
             "callback_path": "/auth/callback",
             "logout_path": "/auth/logout",
+            "cognito_region": "",
+            "cognito_user_pool_id": "",
+            "cognito_app_client_id": "",
+            "cognito_domain": "",
             "group_role_map": DEFAULT_COGNITO_GROUP_ROLE_MAP,
             "allowed_email_domains": list(DEFAULT_ALLOWED_EMAIL_DOMAINS),
             "default_tenant_id": ZERO_TENANT_ID,
@@ -184,6 +197,12 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append(
                 "authentication.auto_provision_allowed_domains must contain at least one domain"
             )
+        cognito_domain = str(auth.get("cognito_domain") or "").strip()
+        if cognito_domain:
+            try:
+                _validate_cognito_domain(cognito_domain)
+            except ValueError as exc:
+                errors.append(str(exc))
 
     tapdb = config.get("tapdb") or {}
     if isinstance(tapdb, dict):
@@ -228,6 +247,10 @@ class ZebraDaySettings:
     allowed_email_domains: list[str]
     cognito_default_tenant_id: str
     cognito_auto_provision_allowed_domains: list[str]
+    cognito_region: str
+    cognito_user_pool_id: str
+    cognito_app_client_id: str
+    cognito_domain: str
     tapdb_client_id: str
     tapdb_owner_repo_name: str
     tapdb_domain_code: str
@@ -268,6 +291,7 @@ class ZebraDaySettings:
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
         ui = merged.get("ui") or {}
+        auth_cognito = auth.get("cognito") or {}
         deployment_chrome = _resolve_deployment_chrome(
             name=(merged.get("deployment") or {}).get("name")
             if isinstance(merged.get("deployment"), dict)
@@ -335,6 +359,30 @@ class ZebraDaySettings:
                 auth.get("auto_provision_allowed_domains") or ["lsmc.com"]
             )
             or ["lsmc.com"],
+            cognito_region=str(
+                os.environ.get("COGNITO_REGION")
+                or auth.get("cognito_region")
+                or auth_cognito.get("region")
+                or ""
+            ).strip(),
+            cognito_user_pool_id=str(
+                os.environ.get("COGNITO_USER_POOL_ID")
+                or auth.get("cognito_user_pool_id")
+                or auth_cognito.get("user_pool_id")
+                or ""
+            ).strip(),
+            cognito_app_client_id=str(
+                os.environ.get("COGNITO_APP_CLIENT_ID")
+                or auth.get("cognito_app_client_id")
+                or auth_cognito.get("app_client_id")
+                or ""
+            ).strip(),
+            cognito_domain=_validate_cognito_domain(
+                os.environ.get("COGNITO_DOMAIN")
+                or auth.get("cognito_domain")
+                or auth_cognito.get("domain")
+                or ""
+            ),
             tapdb_client_id=client_id,
             tapdb_owner_repo_name=owner_repo_name,
             tapdb_domain_code=domain_code,

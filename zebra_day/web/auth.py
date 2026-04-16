@@ -37,7 +37,11 @@ from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
 from zebra_day.rbac import parse_groups, roles_from_groups
-from zebra_day.settings import DEFAULT_ALLOWED_EMAIL_DOMAINS, ZebraDaySettings
+from zebra_day.settings import (
+    DEFAULT_ALLOWED_EMAIL_DOMAINS,
+    ZebraDaySettings,
+    _validate_cognito_domain,
+)
 
 _log = get_logger(__name__)
 
@@ -84,14 +88,8 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _normalize_cognito_domain(value: Any) -> str:
-    raw = _clean(value)
-    if not raw:
-        return ""
-    parts = urlsplit(raw)
-    if parts.scheme and parts.netloc:
-        return parts.netloc
-    return raw.removeprefix("https://").removeprefix("http://").rstrip("/")
+def _validate_runtime_cognito_domain(value: Any) -> str:
+    return _validate_cognito_domain(value)
 
 
 def _email_domain(email: str) -> str:
@@ -196,7 +194,7 @@ def load_daycog_contract() -> dict[str, str]:
         "user_pool_id": _clean(values.get("COGNITO_USER_POOL_ID")),
         "app_client_id": _clean(values.get("COGNITO_APP_CLIENT_ID")),
         "aws_profile": _clean(values.get("AWS_PROFILE")),
-        "cognito_domain": _normalize_cognito_domain(values.get("COGNITO_DOMAIN")),
+        "cognito_domain": _validate_runtime_cognito_domain(values.get("COGNITO_DOMAIN")),
         "client_name": _clean(values.get("COGNITO_CLIENT_NAME")),
         "callback_url": _clean(
             values.get("COGNITO_CALLBACK_URL")
@@ -227,7 +225,7 @@ def load_daycog_contract() -> dict[str, str]:
             values.get("COGNITO_APP_CLIENT_ID") or file_values.get("COGNITO_APP_CLIENT_ID")
         ),
         "aws_profile": _clean(values.get("AWS_PROFILE") or file_values.get("AWS_PROFILE")),
-        "cognito_domain": _normalize_cognito_domain(
+        "cognito_domain": _validate_runtime_cognito_domain(
             values.get("COGNITO_DOMAIN") or file_values.get("COGNITO_DOMAIN")
         ),
         "client_name": _clean(
@@ -277,32 +275,43 @@ def _origin(value: str) -> str:
     return f"{parts.scheme}://{parts.netloc}"
 
 
+def _require_cognito_runtime_settings(settings: ZebraDaySettings) -> SimpleNamespace:
+    missing = [
+        name
+        for name, value in (
+            ("COGNITO_REGION", settings.cognito_region),
+            ("COGNITO_USER_POOL_ID", settings.cognito_user_pool_id),
+            ("COGNITO_APP_CLIENT_ID", settings.cognito_app_client_id),
+            ("COGNITO_DOMAIN", settings.cognito_domain),
+        )
+        if not _clean(value)
+    ]
+    if missing:
+        raise ValueError("Missing zebra_day Cognito runtime settings: " + ", ".join(missing))
+    return SimpleNamespace(
+        region=settings.cognito_region,
+        user_pool_id=settings.cognito_user_pool_id,
+        app_client_id=settings.cognito_app_client_id,
+        cognito_domain=settings.cognito_domain,
+    )
+
+
 def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionConfig:
     """Build the shared browser-session config for the current runtime."""
-    contract: dict[str, str] = {}
+    public_base_url = _runtime_public_base_url(settings)
+    callback_url = f"{public_base_url}{settings.callback_path}"
+    logout_url = f"{public_base_url}/login"
     if settings.auth_mode == "cognito":
-        try:
-            contract = load_daycog_contract()
-        except Exception as exc:
-            _log.warning("Using fallback Cognito web-session URLs: %s", exc)
-
-    callback_url = _clean(contract.get("callback_url"))
-    logout_url = _clean(contract.get("logout_url"))
-    public_base_url = (
-        _origin(callback_url)
-        if callback_url
-        else _origin(logout_url)
-        if logout_url
-        else _runtime_public_base_url(settings)
-    )
-    if not callback_url:
-        callback_url = f"{public_base_url}{settings.callback_path}"
-    if not logout_url:
-        logout_url = f"{public_base_url}/login"
+        _require_cognito_runtime_settings(settings)
+        domain = settings.cognito_domain
+        client_id = settings.cognito_app_client_id
+    else:
+        domain = _clean(settings.cognito_domain) or "localhost"
+        client_id = _clean(settings.cognito_app_client_id) or settings.tapdb_client_id
 
     return CognitoWebSessionConfig(
-        domain=_normalize_cognito_domain(contract.get("cognito_domain")) or "localhost",
-        client_id=_clean(contract.get("app_client_id")) or settings.tapdb_client_id,
+        domain=domain,
+        client_id=client_id,
         redirect_uri=callback_url,
         logout_uri=logout_url,
         session_secret_key=_session_secret(settings),
@@ -535,14 +544,13 @@ def setup_session_auth(app, settings: ZebraDaySettings) -> CognitoWebSessionConf
 
 
 def setup_cognito_auth(_app, settings: ZebraDaySettings) -> CognitoBinding:
-    """Create a Cognito binding from the configured daycog runtime contract."""
+    """Create a Cognito binding from the configured runtime Cognito settings."""
     if not is_cognito_available():
         raise ImportError(
             "daylily-auth-cognito is required for Cognito authentication. "
             f"Import error: {get_cognito_import_error()}"
         )
-    contract = load_daycog_contract()
-    config = SimpleNamespace(**contract)
+    config = _require_cognito_runtime_settings(settings)
     auth = CognitoTokenVerifier(
         region=config.region,
         user_pool_id=config.user_pool_id,

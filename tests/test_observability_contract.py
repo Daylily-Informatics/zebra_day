@@ -16,6 +16,8 @@ from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
 
+DAYHOFF_PROJECT_ROOT = Path("/Users/jmajor/.codex/worktrees/dbb6/dayhoff")
+
 
 def _schema_root() -> Path:
     root = os.environ.get("DAYHOFF_PROJECT_ROOT")
@@ -36,6 +38,7 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("DAYHOFF_PROJECT_ROOT", str(DAYHOFF_PROJECT_ROOT))
 
 
 def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:
@@ -86,17 +89,10 @@ def _make_cognito_app(
     tmp_path, monkeypatch, *, claims: dict[str, object], profile_claims: dict[str, object]
 ):
     _set_xdg(monkeypatch, tmp_path)
-    monkeypatch.setattr(
-        "zebra_day.web.auth.load_daycog_contract",
-        lambda: {
-            "region": "us-west-2",
-            "user_pool_id": "pool",
-            "app_client_id": "client",
-            "cognito_domain": "example.com",
-            "callback_url": "https://localhost:8118/auth/callback",
-            "logout_url": "https://localhost:8118/login",
-        },
-    )
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.com")
     monkeypatch.setattr(
         "zebra_day.web.app.setup_cognito_auth",
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
