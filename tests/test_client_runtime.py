@@ -112,8 +112,12 @@ def test_api_client_direct_print_uses_remote_resolution(monkeypatch):
         "printer_euid": "default-printer-0001",
         "printer_ip": "192.168.1.50",
         "printer": {
-            **repository.get_printer("default", "printer-1").to_payload(),
             "printer_euid": repository.get_printer("default", "printer-1").euid,
+            **{
+                key: value
+                for key, value in repository.get_printer("default", "printer-1").to_payload().items()
+                if key != "euid"
+            },
         },
         "template_name": "tube_2inX1in",
         "label_style": "tube_2inX1in",

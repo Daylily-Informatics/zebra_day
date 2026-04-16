@@ -34,7 +34,7 @@ def test_activate_uses_root_environment_yaml_and_repo_only_editable_install() ->
     assert 'pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" --no-deps' in activate
     assert "_zday_pyproject_dependency_version" in activate
     assert f"daylily-tapdb=={tapdb_version}" in pyproject
-    assert '_ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.0.3"' in activate
+    assert '_ZDAY_DAYLILY_AUTH_COGNITO_VERSION="2.1.1"' in activate
     assert '"daylily-tapdb"' in activate
     assert '"daylily-auth-cognito"' in activate
     assert '_zday_ensure_published_distribution' in activate

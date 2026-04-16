@@ -76,11 +76,17 @@ def _tapdb_import(module_name: str):
         ) from exc
 
 
-def _public_printer_payload(record: "PrinterRecord") -> dict[str, Any]:
+def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
     payload = record.to_payload()
     payload["printer_euid"] = _clean(payload.pop("euid", ""))
     payload.pop("printer_id", None)
     return payload
+
+
+def _with_printer_euid(payload: dict[str, Any], printer_euid: str) -> dict[str, Any]:
+    normalized = dict(payload)
+    normalized["printer_euid"] = _clean(printer_euid)
+    return normalized
 
 
 @dataclass
@@ -129,7 +135,9 @@ class PrinterRecord:
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> PrinterRecord:
         printer_id = _clean(payload.get("printer_id"))
-        printer_euid = _clean(payload.get("printer_euid") or payload.get("euid"))
+        printer_euid = _clean(payload.get("printer_euid"))
+        if not printer_euid:
+            raise ValueError("printer_euid is required")
         return cls(
             printer_id=printer_id,
             lab=_clean(payload.get("lab")),
@@ -316,8 +324,9 @@ class TapDBFleetRepository:
             items: list[PrinterRecord] = []
             for instance in self._query_instances(session, "printer"):
                 payload = dict(instance.json_addl or {})
-                payload["euid"] = _clean(getattr(instance, "euid", ""))
-                record = PrinterRecord.from_payload(payload)
+                record = PrinterRecord.from_payload(
+                    _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+                )
                 if lab is None or record.lab == lab:
                     items.append(record)
             return sorted(items, key=lambda item: (item.lab, item.printer_id))
@@ -337,8 +346,9 @@ class TapDBFleetRepository:
             if instance is None:
                 return None
             payload = dict(instance.json_addl or {})
-            payload["euid"] = _clean(getattr(instance, "euid", ""))
-            return PrinterRecord.from_payload(payload)
+            return PrinterRecord.from_payload(
+                _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+            )
 
     def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None:
         with self._session(commit=False) as session:
@@ -355,8 +365,9 @@ class TapDBFleetRepository:
             if instance is None:
                 return None
             payload = dict(instance.json_addl or {})
-            payload["euid"] = _clean(getattr(instance, "euid", ""))
-            return PrinterRecord.from_payload(payload)
+            return PrinterRecord.from_payload(
+                _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+            )
 
     def upsert_printer(self, printer: PrinterRecord) -> PrinterRecord:
         payload = printer.to_payload()
@@ -367,8 +378,7 @@ class TapDBFleetRepository:
             payload=payload,
             bstatus=printer.status or "active",
         )
-        payload["euid"] = stored.get("euid", "")
-        return PrinterRecord.from_payload(payload)
+        return PrinterRecord.from_payload(_with_printer_euid(payload, stored.get("euid", "")))
 
     def list_templates(self) -> list[dict[str, Any]]:
         with self._session(commit=False) as session:
@@ -601,7 +611,7 @@ class ZebraDayClient:
             if profiles:
                 resolved_style = _clean(profiles[0])
         if not resolved_style and not zpl_content:
-            raise KeyError(f"No label profile configured for printer: {lab}/{printer}")
+            raise KeyError(f"No label profile configured for printer: {lab}/{printer_record}")
 
         zpl_string, template_name = self.build_label(
             template=resolved_style or None,
@@ -713,6 +723,7 @@ class ZebraDayClient:
                 )
             else:
                 merged = existing.to_payload()
+                merged["printer_euid"] = _clean(merged.get("euid", ""))
                 if not _clean(merged.get("model")):
                     merged["model"] = _clean(payload.get("model"))
                 if not _clean(merged.get("serial")):
@@ -779,6 +790,7 @@ class ZebraDayClient:
             raise
 
         payload = printer.to_payload()
+        payload["printer_euid"] = _clean(payload.get("euid", ""))
         if not _clean(payload.get("model")):
             payload["model"] = observed.get("model", "")
         elif observed.get("model") and payload["model"] != observed["model"]:
@@ -817,6 +829,7 @@ class ZebraDayClient:
             raise KeyError(f"Printer not found: {lab}/{printer_euid}")
         payload = printer.to_payload()
         payload.update({key: value for key, value in changes.items() if value is not None})
+        payload["printer_euid"] = _clean(payload.get("euid", ""))
         return self.repository.upsert_printer(PrinterRecord.from_payload(payload))
 
     def runtime_summary(self) -> dict[str, Any]:

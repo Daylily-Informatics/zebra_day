@@ -245,6 +245,7 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
     assert labs.json() == ["default"]
     assert printers.json()[0]["printer_euid"] == "default-printer-0001"
     assert "printer_id" not in printers.json()[0]
+    assert "euid" not in printers.json()[0]
     assert printers.json()[0]["default_label_profile"] == "tube_2inX1in"
     assert runtime.json()["tapdb_database_name"] == "zebra-day-local"
     assert runtime.json()["version"] == __version__
@@ -319,15 +320,18 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert printer_detail.status_code == 200
     assert printer_detail.json()["printer_euid"] == "default-printer-0001"
     assert "printer_id" not in printer_detail.json()
+    assert "euid" not in printer_detail.json()
     assert printer_patch.status_code == 200
     assert printer_patch.json()["printer_name"] == "Renamed Printer"
     assert printer_patch.json()["lab_location"] == "Bench 2"
     assert discover.status_code == 200
     assert discover.json()[0]["printer_euid"]
     assert "printer_id" not in discover.json()[0]
+    assert "euid" not in discover.json()[0]
     assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
     assert sync.status_code == 200
     assert sync.json()["printer_euid"] == "default-printer-0001"
+    assert "euid" not in sync.json()
     assert template_list.status_code == 200
     assert "tube_2inX1in" in template_list.json()
     assert template_detail.status_code == 200
@@ -346,6 +350,7 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert resolve.status_code == 200
     assert resolve.json()["printer_euid"] == "default-printer-0001"
     assert "printer_id" not in resolve.json()
+    assert "euid" not in resolve.json()
     assert resolve.json()["copies"] == 1
 
 

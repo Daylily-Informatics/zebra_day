@@ -146,6 +146,11 @@ async def patch_printer(
     printer_euid: str,
     payload: dict[str, Any],
 ) -> PrinterInfo:
+    if "euid" in payload or "printer_euid" in payload:
+        raise HTTPException(
+            status_code=400,
+            detail="printer_euid belongs in the URL path; do not send euid fields in the body",
+        )
     try:
         updated = _client(request).update_printer_metadata(lab, printer_euid, **payload)
     except KeyError as exc:
