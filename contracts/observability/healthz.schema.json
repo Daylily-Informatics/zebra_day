@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "service",
+    "environment",
+    "instance_id",
+    "observed_at",
+    "status",
+    "request_id",
+    "correlation_id",
+    "build",
+    "projection",
+    "checks"
+  ],
+  "properties": {
+    "contract_version": { "type": "string" },
+    "service": { "type": "string" },
+    "environment": { "type": "string" },
+    "instance_id": { "type": "string" },
+    "observed_at": { "type": "string" },
+    "status": { "type": "string" },
+    "request_id": { "type": "string" },
+    "correlation_id": { "type": "string" },
+    "build": {
+      "type": "object",
+      "required": ["version", "sha"],
+      "properties": {
+        "version": { "type": "string" },
+        "sha": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "projection": {
+      "type": "object",
+      "required": ["state", "stale", "observed_at", "last_synced_at"],
+      "properties": {
+        "state": { "type": "string" },
+        "stale": { "type": "boolean" },
+        "observed_at": { "type": ["string", "null"] },
+        "last_synced_at": { "type": ["string", "null"] },
+        "detail": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "checks": {
+      "type": "object",
+      "required": ["process"],
+      "properties": {
+        "process": {
+          "type": "object",
+          "required": ["status", "started_at"],
+          "properties": {
+            "status": { "type": "string" },
+            "started_at": { "type": "string" },
+            "detail": { "type": ["string", "null"] },
+            "details": { "type": "object" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

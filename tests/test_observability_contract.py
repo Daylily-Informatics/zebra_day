@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -16,14 +15,12 @@ from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
 
-DAYHOFF_PROJECT_ROOT = Path("/Users/jmajor/.codex/worktrees/dbb6/dayhoff")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_ROOT = PROJECT_ROOT / "contracts" / "observability"
 
 
 def _schema_root() -> Path:
-    root = os.environ.get("DAYHOFF_PROJECT_ROOT")
-    if not root:
-        raise RuntimeError("DAYHOFF_PROJECT_ROOT must point at the canonical Dayhoff repo root")
-    return Path(root) / "contracts" / "observability"
+    return SCHEMA_ROOT
 
 
 def _validate(name: str, payload: dict) -> None:
@@ -38,7 +35,6 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
-    monkeypatch.setenv("DAYHOFF_PROJECT_ROOT", str(DAYHOFF_PROJECT_ROOT))
 
 
 def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:
