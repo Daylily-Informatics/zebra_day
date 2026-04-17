@@ -23,6 +23,8 @@ DEFAULT_AUTH_MODE = "cognito"
 DEFAULT_TAPDB_CLIENT_ID = "zebra-day"
 DEFAULT_TAPDB_OWNER_REPO = "zebra-day"
 DEFAULT_MERIDIAN_DOMAIN_CODE = "Z"
+DEFAULT_TAPDB_LOCAL_DB_PORT = 5544
+DEFAULT_TAPDB_LOCAL_UI_PORT = 8118
 DEFAULT_DEPLOYMENT_BANNER_COLOR = "#AFEEEE"
 PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
@@ -105,6 +107,32 @@ def _default_tapdb_prefix_registry_path() -> Path:
     return Path.home() / ".config" / "tapdb" / "prefix_ownership_registry.json"
 
 
+def _require_explicit_absolute_path(value: Any, *, field_name: str) -> Path:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError(f"{field_name} is required and must be passed as a full absolute path")
+    if raw.startswith("~"):
+        raise ValueError(f"{field_name} must be a full absolute path; '~' is not allowed")
+    path = Path(raw)
+    if not path.is_absolute():
+        raise ValueError(f"{field_name} must be a full absolute path, got: {raw}")
+    return path
+
+
+def _append_required_absolute_path_error(
+    errors: list[str],
+    *,
+    field_name: str,
+    value: Any,
+) -> None:
+    raw = str(value or "").strip()
+    if not raw:
+        errors.append(f"{field_name} is required")
+        return
+    if raw.startswith("~") or not Path(raw).is_absolute():
+        errors.append(f"{field_name} must be a full absolute path")
+
+
 def build_default_config_template(deployment: str | None = None) -> bytes:
     """Build the repo's canonical deployment config template."""
     deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
@@ -136,9 +164,17 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
             "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
+            "config_path": str(
+                Path.home()
+                / ".config"
+                / "tapdb"
+                / DEFAULT_TAPDB_CLIENT_ID
+                / f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
+                / "tapdb-config.yaml"
+            ),
             "env": "dev",
             "domain_registry_path": str(_default_tapdb_domain_registry_path()),
-            "prefix_registry_path": str(_default_tapdb_prefix_registry_path()),
+            "prefix_ownership_registry_path": str(_default_tapdb_prefix_registry_path()),
         },
         "discovery": {
             "default_scan_wait_seconds": 0.5,
@@ -214,10 +250,21 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append("tapdb.domain_code is required")
         if not str(tapdb.get("database_name") or "").strip():
             errors.append("tapdb.database_name is required")
-        if not str(tapdb.get("domain_registry_path") or "").strip():
-            errors.append("tapdb.domain_registry_path is required")
-        if not str(tapdb.get("prefix_registry_path") or "").strip():
-            errors.append("tapdb.prefix_registry_path is required")
+        _append_required_absolute_path_error(
+            errors,
+            field_name="tapdb.config_path",
+            value=tapdb.get("config_path"),
+        )
+        _append_required_absolute_path_error(
+            errors,
+            field_name="tapdb.domain_registry_path",
+            value=tapdb.get("domain_registry_path"),
+        )
+        _append_required_absolute_path_error(
+            errors,
+            field_name="tapdb.prefix_ownership_registry_path",
+            value=tapdb.get("prefix_ownership_registry_path"),
+        )
 
     return errors
 
@@ -278,6 +325,10 @@ class ZebraDaySettings:
         deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
         config_path = Path(os.environ.get("ZEBRA_DAY_CONFIG_PATH") or xdg.get_config_file_path())
         merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
+        if isinstance(merged.get("tapdb"), dict):
+            merged["tapdb"]["config_path"] = ""
+            merged["tapdb"]["domain_registry_path"] = ""
+            merged["tapdb"]["prefix_ownership_registry_path"] = ""
         file_payload = _load_yaml(config_path)
 
         for section in ("service", "authentication", "tapdb", "discovery", "deployment", "ui"):
@@ -311,15 +362,26 @@ class ZebraDaySettings:
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
         env_name = str(tapdb.get("env") or "dev").strip() or "dev"
-        tapdb_config_path = Path(
-            tapdb.get("config_path")
-            or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
+        tapdb_config_path = _require_explicit_absolute_path(
+            os.environ.get("TAPDB_CONFIG_PATH")
+            or os.environ.get("DAYHOFF_TAPDB_CONFIG_PATH")
+            or tapdb.get("config_path")
+            or "",
+            field_name="tapdb.config_path",
         )
-        tapdb_domain_registry_path = Path(
-            tapdb.get("domain_registry_path") or _default_tapdb_domain_registry_path()
+        tapdb_domain_registry_path = _require_explicit_absolute_path(
+            os.environ.get("TAPDB_DOMAIN_REGISTRY_PATH")
+            or os.environ.get("DAYHOFF_TAPDB_DOMAIN_REGISTRY_PATH")
+            or tapdb.get("domain_registry_path")
+            or "",
+            field_name="tapdb.domain_registry_path",
         )
-        tapdb_prefix_registry_path = Path(
-            tapdb.get("prefix_registry_path") or _default_tapdb_prefix_registry_path()
+        tapdb_prefix_registry_path = _require_explicit_absolute_path(
+            os.environ.get("TAPDB_PREFIX_OWNERSHIP_REGISTRY_PATH")
+            or os.environ.get("DAYHOFF_TAPDB_PREFIX_REGISTRY_PATH")
+            or tapdb.get("prefix_ownership_registry_path")
+            or "",
+            field_name="tapdb.prefix_ownership_registry_path",
         )
 
         return cls(

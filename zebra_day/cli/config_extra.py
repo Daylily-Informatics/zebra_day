@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import socket
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
+from zebra_day import paths as xdg
 from zebra_day.cli._registry_v2 import EXEMPT, EXEMPT_JSON, EXEMPT_MUTATING_JSON
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings, build_default_config_template
@@ -45,7 +48,9 @@ def _status() -> None:
             "database_name": settings.tapdb_database_name,
             "env": settings.tapdb_env,
             "domain_registry_path": str(getattr(settings, "tapdb_domain_registry_path", "")),
-            "prefix_registry_path": str(getattr(settings, "tapdb_prefix_registry_path", "")),
+            "prefix_ownership_registry_path": str(
+                getattr(settings, "tapdb_prefix_registry_path", "")
+            ),
         },
         "gui": gui_data,
     }
@@ -118,12 +123,14 @@ def _bootstrap(
     skip_scan: bool = typer.Option(False, "--skip-scan", help="Do not scan for printers"),
 ) -> None:
     """Create a deployment config and optionally scan for printers."""
-    settings = ZebraDaySettings.from_context()
     config_created = False
-    if not settings.config_path.exists():
-        settings.config_path.parent.mkdir(parents=True, exist_ok=True)
-        settings.config_path.write_bytes(build_default_config_template(settings.deployment_code))
+    deployment_code = xdg.sanitize_deployment_code(xdg.get_deployment_code())
+    config_path = Path(os.environ.get("ZEBRA_DAY_CONFIG_PATH") or xdg.get_config_file_path())
+    if not config_path.exists():
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_bytes(build_default_config_template(deployment_code))
         config_created = True
+    settings = ZebraDaySettings.from_context(deployment_code)
 
     result: dict[str, Any] = {
         "deployment_code": settings.deployment_code,

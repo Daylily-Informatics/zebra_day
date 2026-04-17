@@ -25,7 +25,18 @@ def _set_xdg(monkeypatch, tmp_path, deployment="stage-1") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
+
+
+def _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="stage-1"):
+    tapdb_config_path = tmp_path / "tapdb" / deployment / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb" / "prefix_ownership_registry.json"
+    monkeypatch.setenv("DAYHOFF_TAPDB_CONFIG_PATH", str(tapdb_config_path))
+    monkeypatch.setenv("DAYHOFF_TAPDB_DOMAIN_REGISTRY_PATH", str(domain_registry_path))
+    monkeypatch.setenv("DAYHOFF_TAPDB_PREFIX_REGISTRY_PATH", str(prefix_registry_path))
+    return tapdb_config_path, domain_registry_path, prefix_registry_path
 
 
 def test_default_config_template_is_valid_yaml():
@@ -50,10 +61,16 @@ def test_default_config_template_is_valid_yaml():
     assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
     assert payload["tapdb"]["owner_repo_name"] == "zebra-day"
     assert payload["tapdb"]["domain_code"] == "Z"
+    assert Path(payload["tapdb"]["config_path"]).is_absolute()
+    assert payload["tapdb"]["config_path"].endswith(
+        ".config/tapdb/zebra-day/zebra-day-dev/tapdb-config.yaml"
+    )
+    assert Path(payload["tapdb"]["domain_registry_path"]).is_absolute()
     assert payload["tapdb"]["domain_registry_path"].endswith(
         ".config/tapdb/domain_code_registry.json"
     )
-    assert payload["tapdb"]["prefix_registry_path"].endswith(
+    assert Path(payload["tapdb"]["prefix_ownership_registry_path"]).is_absolute()
+    assert payload["tapdb"]["prefix_ownership_registry_path"].endswith(
         ".config/tapdb/prefix_ownership_registry.json"
     )
     assert payload["ui"]["show_environment_chrome"] is True
@@ -69,6 +86,9 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
     explicit_config = tmp_path / "custom" / "zebra-day-config-qa-1.yaml"
     monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(explicit_config))
+    explicit_tapdb_config, explicit_domain_registry, explicit_prefix_registry = (
+        _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="qa-1")
+    )
 
     settings = ZebraDaySettings.from_context()
 
@@ -80,20 +100,16 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     assert settings.tapdb_database_name == "zebra-day-qa-1"
     assert settings.tapdb_owner_repo_name == "zebra-day"
     assert settings.tapdb_domain_code == "Z"
-    assert settings.tapdb_domain_registry_path == Path.home() / ".config" / "tapdb" / "domain_code_registry.json"
-    assert (
-        settings.tapdb_prefix_registry_path
-        == Path.home() / ".config" / "tapdb" / "prefix_ownership_registry.json"
-    )
-    assert (
-        settings.tapdb_config_path
-        == Path.home() / ".config" / "tapdb" / "zebra-day" / "zebra-day-qa-1" / "tapdb-config.yaml"
-    )
+    assert settings.tapdb_domain_registry_path == explicit_domain_registry
+    assert settings.tapdb_prefix_registry_path == explicit_prefix_registry
+    assert settings.tapdb_config_path == explicit_tapdb_config
 
 
 def test_settings_merge_file_values(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
+    domain_registry_path = tmp_path / "registries" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "registries" / "prefix_ownership_registry.json"
     config_path.write_text(
         (
             "service:\n"
@@ -108,6 +124,9 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             "tapdb:\n"
             "  client_id: zebra-day\n"
             "  database_name: zebra-day-prod-custom\n"
+            f"  config_path: {tmp_path / 'tapdb-prod-custom.yaml'}\n"
+            f"  domain_registry_path: {domain_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
             "  env: sandbox\n"
             "deployment:\n"
             "  name: sandbox-g\n"
@@ -136,6 +155,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.cognito_auto_provision_allowed_domains == ["lsmc.com"]
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
     assert settings.tapdb_env == "sandbox"
+    assert settings.tapdb_config_path == tmp_path / "tapdb-prod-custom.yaml"
     assert settings.tapdb_owner_repo_name == "zebra-day"
     assert settings.tapdb_domain_code == "Z"
     assert settings.ui_show_environment_chrome is True
@@ -148,6 +168,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
 
 def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
+    _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
     config_path.write_text(
         (
@@ -174,6 +195,7 @@ def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
 
 def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
+    _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
     config_path.write_text(
         (
@@ -187,8 +209,85 @@ def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
         ZebraDaySettings.from_context()
 
 
+def test_validate_settings_yaml_requires_tapdb_config_path() -> None:
+    content = (
+        "service:\n"
+        "  host: 0.0.0.0\n"
+        "  port: 8118\n"
+        "authentication:\n"
+        "  mode: cognito\n"
+        "  session_secret_key: secret\n"
+        "  allowed_email_domains:\n"
+        "    - lsmc.com\n"
+        "  default_tenant_id: 00000000-0000-0000-0000-000000000000\n"
+        "  auto_provision_allowed_domains:\n"
+        "    - lsmc.com\n"
+        "tapdb:\n"
+        "  client_id: zebra-day\n"
+        "  owner_repo_name: zebra-day\n"
+        "  domain_code: Z\n"
+        "  database_name: zebra-day-local\n"
+        "  domain_registry_path: /tmp/domain_code_registry.json\n"
+        "  prefix_ownership_registry_path: /tmp/prefix_ownership_registry.json\n"
+    )
+
+    assert "tapdb.config_path is required" in validate_settings_yaml(content)
+
+
+def test_validate_settings_yaml_rejects_guessed_tapdb_paths() -> None:
+    content = (
+        "service:\n"
+        "  host: 0.0.0.0\n"
+        "  port: 8118\n"
+        "authentication:\n"
+        "  mode: cognito\n"
+        "  session_secret_key: secret\n"
+        "  allowed_email_domains:\n"
+        "    - lsmc.com\n"
+        "  default_tenant_id: 00000000-0000-0000-0000-000000000000\n"
+        "  auto_provision_allowed_domains:\n"
+        "    - lsmc.com\n"
+        "tapdb:\n"
+        "  client_id: zebra-day\n"
+        "  owner_repo_name: zebra-day\n"
+        "  domain_code: Z\n"
+        "  database_name: zebra-day-local\n"
+        "  config_path: ~/.config/tapdb/zebra-day/zebra-day-local/tapdb-config.yaml\n"
+        "  domain_registry_path: relative/domain_code_registry.json\n"
+        "  prefix_ownership_registry_path: ~/.config/tapdb/prefix_ownership_registry.json\n"
+    )
+
+    errors = validate_settings_yaml(content)
+    assert "tapdb.config_path must be a full absolute path" in errors
+    assert "tapdb.domain_registry_path must be a full absolute path" in errors
+    assert "tapdb.prefix_ownership_registry_path must be a full absolute path" in errors
+
+
+def test_settings_from_context_rejects_guessed_tapdb_paths(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="qa-2")
+    config_path = xdg.get_config_file_path()
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "tapdb:\n"
+            "  client_id: zebra-day\n"
+            "  owner_repo_name: zebra-day\n"
+            "  domain_code: Z\n"
+            "  database_name: zebra-day-qa-2\n"
+            "  config_path: ~/.config/tapdb/zebra-day/zebra-day-qa-2/tapdb-config.yaml\n"
+            "  domain_registry_path: relative/domain_code_registry.json\n"
+            "  prefix_ownership_registry_path: /tmp/prefix_ownership_registry.json\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="tapdb.config_path must be a full absolute path"):
+        ZebraDaySettings.from_context()
+
+
 def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
+    _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="qa-1")
     config_path = xdg.get_config_file_path()
     config_path.write_text(
         "deployment:\n  name: production\n  color: ''\n",
@@ -222,10 +321,9 @@ def test_repo_ships_tapdb_config_template():
     assert payload["meta"]["database_name"] == "zebra-day"
     assert payload["meta"]["owner_repo_name"] == "zebra-day"
     assert payload["meta"]["domain_code"] == "Z"
-    assert payload["meta"]["domain_registry_path"] == "~/.config/tapdb/domain_code_registry.json"
-    assert (
-        payload["meta"]["prefix_registry_path"]
-        == "~/.config/tapdb/prefix_ownership_registry.json"
+    assert payload["meta"]["domain_registry_path"] == "/absolute/path/to/domain_code_registry.json"
+    assert payload["meta"]["prefix_ownership_registry_path"] == (
+        "/absolute/path/to/prefix_ownership_registry.json"
     )
     assert payload["environments"]["dev"]["port"] == "5544"
     assert payload["environments"]["dev"]["database"] == "zebra_day_dev"

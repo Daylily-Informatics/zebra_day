@@ -32,6 +32,9 @@ templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 - Do not add package installs, dependency probes, TapDB bootstrap, config copying, registry writes, loader-path hacks, or `conda install` steps to `activate`.
 - If a CLI is missing after activation, fix packaging entry points or `pyproject.toml`, not `activate`.
 - If deployment-scoped config is missing, fix `zday config init` or the explicit config/bootstrap path, not `activate`.
+- Every service config, TapDB config, and TapDB registry path must be passed explicitly as a full absolute file path.
+- Do not guess TapDB config or registry paths from `~/.config`, deployment names, repo defaults, or implicit home-directory discovery.
+- If Zebra Day is missing an explicit path, fail hard and fix the caller or config source instead of synthesizing a fallback path.
 
 ## Dependency Boundary
 
@@ -47,6 +50,13 @@ templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 - Console scripts declared in `[project.scripts]` must be available from the active conda env after activation.
 - If a script is missing from `PATH`, treat that as a packaging/editable-install bug.
 - Do not repair `PATH` by adding shell aliases or repo-local wrapper hacks in `activate`.
+
+## Explicit Config Paths
+
+- Do not guess Zebra Day service config, TapDB config, or TapDB registry paths from `HOME`, `~/.config`, deployment names, or fallback helpers during runtime/bootstrap.
+- `ZebraDaySettings.from_context()` must consume explicit absolute `tapdb.config_path`, `tapdb.domain_registry_path`, and `tapdb.prefix_ownership_registry_path` values from the deployment config or explicit env vars.
+- If any required TapDB path is missing, relative, or uses `~`, fail hard.
+- `zday config bootstrap` may create the deployment YAML first; after that, runtime code must read explicit paths from config/env instead of synthesizing them.
 
 ## Testing
 
@@ -99,7 +109,7 @@ pytest tests/ -v --tb=short
 | `tapdb.client_id` | `zebra-day` | TapDB client namespace in service config |
 | `tapdb.database_name` | `zebra-day-<deployment>` | TapDB database namespace in service config |
 | `tapdb.env` | `dev` | TapDB environment selector in service config |
-| `tapdb.config_path` | deployment derived | Required TapDB config file path in service config |
+| `tapdb.config_path` | explicit absolute path | Required TapDB config file path in service config |
 | `INTERNAL_API_KEY` | _(none)_ | Optional bearer token for machine API clients |
 | `AWS_PROFILE` | _(none)_ | Used for daycog/Cognito admin commands; never pass `"default"` explicitly |
 

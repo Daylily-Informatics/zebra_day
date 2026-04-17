@@ -4,8 +4,8 @@ meta:
   database_name: zebra-day
   owner_repo_name: zebra-day
   domain_code: Z
-  domain_registry_path: ~/.config/tapdb/domain_code_registry.json
-  prefix_registry_path: ~/.config/tapdb/prefix_ownership_registry.json
+  domain_registry_path: /absolute/path/to/domain_code_registry.json
+  prefix_ownership_registry_path: /absolute/path/to/prefix_ownership_registry.json
 environments:
   dev:
     engine_type: local

@@ -30,8 +30,19 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
 
 
+def _set_explicit_tapdb_contract(monkeypatch, tmp_path, deployment="local"):
+    tapdb_config_path = tmp_path / "tapdb" / deployment / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb" / "prefix_ownership_registry.json"
+    monkeypatch.setenv("DAYHOFF_TAPDB_CONFIG_PATH", str(tapdb_config_path))
+    monkeypatch.setenv("DAYHOFF_TAPDB_DOMAIN_REGISTRY_PATH", str(domain_registry_path))
+    monkeypatch.setenv("DAYHOFF_TAPDB_PREFIX_REGISTRY_PATH", str(prefix_registry_path))
+    return tapdb_config_path, domain_registry_path, prefix_registry_path
+
+
 def test_direct_client_fails_fast_without_tapdb(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
+    _set_explicit_tapdb_contract(monkeypatch, tmp_path)
     settings = ZebraDaySettings.from_context()
     with pytest.raises(FileNotFoundError):
         ZebraDayClient(settings=settings)
@@ -39,6 +50,9 @@ def test_direct_client_fails_fast_without_tapdb(monkeypatch, tmp_path):
 
 def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
+    explicit_tapdb_config, explicit_domain_registry, explicit_prefix_registry = (
+        _set_explicit_tapdb_contract(monkeypatch, tmp_path)
+    )
     settings = ZebraDaySettings.from_context()
 
     captured: dict[str, object] = {}
@@ -73,12 +87,9 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
-    assert captured["domain_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"
-    )
-    assert captured["prefix_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"
-    )
+    assert settings.tapdb_config_path == explicit_tapdb_config
+    assert captured["domain_registry_path"] == str(explicit_domain_registry)
+    assert captured["prefix_registry_path"] == str(explicit_prefix_registry)
 
 
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
@@ -152,6 +163,7 @@ def test_packaged_registry_fixtures_match_zebra_prefix_ownership():
 
 def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
+    _set_explicit_tapdb_contract(monkeypatch, tmp_path)
     settings = ZebraDaySettings.from_context()
     repo = object.__new__(TapDBFleetRepository)
     repo.settings = settings
