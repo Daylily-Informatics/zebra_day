@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.12
   - pip
+  - pytest
   - bash>=5.0
   - postgresql=16.1
   - jq
