@@ -23,6 +23,8 @@ DEFAULT_AUTH_MODE = "cognito"
 DEFAULT_TAPDB_CLIENT_ID = "zebra-day"
 DEFAULT_TAPDB_OWNER_REPO = "zebra-day"
 DEFAULT_MERIDIAN_DOMAIN_CODE = "Z"
+DEFAULT_TAPDB_LOCAL_DB_PORT = 5544
+DEFAULT_TAPDB_LOCAL_UI_PORT = 8118
 DEFAULT_DEPLOYMENT_BANNER_COLOR = "#AFEEEE"
 PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
@@ -136,6 +138,14 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
             "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
+            "config_path": str(
+                Path.home()
+                / ".config"
+                / "tapdb"
+                / DEFAULT_TAPDB_CLIENT_ID
+                / f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
+                / "tapdb-config.yaml"
+            ),
             "env": "dev",
             "domain_registry_path": str(_default_tapdb_domain_registry_path()),
             "prefix_registry_path": str(_default_tapdb_prefix_registry_path()),
@@ -214,6 +224,8 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append("tapdb.domain_code is required")
         if not str(tapdb.get("database_name") or "").strip():
             errors.append("tapdb.database_name is required")
+        if not str(tapdb.get("config_path") or "").strip():
+            errors.append("tapdb.config_path is required")
         if not str(tapdb.get("domain_registry_path") or "").strip():
             errors.append("tapdb.domain_registry_path is required")
         if not str(tapdb.get("prefix_registry_path") or "").strip():
@@ -311,10 +323,10 @@ class ZebraDaySettings:
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
         env_name = str(tapdb.get("env") or "dev").strip() or "dev"
-        tapdb_config_path = Path(
-            tapdb.get("config_path")
-            or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
-        )
+        tapdb_config_value = str(tapdb.get("config_path") or "").strip()
+        if not tapdb_config_value:
+            raise ValueError("tapdb.config_path is required")
+        tapdb_config_path = Path(tapdb_config_value).expanduser()
         tapdb_domain_registry_path = Path(
             tapdb.get("domain_registry_path") or _default_tapdb_domain_registry_path()
         )

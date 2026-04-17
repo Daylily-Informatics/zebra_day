@@ -113,6 +113,73 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     assert "ok" in result.output
 
 
+def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="dev1")
+    commands: list[list[str]] = []
+
+    class _Completed:
+        returncode = 0
+        stdout = "ok\n"
+        stderr = ""
+
+    def fake_run(cmd, env, capture_output, text):
+        commands.append(cmd)
+        return _Completed()
+
+    monkeypatch.setattr("zebra_day.cli.tapdb.subprocess", SimpleNamespace(run=fake_run))
+
+    result = runner.invoke(zebra_cli.app, ["tapdb", "bootstrap", "local", "--no-gui"])
+
+    expected_config_path = (
+        tmp_path
+        / "home"
+        / ".config"
+        / "tapdb"
+        / "zebra-day"
+        / "zebra-day-dev1"
+        / "tapdb-config.yaml"
+    )
+    assert result.exit_code == 0
+    assert expected_config_path.parent.is_dir()
+    assert commands == [
+        [
+            "tapdb",
+            "--config",
+            str(expected_config_path),
+            "config",
+            "init",
+            "--client-id",
+            "zebra-day",
+            "--database-name",
+            "zebra-day-dev1",
+            "--owner-repo-name",
+            "zebra-day",
+            "--domain-code",
+            "dev=Z",
+            "--domain-registry-path",
+            str(tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"),
+            "--prefix-ownership-registry-path",
+            str(tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"),
+            "--env",
+            "dev",
+            "--db-port",
+            "dev=5544",
+            "--ui-port",
+            "dev=8118",
+        ],
+        [
+            "tapdb",
+            "--config",
+            str(expected_config_path),
+            "--env",
+            "dev",
+            "bootstrap",
+            "local",
+            "--no-gui",
+        ],
+    ]
+
+
 def test_bootstrap_requires_tapdb_config(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="local")
 

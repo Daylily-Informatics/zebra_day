@@ -25,6 +25,7 @@ def _set_xdg(monkeypatch, tmp_path, deployment="stage-1") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
 
 
@@ -50,6 +51,9 @@ def test_default_config_template_is_valid_yaml():
     assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
     assert payload["tapdb"]["owner_repo_name"] == "zebra-day"
     assert payload["tapdb"]["domain_code"] == "Z"
+    assert payload["tapdb"]["config_path"].endswith(
+        ".config/tapdb/zebra-day/zebra-day-dev/tapdb-config.yaml"
+    )
     assert payload["tapdb"]["domain_registry_path"].endswith(
         ".config/tapdb/domain_code_registry.json"
     )
@@ -108,6 +112,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             "tapdb:\n"
             "  client_id: zebra-day\n"
             "  database_name: zebra-day-prod-custom\n"
+            f"  config_path: {tmp_path / 'tapdb-prod-custom.yaml'}\n"
             "  env: sandbox\n"
             "deployment:\n"
             "  name: sandbox-g\n"
@@ -136,6 +141,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.cognito_auto_provision_allowed_domains == ["lsmc.com"]
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
     assert settings.tapdb_env == "sandbox"
+    assert settings.tapdb_config_path == tmp_path / "tapdb-prod-custom.yaml"
     assert settings.tapdb_owner_repo_name == "zebra-day"
     assert settings.tapdb_domain_code == "Z"
     assert settings.ui_show_environment_chrome is True
@@ -185,6 +191,31 @@ def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="bare host"):
         ZebraDaySettings.from_context()
+
+
+def test_validate_settings_yaml_requires_tapdb_config_path() -> None:
+    content = (
+        "service:\n"
+        "  host: 0.0.0.0\n"
+        "  port: 8118\n"
+        "authentication:\n"
+        "  mode: cognito\n"
+        "  session_secret_key: secret\n"
+        "  allowed_email_domains:\n"
+        "    - lsmc.com\n"
+        "  default_tenant_id: 00000000-0000-0000-0000-000000000000\n"
+        "  auto_provision_allowed_domains:\n"
+        "    - lsmc.com\n"
+        "tapdb:\n"
+        "  client_id: zebra-day\n"
+        "  owner_repo_name: zebra-day\n"
+        "  domain_code: Z\n"
+        "  database_name: zebra-day-local\n"
+        "  domain_registry_path: ~/.config/tapdb/domain_code_registry.json\n"
+        "  prefix_registry_path: ~/.config/tapdb/prefix_ownership_registry.json\n"
+    )
+
+    assert "tapdb.config_path is required" in validate_settings_yaml(content)
 
 
 def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
