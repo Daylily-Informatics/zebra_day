@@ -23,8 +23,8 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
-    monkeypatch.delenv("ZEBRA_DAY_ACTIVE", raising=False)
     monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
     monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
     monkeypatch.delenv("VIRTUAL_ENV", raising=False)
@@ -72,15 +72,11 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
     assert str(repo_root / "activate") in str(activate_panel.renderable)
     assert "<deploy-name>" in str(activate_panel.renderable)
 
-    monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
-    monkeypatch.setenv("ZEBRA_DAY_PROJECT_ROOT", str(repo_root))
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "venv"))
 
     env_module.status()
     status_out = capsys.readouterr().out
     assert "zebra_day environment: Active" in status_out
-    assert "Project root:" in status_out
-    assert repo_root.name in status_out
     assert "Virtual env:" in status_out
     assert "venv" in status_out
     assert "zebra-day-config-qa1.yaml" in status_out
@@ -99,6 +95,7 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
 
 def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
     monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
@@ -116,7 +113,7 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     activate_out = activate_capture.out + activate_capture.err
     assert "Could not find zebra_day project root" in activate_out
 
-    monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-qa1")
     env_module.deactivate()
     capsys.readouterr()
     fallback_panel = panels.pop()

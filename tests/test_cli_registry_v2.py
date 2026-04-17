@@ -43,14 +43,23 @@ def test_cli_runtime_requires_active_conda_env() -> None:
     assert "active deployment-scoped conda environment" in result.summary
 
 
-def test_cli_runtime_requires_matching_conda_env_name() -> None:
+def test_cli_runtime_requires_conda_env_name_prefix() -> None:
     result = evaluate_prereq(
         _runtime_prereq("zebra-day-conda-env-name"),
-        env={"CONDA_DEFAULT_ENV": "ZEBRA_DAY-other", "ZEBRA_DAY_DEPLOYMENT_CODE": "local"},
+        env={"CONDA_DEFAULT_ENV": "ZEBRA_DAY-other"},
+    )
+
+    assert result.status == "pass"
+
+
+def test_cli_runtime_rejects_non_zebra_conda_env_name() -> None:
+    result = evaluate_prereq(
+        _runtime_prereq("zebra-day-conda-env-name"),
+        env={"CONDA_DEFAULT_ENV": "other"},
     )
 
     assert result.status == "fail"
-    assert "CONDA_DEFAULT_ENV to match" in result.summary
+    assert "CONDA_DEFAULT_ENV to start with" in result.summary
 
 
 def test_cli_registry_exposes_v2_command_tree_and_policies() -> None:

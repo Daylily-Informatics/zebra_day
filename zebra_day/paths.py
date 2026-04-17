@@ -23,6 +23,9 @@ def sanitize_deployment_code(value: str | None) -> str:
 
 def get_deployment_code() -> str:
     """Resolve the active deployment code from supported env vars."""
+    conda_default_env = os.environ.get("CONDA_DEFAULT_ENV", "").strip()
+    if conda_default_env.startswith("ZEBRA_DAY-"):
+        return sanitize_deployment_code(conda_default_env.removeprefix("ZEBRA_DAY-"))
     return sanitize_deployment_code(
         os.environ.get("ZEBRA_DAY_DEPLOYMENT_CODE")
         or os.environ.get("DEPLOYMENT_CODE")
