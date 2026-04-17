@@ -45,8 +45,8 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
         label="tapdb_domain_registry_path",
     )
     prefix_registry_path = _require_absolute_path(
-        str(settings.tapdb_prefix_registry_path),
-        label="tapdb_prefix_registry_path",
+        str(settings.tapdb_prefix_ownership_registry_path),
+        label="tapdb_prefix_ownership_registry_path",
     )
     env = os.environ.copy()
     env["MERIDIAN_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
@@ -85,8 +85,8 @@ def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
         label="tapdb_domain_registry_path",
     )
     prefix_registry_path = _require_absolute_path(
-        str(settings.tapdb_prefix_registry_path),
-        label="tapdb_prefix_registry_path",
+        str(settings.tapdb_prefix_ownership_registry_path),
+        label="tapdb_prefix_ownership_registry_path",
     )
     tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()

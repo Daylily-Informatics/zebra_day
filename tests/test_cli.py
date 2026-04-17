@@ -79,7 +79,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
             "tapdb:\n"
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_registry_path: {prefix_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
         ),
         encoding="utf-8",
     )
@@ -131,7 +131,7 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "tapdb:\n"
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_registry_path: {prefix_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
         ),
         encoding="utf-8",
     )

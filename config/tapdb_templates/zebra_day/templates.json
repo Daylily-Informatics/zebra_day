@@ -4,7 +4,7 @@
     {
       "name": "zebra_day Printer",
       "polymorphic_discriminator": "equipment_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "fleet",
       "subtype": "printer",
       "version": "1.0",
@@ -20,7 +20,7 @@
     {
       "name": "zebra_day Label Profile",
       "polymorphic_discriminator": "data_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "labels",
       "subtype": "profile",
       "version": "1.0",
@@ -36,7 +36,7 @@
     {
       "name": "zebra_day Label Template",
       "polymorphic_discriminator": "data_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "labels",
       "subtype": "template",
       "version": "1.0",
@@ -52,7 +52,7 @@
     {
       "name": "zebra_day Printer Observation",
       "polymorphic_discriminator": "data_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "fleet",
       "subtype": "printer-observation",
       "version": "1.0",
@@ -68,7 +68,7 @@
     {
       "name": "zebra_day Metadata Drift",
       "polymorphic_discriminator": "data_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "fleet",
       "subtype": "metadata-drift",
       "version": "1.0",
@@ -84,7 +84,7 @@
     {
       "name": "zebra_day Print Job",
       "polymorphic_discriminator": "action_template",
-      "category": "generic",
+      "category": "ZGX",
       "type": "printing",
       "subtype": "print-job",
       "version": "1.0",

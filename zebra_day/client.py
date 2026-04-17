@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
+from sqlalchemy import text
 
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
@@ -24,12 +25,13 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-PRINTER_TEMPLATE_CODE = "generic/fleet/printer/1.0/"
-LABEL_PROFILE_TEMPLATE_CODE = "generic/labels/profile/1.0/"
-LABEL_TEMPLATE_TEMPLATE_CODE = "generic/labels/template/1.0/"
-OBSERVATION_TEMPLATE_CODE = "generic/fleet/printer-observation/1.0/"
-DRIFT_TEMPLATE_CODE = "generic/fleet/metadata-drift/1.0/"
-PRINT_JOB_TEMPLATE_CODE = "generic/printing/print-job/1.0/"
+ZEBRA_DAY_TEMPLATE_CATEGORY = "ZGX"
+PRINTER_TEMPLATE_CODE = "ZGX/fleet/printer/1.0/"
+LABEL_PROFILE_TEMPLATE_CODE = "ZGX/labels/profile/1.0/"
+LABEL_TEMPLATE_TEMPLATE_CODE = "ZGX/labels/template/1.0/"
+OBSERVATION_TEMPLATE_CODE = "ZGX/fleet/printer-observation/1.0/"
+DRIFT_TEMPLATE_CODE = "ZGX/fleet/metadata-drift/1.0/"
+PRINT_JOB_TEMPLATE_CODE = "ZGX/printing/print-job/1.0/"
 PACKAGE_TEMPLATE_PACK = (
     Path(__file__).resolve().parents[1]
     / "config"
@@ -138,6 +140,66 @@ def _ensure_prefix_ownership_registry(
         )
 
     return resolved_path
+
+
+def _ensure_identity_prefix_config(
+    session,
+    *,
+    entity: str,
+    domain_code: str,
+    owner_repo_name: str,
+    prefix: str,
+) -> None:
+    normalized_entity = _clean(entity)
+    normalized_domain = _clean(domain_code).upper()
+    normalized_owner = _clean(owner_repo_name)
+    normalized_prefix = _clean(prefix).upper()
+    if not normalized_entity:
+        raise RuntimeError("Zebra Day identity entity is required")
+    if not normalized_prefix:
+        raise RuntimeError(
+            f"Zebra Day identity prefix is required for entity {normalized_entity!r}"
+        )
+
+    params = {
+        "entity": normalized_entity,
+        "domain_code": normalized_domain,
+        "owner_repo_name": normalized_owner,
+        "prefix": normalized_prefix,
+    }
+    existing = session.execute(
+        text(
+            """
+            SELECT prefix
+            FROM tapdb_identity_prefix_config
+            WHERE entity = :entity
+              AND domain_code = :domain_code
+              AND issuer_app_code = :owner_repo_name
+            """
+        ),
+        params,
+    ).scalar_one_or_none()
+    if existing is not None:
+        existing_prefix = _clean(existing).upper()
+        if existing_prefix != normalized_prefix:
+            raise RuntimeError(
+                f"Zebra Day identity prefix config for entity {normalized_entity!r} in "
+                f"domain {normalized_domain!r} is already seeded with prefix "
+                f"{existing_prefix!r}, not {normalized_prefix!r}"
+            )
+        return
+
+    session.execute(
+        text(
+            """
+            INSERT INTO tapdb_identity_prefix_config(
+              entity, domain_code, issuer_app_code, prefix
+            )
+            VALUES (:entity, :domain_code, :owner_repo_name, :prefix)
+            """
+        ),
+        params,
+    )
 
 
 def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
@@ -275,8 +337,6 @@ class TapDBFleetRepository:
             engine_type=str(cfg.get("engine_type") or "local"),
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
-            domain_registry_path=str(self.settings.tapdb_domain_registry_path),
-            prefix_registry_path=str(self.settings.tapdb_prefix_registry_path),
         )
 
     def _session(self, *, commit: bool):
@@ -286,6 +346,7 @@ class TapDBFleetRepository:
         if not PACKAGE_TEMPLATE_PACK.exists():
             raise FileNotFoundError(f"TapDB template pack not found: {PACKAGE_TEMPLATE_PACK}")
         loader = _tapdb_import("daylily_tapdb.templates.loader")
+        euid_mod = _tapdb_import("daylily_tapdb.euid")
         with self._session(commit=True) as session:
             templates = (
                 json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
@@ -294,7 +355,28 @@ class TapDBFleetRepository:
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
                 domain_code=self.settings.tapdb_domain_code,
                 prefixes=[str(template.get("instance_prefix") or "") for template in templates],
-                registry_path=self.settings.tapdb_prefix_registry_path,
+                registry_path=self.settings.tapdb_prefix_ownership_registry_path,
+            )
+            _ensure_identity_prefix_config(
+                session,
+                entity="generic_template",
+                domain_code=self.settings.tapdb_domain_code,
+                owner_repo_name=self.settings.tapdb_owner_repo_name,
+                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
+            )
+            _ensure_identity_prefix_config(
+                session,
+                entity="generic_instance_lineage",
+                domain_code=self.settings.tapdb_domain_code,
+                owner_repo_name=self.settings.tapdb_owner_repo_name,
+                prefix=str(euid_mod.GENERIC_INSTANCE_LINEAGE_PREFIX),
+            )
+            _ensure_identity_prefix_config(
+                session,
+                entity="audit_log",
+                domain_code=self.settings.tapdb_domain_code,
+                owner_repo_name=self.settings.tapdb_owner_repo_name,
+                prefix=str(euid_mod.AUDIT_LOG_PREFIX),
             )
             loader.seed_templates(
                 session,
@@ -319,7 +401,11 @@ class TapDBFleetRepository:
             )
 
     def _template_for_code(self, session, code: str):
-        template = self._template_manager.get_template(session, code)
+        template = self._template_manager.get_template(
+            session,
+            code,
+            domain_code=self.settings.tapdb_domain_code,
+        )
         if template is None:
             raise RuntimeError(f"TapDB template not seeded: {code}")
         return template
@@ -328,7 +414,7 @@ class TapDBFleetRepository:
         return (
             session.query(self._generic_instance)
             .filter(
-                self._generic_instance.category == "generic",
+                self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                 self._generic_instance.subtype == subtype,
                 self._generic_instance.is_deleted.is_(False),
             )
@@ -348,7 +434,7 @@ class TapDBFleetRepository:
             existing = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "generic",
+                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                     self._generic_instance.subtype == subtype,
                     self._generic_instance.name == name,
                     self._generic_instance.is_deleted.is_(False),
@@ -406,7 +492,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "generic",
+                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                     self._generic_instance.subtype == "printer",
                     self._generic_instance.name == _stable_name(lab, printer_id),
                     self._generic_instance.is_deleted.is_(False),
@@ -425,7 +511,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "generic",
+                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                     self._generic_instance.subtype == "printer",
                     self._generic_instance.euid == printer_euid,
                     self._generic_instance.is_deleted.is_(False),
@@ -468,7 +554,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "generic",
+                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                     self._generic_instance.subtype == "template",
                     self._generic_instance.name == template_name,
                     self._generic_instance.is_deleted.is_(False),
@@ -521,7 +607,7 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == "generic",
+                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
                     self._generic_instance.subtype == "profile",
                     self._generic_instance.name == profile_name,
                     self._generic_instance.is_deleted.is_(False),
@@ -912,7 +998,9 @@ class ZebraDayClient:
             "tapdb_env": self.settings.tapdb_env,
             "tapdb_config_path": str(self.settings.tapdb_config_path),
             "tapdb_domain_registry_path": str(self.settings.tapdb_domain_registry_path),
-            "tapdb_prefix_registry_path": str(self.settings.tapdb_prefix_registry_path),
+            "tapdb_prefix_ownership_registry_path": str(
+                self.settings.tapdb_prefix_ownership_registry_path
+            ),
             "lab_count": len(self.list_labs()),
             "printer_count": len(self.list_printers()),
             "template_count": len(self.list_templates()),

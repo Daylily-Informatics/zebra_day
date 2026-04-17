@@ -53,7 +53,7 @@ def test_default_config_template_is_valid_yaml():
     assert payload["tapdb"]["domain_code"] == "Z"
     assert isinstance(payload["tapdb"]["config_path"], str) and payload["tapdb"]["config_path"]
     assert isinstance(payload["tapdb"]["domain_registry_path"], str)
-    assert isinstance(payload["tapdb"]["prefix_registry_path"], str)
+    assert isinstance(payload["tapdb"]["prefix_ownership_registry_path"], str)
     assert payload["ui"]["show_environment_chrome"] is True
 
 
@@ -76,7 +76,7 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
             "tapdb:\n"
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_registry_path: {prefix_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
         ),
         encoding="utf-8",
     )
@@ -92,7 +92,7 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     assert settings.tapdb_owner_repo_name == "zebra-day"
     assert settings.tapdb_domain_code == "Z"
     assert settings.tapdb_domain_registry_path == domain_registry_path
-    assert settings.tapdb_prefix_registry_path == prefix_registry_path
+    assert settings.tapdb_prefix_ownership_registry_path == prefix_registry_path
     assert settings.tapdb_config_path == tapdb_config_path
 
 
@@ -118,7 +118,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             "  database_name: zebra-day-prod-custom\n"
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_registry_path: {prefix_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
             "  env: sandbox\n"
             "deployment:\n"
             "  name: sandbox-g\n"
@@ -149,7 +149,7 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.tapdb_env == "sandbox"
     assert settings.tapdb_config_path == tapdb_config_path
     assert settings.tapdb_domain_registry_path == domain_registry_path
-    assert settings.tapdb_prefix_registry_path == prefix_registry_path
+    assert settings.tapdb_prefix_ownership_registry_path == prefix_registry_path
     assert settings.tapdb_owner_repo_name == "zebra-day"
     assert settings.tapdb_domain_code == "Z"
     assert settings.ui_show_environment_chrome is True
@@ -220,7 +220,7 @@ def test_validate_settings_yaml_requires_tapdb_config_path() -> None:
         "  domain_code: Z\n"
         "  database_name: zebra-day-local\n"
         "  domain_registry_path: /explicit/tapdb/domain_code_registry.json\n"
-        "  prefix_registry_path: /explicit/tapdb/prefix_ownership_registry.json\n"
+        "  prefix_ownership_registry_path: /explicit/tapdb/prefix_ownership_registry.json\n"
     )
 
     assert "tapdb.config_path is required" in validate_settings_yaml(content)
@@ -249,7 +249,7 @@ def test_validate_settings_yaml_requires_tapdb_registry_paths() -> None:
 
     errors = validate_settings_yaml(content)
     assert "tapdb.domain_registry_path is required" in errors
-    assert "tapdb.prefix_registry_path is required" in errors
+    assert "tapdb.prefix_ownership_registry_path is required" in errors
 
 
 def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
@@ -302,4 +302,6 @@ def test_repo_ships_single_zebra_day_template_prefix():
         )
     )
     prefixes = {template["instance_prefix"] for template in template_pack["templates"]}
+    categories = {template["category"] for template in template_pack["templates"]}
     assert prefixes == {"ZGX"}
+    assert categories == {"ZGX"}

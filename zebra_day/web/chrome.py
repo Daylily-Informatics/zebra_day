@@ -107,7 +107,7 @@ def build_effective_config_rows(settings: ZebraDaySettings) -> list[dict[str, st
         },
         {
             "label": "TapDB Prefix Registry",
-            "value": str(settings.tapdb_prefix_registry_path),
+            "value": str(settings.tapdb_prefix_ownership_registry_path),
         },
         {"label": "Auth Mode", "value": settings.auth_mode},
         {"label": "Session Cookie Name", "value": settings.session_cookie_name},

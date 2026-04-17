@@ -99,14 +99,6 @@ def _resolve_deployment_chrome(
     }
 
 
-def _default_tapdb_domain_registry_path() -> Path:
-    return Path.home() / ".config" / "tapdb" / "domain_code_registry.json"
-
-
-def _default_tapdb_prefix_registry_path() -> Path:
-    return Path.home() / ".config" / "tapdb" / "prefix_ownership_registry.json"
-
-
 def build_default_config_template(deployment: str | None = None) -> bytes:
     """Build the repo's canonical deployment config template."""
     deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
@@ -147,8 +139,8 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
                 / "tapdb-config.yaml"
             ),
             "env": "dev",
-            "domain_registry_path": str(_default_tapdb_domain_registry_path()),
-            "prefix_registry_path": str(_default_tapdb_prefix_registry_path()),
+            "domain_registry_path": "/absolute/path/to/domain_code_registry.json",
+            "prefix_ownership_registry_path": "/absolute/path/to/prefix_ownership_registry.json",
         },
         "discovery": {
             "default_scan_wait_seconds": 0.5,
@@ -228,8 +220,8 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append("tapdb.config_path is required")
         if not str(tapdb.get("domain_registry_path") or "").strip():
             errors.append("tapdb.domain_registry_path is required")
-        if not str(tapdb.get("prefix_registry_path") or "").strip():
-            errors.append("tapdb.prefix_registry_path is required")
+        if not str(tapdb.get("prefix_ownership_registry_path") or "").strip():
+            errors.append("tapdb.prefix_ownership_registry_path is required")
 
     return errors
 
@@ -270,7 +262,7 @@ class ZebraDaySettings:
     tapdb_env: str
     tapdb_config_path: Path
     tapdb_domain_registry_path: Path
-    tapdb_prefix_registry_path: Path
+    tapdb_prefix_ownership_registry_path: Path
     callback_path: str
     logout_path: str
     cognito_group_role_map: dict[str, str]
@@ -327,12 +319,18 @@ class ZebraDaySettings:
         if not tapdb_config_value:
             raise ValueError("tapdb.config_path is required")
         tapdb_config_path = Path(tapdb_config_value).expanduser()
-        tapdb_domain_registry_path = Path(
-            tapdb.get("domain_registry_path") or _default_tapdb_domain_registry_path()
-        )
-        tapdb_prefix_registry_path = Path(
-            tapdb.get("prefix_registry_path") or _default_tapdb_prefix_registry_path()
-        )
+        tapdb_domain_registry_value = str(tapdb.get("domain_registry_path") or "").strip()
+        if not tapdb_domain_registry_value:
+            raise ValueError("tapdb.domain_registry_path is required")
+        tapdb_prefix_ownership_registry_value = str(
+            tapdb.get("prefix_ownership_registry_path") or ""
+        ).strip()
+        if not tapdb_prefix_ownership_registry_value:
+            raise ValueError("tapdb.prefix_ownership_registry_path is required")
+        tapdb_domain_registry_path = Path(tapdb_domain_registry_value).expanduser()
+        tapdb_prefix_ownership_registry_path = Path(
+            tapdb_prefix_ownership_registry_value
+        ).expanduser()
 
         return cls(
             deployment_code=deployment_code,
@@ -402,7 +400,7 @@ class ZebraDaySettings:
             tapdb_env=env_name,
             tapdb_config_path=tapdb_config_path,
             tapdb_domain_registry_path=tapdb_domain_registry_path,
-            tapdb_prefix_registry_path=tapdb_prefix_registry_path,
+            tapdb_prefix_ownership_registry_path=tapdb_prefix_ownership_registry_path,
             callback_path=str(auth.get("callback_path") or "/auth/callback"),
             logout_path=str(auth.get("logout_path") or "/auth/logout"),
             cognito_group_role_map=normalize_group_role_map(

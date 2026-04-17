@@ -49,7 +49,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
             "tapdb:\n"
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_registry_path: {prefix_registry_path}\n"
+            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
         ),
         encoding="utf-8",
     )
@@ -90,8 +90,8 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
-    assert captured["domain_registry_path"] == str(domain_registry_path)
-    assert captured["prefix_registry_path"] == str(prefix_registry_path)
+    assert "domain_registry_path" not in captured
+    assert "prefix_registry_path" not in captured
 
 
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
@@ -170,10 +170,20 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
     repo.settings = settings
 
     captured: dict[str, object] = {}
+    executed: list[dict[str, str]] = []
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return None
+
+    class _Session:
+        def execute(self, _statement, params):
+            executed.append(dict(params))
+            return _Result()
 
     class _Scope:
         def __enter__(self):
-            return "session"
+            return _Session()
 
         def __exit__(self, exc_type, exc, tb):
             return False
@@ -197,6 +207,11 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
                     }
                 ),
             )
+        if module_name == "daylily_tapdb.euid":
+            return SimpleNamespace(
+                GENERIC_INSTANCE_LINEAGE_PREFIX="LNX",
+                AUDIT_LOG_PREFIX="ALG",
+            )
         raise AssertionError(f"unexpected import request: {module_name}")
 
     monkeypatch.setattr("zebra_day.client._ensure_prefix_ownership_registry", fake_claim)
@@ -207,10 +222,37 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
     assert captured["claim_kwargs"]["owner_repo_name"] == "zebra-day"
     assert captured["claim_kwargs"]["domain_code"] == "Z"
     assert "ZGX" in captured["claim_kwargs"]["prefixes"]
-    assert captured["seed_session"] == "session"
+    assert isinstance(captured["seed_session"], _Session)
     assert captured["template_count"] > 0
     assert captured["overwrite"] is False
     assert captured["seed_kwargs"]["prefix_registry_path"] == str(tmp_path / "claimed.json")
+    assert {"entity": "generic_template", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "ZGX"} in executed
+    assert {"entity": "generic_instance_lineage", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "LNX"} in executed
+    assert {"entity": "audit_log", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "ALG"} in executed
+
+
+def test_template_lookup_uses_explicit_domain_code(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    repo = object.__new__(TapDBFleetRepository)
+    repo.settings = ZebraDaySettings.from_context()
+    captured: dict[str, object] = {}
+
+    class _TemplateManager:
+        def get_template(self, session, template_code, *, domain_code=None):
+            captured["session"] = session
+            captured["template_code"] = template_code
+            captured["domain_code"] = domain_code
+            return object()
+
+    repo._template_manager = _TemplateManager()
+
+    sentinel_session = object()
+    result = repo._template_for_code(sentinel_session, "ZGX/labels/template/1.0/")
+
+    assert result is not None
+    assert captured["session"] is sentinel_session
+    assert captured["template_code"] == "ZGX/labels/template/1.0/"
+    assert captured["domain_code"] == "Z"
 
 
 def test_api_client_lists_labs_and_submits_print_job(monkeypatch):

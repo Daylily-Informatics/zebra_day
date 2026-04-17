@@ -45,7 +45,9 @@ def _status() -> None:
             "database_name": settings.tapdb_database_name,
             "env": settings.tapdb_env,
             "domain_registry_path": str(getattr(settings, "tapdb_domain_registry_path", "")),
-            "prefix_registry_path": str(getattr(settings, "tapdb_prefix_registry_path", "")),
+            "prefix_ownership_registry_path": str(
+                getattr(settings, "tapdb_prefix_ownership_registry_path", "")
+            ),
         },
         "gui": gui_data,
     }
