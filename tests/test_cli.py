@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib
+import sys
+from types import ModuleType
 from types import SimpleNamespace
 
 from typer.testing import CliRunner
@@ -67,6 +69,21 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="dev1")
     monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-dev1")
     monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / "dev1"))
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-dev1.yaml"
+    tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-dev1" / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "tapdb:\n"
+            f"  config_path: {tapdb_config_path}\n"
+            f"  domain_registry_path: {domain_registry_path}\n"
+            f"  prefix_registry_path: {prefix_registry_path}\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(sys.modules, "daylily_tapdb", ModuleType("daylily_tapdb"))
     recorded: dict[str, object] = {}
 
     class _Completed:
@@ -75,6 +92,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
         stderr = ""
 
     def fake_run(cmd, env, capture_output, text):
+        assert all(isinstance(part, str) for part in cmd)
         recorded["cmd"] = cmd
         recorded["env"] = env
         return _Completed()
@@ -87,15 +105,7 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     assert recorded["cmd"] == [
         "tapdb",
         "--config",
-        str(
-            tmp_path
-            / "home"
-            / ".config"
-            / "tapdb"
-            / "zebra-day"
-            / "zebra-day-dev1"
-            / "tapdb-config.yaml"
-        ),
+        str(tapdb_config_path),
         "--env",
         "dev",
         "db",
@@ -104,17 +114,28 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     assert recorded["env"]["MERIDIAN_DOMAIN_CODE"] == "Z"
     assert recorded["env"]["TAPDB_OWNER_REPO"] == "zebra-day"
     assert recorded["env"]["TAPDB_DOMAIN_CODE"] == "Z"
-    assert recorded["env"]["TAPDB_DOMAIN_REGISTRY_PATH"].endswith(
-        "/.config/tapdb/domain_code_registry.json"
-    )
-    assert recorded["env"]["TAPDB_PREFIX_REGISTRY_PATH"].endswith(
-        "/.config/tapdb/prefix_ownership_registry.json"
-    )
+    assert recorded["env"]["TAPDB_DOMAIN_REGISTRY_PATH"] == str(domain_registry_path)
+    assert recorded["env"]["TAPDB_PREFIX_REGISTRY_PATH"] == str(prefix_registry_path)
     assert "ok" in result.output
 
 
 def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="dev1")
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-dev1.yaml"
+    tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-dev1" / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "tapdb:\n"
+            f"  config_path: {tapdb_config_path}\n"
+            f"  domain_registry_path: {domain_registry_path}\n"
+            f"  prefix_registry_path: {prefix_registry_path}\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(sys.modules, "daylily_tapdb", ModuleType("daylily_tapdb"))
     commands: list[list[str]] = []
 
     class _Completed:
@@ -123,30 +144,21 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
         stderr = ""
 
     def fake_run(cmd, env, capture_output, text):
+        assert all(isinstance(part, str) for part in cmd)
         commands.append(cmd)
         return _Completed()
 
     monkeypatch.setattr("zebra_day.cli.tapdb.subprocess", SimpleNamespace(run=fake_run))
 
     result = runner.invoke(zebra_cli.app, ["tapdb", "bootstrap", "local", "--no-gui"])
-
-    expected_config_path = (
-        tmp_path
-        / "home"
-        / ".config"
-        / "tapdb"
-        / "zebra-day"
-        / "zebra-day-dev1"
-        / "tapdb-config.yaml"
-    )
     assert result.exit_code == 0
-    assert expected_config_path.parent.is_dir()
+    assert tapdb_config_path.parent.is_dir()
     assert commands == [
         [
             "tapdb",
             "--config",
-            str(expected_config_path),
-            "config",
+            str(tapdb_config_path),
+            "db-config",
             "init",
             "--client-id",
             "zebra-day",
@@ -157,9 +169,9 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "--domain-code",
             "dev=Z",
             "--domain-registry-path",
-            str(tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"),
+            str(domain_registry_path),
             "--prefix-ownership-registry-path",
-            str(tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"),
+            str(prefix_registry_path),
             "--env",
             "dev",
             "--db-port",
@@ -170,7 +182,38 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
         [
             "tapdb",
             "--config",
-            str(expected_config_path),
+            str(tapdb_config_path),
+            "--client-id",
+            "zebra-day",
+            "--database-name",
+            "zebra-day-dev1",
+            "db-config",
+            "update",
+            "--env",
+            "dev",
+            "--owner-repo-name",
+            "zebra-day",
+            "--domain-code",
+            "Z",
+            "--domain-registry-path",
+            str(domain_registry_path),
+            "--prefix-ownership-registry-path",
+            str(prefix_registry_path),
+            "--engine-type",
+            "local",
+            "--host",
+            "localhost",
+            "--port",
+            "5544",
+            "--ui-port",
+            "8118",
+            "--database",
+            "zebra-day-dev1",
+        ],
+        [
+            "tapdb",
+            "--config",
+            str(tapdb_config_path),
             "--env",
             "dev",
             "bootstrap",

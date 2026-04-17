@@ -39,6 +39,23 @@ def test_direct_client_fails_fast_without_tapdb(monkeypatch, tmp_path):
 
 def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
+    config_path = Path(tmp_path / "config" / "zebra-day-config-local.yaml")
+    tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-local" / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "tapdb:\n"
+            f"  config_path: {tapdb_config_path}\n"
+            f"  domain_registry_path: {domain_registry_path}\n"
+            f"  prefix_registry_path: {prefix_registry_path}\n"
+        ),
+        encoding="utf-8",
+    )
+    tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
+    tapdb_config_path.write_text("tapdb: {}\n", encoding="utf-8")
+    monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(config_path))
     settings = ZebraDaySettings.from_context()
 
     captured: dict[str, object] = {}
@@ -73,12 +90,8 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
-    assert captured["domain_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"
-    )
-    assert captured["prefix_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"
-    )
+    assert captured["domain_registry_path"] == str(domain_registry_path)
+    assert captured["prefix_registry_path"] == str(prefix_registry_path)
 
 
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
