@@ -8,6 +8,7 @@ meta:
   prefix_registry_path: ~/.config/tapdb/prefix_ownership_registry.json
 environments:
   dev:
+    domain_code: Z
     engine_type: local
     host: localhost
     port: '5544'
@@ -17,6 +18,7 @@ environments:
     support_email: support@lsmc.bio
     cognito_user_pool_id: ''
   prod:
+    domain_code: Z
     engine_type: aurora
     host: zebra-day.cluster-REPLACE.us-west-2.rds.amazonaws.com
     port: '5432'

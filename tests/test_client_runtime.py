@@ -9,9 +9,18 @@ import pytest
 
 from tests.fakes import sample_repository
 from zebra_day.client import (
+    DRIFT_TEMPLATE_CODE,
+    LABEL_PROFILE_TEMPLATE_CODE,
+    LABEL_TEMPLATE_TEMPLATE_CODE,
+    OBSERVATION_TEMPLATE_CODE,
+    PACKAGE_TEMPLATE_PACK,
+    PRINTER_TEMPLATE_CODE,
+    PRINT_JOB_TEMPLATE_CODE,
     TapDBFleetRepository,
     ZebraDayApiClient,
     ZebraDayClient,
+    ZEBRA_TEMPLATE_CATEGORY,
+    _ensure_identity_prefix_config,
     _ensure_prefix_ownership_registry,
 )
 from zebra_day.settings import (
@@ -73,12 +82,8 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
-    assert captured["domain_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "domain_code_registry.json"
-    )
-    assert captured["prefix_registry_path"] == str(
-        tmp_path / "home" / ".config" / "tapdb" / "prefix_ownership_registry.json"
-    )
+    assert "domain_registry_path" not in captured
+    assert "prefix_registry_path" not in captured
 
 
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
@@ -157,6 +162,7 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
     repo.settings = settings
 
     captured: dict[str, object] = {}
+    identity_calls: list[dict[str, object]] = []
 
     class _Scope:
         def __enter__(self):
@@ -184,9 +190,18 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
                     }
                 ),
             )
+        if module_name == "daylily_tapdb.euid":
+            return SimpleNamespace(
+                GENERIC_INSTANCE_LINEAGE_PREFIX="EDG",
+                AUDIT_LOG_PREFIX="ADT",
+            )
         raise AssertionError(f"unexpected import request: {module_name}")
 
     monkeypatch.setattr("zebra_day.client._ensure_prefix_ownership_registry", fake_claim)
+    monkeypatch.setattr(
+        "zebra_day.client._ensure_identity_prefix_config",
+        lambda session, **kwargs: identity_calls.append({"session": session, **kwargs}),
+    )
     monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
 
     repo._seed_templates()
@@ -198,6 +213,83 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
     assert captured["template_count"] > 0
     assert captured["overwrite"] is False
     assert captured["seed_kwargs"]["prefix_registry_path"] == str(tmp_path / "claimed.json")
+    assert identity_calls == [
+        {
+            "session": "session",
+            "entity": "generic_template",
+            "domain_code": "Z",
+            "owner_repo_name": "zebra-day",
+            "prefix": "ZGX",
+        },
+        {
+            "session": "session",
+            "entity": "generic_instance_lineage",
+            "domain_code": "Z",
+            "owner_repo_name": "zebra-day",
+            "prefix": "EDG",
+        },
+        {
+            "session": "session",
+            "entity": "audit_log",
+            "domain_code": "Z",
+            "owner_repo_name": "zebra-day",
+            "prefix": "ADT",
+        },
+    ]
+
+
+def test_ensure_identity_prefix_config_inserts_when_missing() -> None:
+    calls: list[dict[str, object]] = []
+
+    class FakeResult:
+        @staticmethod
+        def scalar_one_or_none():
+            return None
+
+    class FakeSession:
+        def execute(self, statement, params):
+            calls.append({"sql": str(statement), "params": dict(params)})
+            if len(calls) == 1:
+                return FakeResult()
+            return None
+
+    _ensure_identity_prefix_config(
+        FakeSession(),
+        entity="generic_template",
+        domain_code="Z",
+        owner_repo_name="zebra-day",
+        prefix="ZGX",
+    )
+
+    assert "SELECT prefix" in calls[0]["sql"]
+    assert "INSERT INTO tapdb_identity_prefix_config" in calls[1]["sql"]
+    assert calls[1]["params"] == {
+        "entity": "generic_template",
+        "domain_code": "Z",
+        "owner_repo_name": "zebra-day",
+        "prefix": "ZGX",
+    }
+
+
+def test_packaged_template_codes_use_zebra_prefix_category():
+    payload = json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8"))
+    codes = {
+        f"{template['category']}/{template['type']}/{template['subtype']}/{template['version']}/"
+        for template in payload["templates"]
+    }
+
+    assert {
+        PRINTER_TEMPLATE_CODE,
+        LABEL_PROFILE_TEMPLATE_CODE,
+        LABEL_TEMPLATE_TEMPLATE_CODE,
+        OBSERVATION_TEMPLATE_CODE,
+        DRIFT_TEMPLATE_CODE,
+        PRINT_JOB_TEMPLATE_CODE,
+    } == codes
+    assert all(template["category"] == ZEBRA_TEMPLATE_CATEGORY for template in payload["templates"])
+    assert all(
+        template["instance_prefix"] == ZEBRA_TEMPLATE_CATEGORY for template in payload["templates"]
+    )
 
 
 def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
@@ -229,6 +321,29 @@ def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
 
     assert response["success"] is True
     assert calls == [("GET", "/api/v1/labs"), ("POST", "/api/v1/print")]
+
+
+def test_template_for_code_passes_domain_code(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    settings = ZebraDaySettings.from_context()
+    repo = object.__new__(TapDBFleetRepository)
+    repo.settings = settings
+    captured: dict[str, object] = {}
+    repo._template_manager = SimpleNamespace(
+        get_template=lambda session, code, **kwargs: captured.update(
+            {"session": session, "code": code, **kwargs}
+        )
+        or SimpleNamespace(uid=1)
+    )
+
+    template = repo._template_for_code("session", PRINTER_TEMPLATE_CODE)
+
+    assert getattr(template, "uid") == 1
+    assert captured == {
+        "session": "session",
+        "code": PRINTER_TEMPLATE_CODE,
+        "domain_code": "Z",
+    }
 
 
 def test_api_client_direct_print_uses_remote_resolution(monkeypatch):

@@ -165,7 +165,7 @@ _zday_ensure_postgres_runtime() {
 _zday_require_python_import() {
     local module_name="$1"
     local package_name="$2"
-    if "${_ZDAY_PYTHON:-python}" -c "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('${module_name}') else 1)" >/dev/null 2>&1; then
+    if "${_ZDAY_PYTHON:-python}" -c "import ${module_name}" >/dev/null 2>&1; then
         return 0
     fi
     echo -e "  ${_YELLOW}✗${_NC} Missing Python package: ${package_name}"
@@ -230,16 +230,9 @@ import tomllib
 project_root = Path(sys.argv[1])
 data = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
 dependencies = data["project"]["dependencies"]
-tapdb_dependencies = [dep for dep in dependencies if dep.startswith("daylily-tapdb==")]
-other_dependencies = [dep for dep in dependencies if dep not in tapdb_dependencies]
-if other_dependencies:
+if dependencies:
     subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", *other_dependencies],
-        check=True,
-    )
-if tapdb_dependencies:
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--no-deps", "-q", *tapdb_dependencies],
+        [sys.executable, "-m", "pip", "install", "-q", *dependencies],
         check=True,
     )
 PY
@@ -252,7 +245,7 @@ _zday_ensure_published_distribution() {
     local expected_version="$4"
     if ! _zday_distribution_version_is "$dist_name" "$expected_version"; then
         echo -e "  ${_CYAN}→${_NC} Installing published ${label} ${expected_version}..."
-        if ! "${_ZDAY_PYTHON:-python}" -m pip install --no-deps "${dist_name}==${expected_version}" -q; then
+        if ! "${_ZDAY_PYTHON:-python}" -m pip install "${dist_name}==${expected_version}" -q; then
             echo -e "  ${_YELLOW}✗${_NC} Failed to install published ${label} ${expected_version}"
             return 1
         fi
@@ -278,8 +271,8 @@ export LSMC_DEPLOYMENT_CODE="${_zday_deployment_code}"
 export MERIDIAN_DOMAIN_CODE="Z"
 export TAPDB_OWNER_REPO="zebra-day"
 export TAPDB_DOMAIN_CODE="${MERIDIAN_DOMAIN_CODE}"
-export TAPDB_DOMAIN_REGISTRY_PATH="${HOME}/.config/tapdb/domain_code_registry.json"
-export TAPDB_PREFIX_REGISTRY_PATH="${HOME}/.config/tapdb/prefix_ownership_registry.json"
+export TAPDB_DOMAIN_REGISTRY_PATH="${TAPDB_DOMAIN_REGISTRY_PATH:-${HOME}/.config/tapdb/domain_code_registry.json}"
+export TAPDB_PREFIX_REGISTRY_PATH="${TAPDB_PREFIX_REGISTRY_PATH:-${HOME}/.config/tapdb/prefix_ownership_registry.json}"
 export ZEBRA_DAY_PROJECT_ROOT
 export ZDAY_PROJECT_ROOT="${ZEBRA_DAY_PROJECT_ROOT}"
 export ZEBRA_DAY_ACTIVE=1
@@ -287,7 +280,7 @@ _ZDAY_ENV_NAME="${_ZDAY_ENV_BASE}-${_zday_deployment_code}"
 _ZDAY_TAPDB_CLIENT_ID="zebra-day"
 _ZDAY_TAPDB_DATABASE_NAME="zebra-day-${_zday_deployment_code}"
 _ZDAY_TAPDB_ENV="dev"
-_ZDAY_TAPDB_CONFIG_PATH="$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")"
+_ZDAY_TAPDB_CONFIG_PATH="${TAPDB_CONFIG_PATH:-$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")}"
 export TAPDB_CONFIG_PATH="${_ZDAY_TAPDB_CONFIG_PATH}"
 export ZEBRA_DAY_CONFIG_PATH="${ZEBRA_DAY_CONFIG_PATH:-$(_zday_config_path "${_zday_deployment_code}")}"
 

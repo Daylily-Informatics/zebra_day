@@ -43,11 +43,13 @@ def test_activate_uses_root_environment_yaml_and_repo_only_editable_install() ->
     assert 'export MERIDIAN_DOMAIN_CODE="Z"' in activate
     assert 'export TAPDB_OWNER_REPO="zebra-day"' in activate
     assert 'export TAPDB_DOMAIN_CODE="${MERIDIAN_DOMAIN_CODE}"' in activate
-    assert 'export TAPDB_DOMAIN_REGISTRY_PATH="${HOME}/.config/tapdb/domain_code_registry.json"' in activate
-    assert 'export TAPDB_PREFIX_REGISTRY_PATH="${HOME}/.config/tapdb/prefix_ownership_registry.json"' in activate
+    assert 'export TAPDB_DOMAIN_REGISTRY_PATH="${TAPDB_DOMAIN_REGISTRY_PATH:-${HOME}/.config/tapdb/domain_code_registry.json}"' in activate
+    assert 'export TAPDB_PREFIX_REGISTRY_PATH="${TAPDB_PREFIX_REGISTRY_PATH:-${HOME}/.config/tapdb/prefix_ownership_registry.json}"' in activate
+    assert '_ZDAY_TAPDB_CONFIG_PATH="${TAPDB_CONFIG_PATH:-$(_zday_prepare_tapdb_config_path "${_zday_deployment_code}" "${_ZDAY_TAPDB_CLIENT_ID}" "${_ZDAY_TAPDB_DATABASE_NAME}")}"' in activate
     assert "TAPDB_APP_CODE" not in activate
     assert "_zday_ensure_editable_repo" not in activate
-    assert "--no-deps" in activate
+    assert 'pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" --no-deps' in activate
+    assert 'pip install --no-deps "${dist_name}==${expected_version}" -q' not in activate
     assert "[dev,lint,auth]" not in activate
     assert "../daylily-tapdb" not in activate
     assert "../daylily-auth-cognito" not in activate

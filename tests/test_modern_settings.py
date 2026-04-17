@@ -69,6 +69,9 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
     explicit_config = tmp_path / "custom" / "zebra-day-config-qa-1.yaml"
     monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(explicit_config))
+    monkeypatch.delenv("TAPDB_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("TAPDB_DOMAIN_REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("TAPDB_PREFIX_REGISTRY_PATH", raising=False)
 
     settings = ZebraDaySettings.from_context()
 
@@ -89,6 +92,21 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
         settings.tapdb_config_path
         == Path.home() / ".config" / "tapdb" / "zebra-day" / "zebra-day-qa-1" / "tapdb-config.yaml"
     )
+
+
+def test_settings_from_context_honors_tapdb_env_overrides(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="qa-2")
+    explicit_config = tmp_path / "custom" / "zebra-day-config-qa-2.yaml"
+    monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(explicit_config))
+    monkeypatch.setenv("TAPDB_CONFIG_PATH", str(tmp_path / "tapdb" / "custom-config.yaml"))
+    monkeypatch.setenv("TAPDB_DOMAIN_REGISTRY_PATH", str(tmp_path / "tapdb" / "domain.json"))
+    monkeypatch.setenv("TAPDB_PREFIX_REGISTRY_PATH", str(tmp_path / "tapdb" / "prefix.json"))
+
+    settings = ZebraDaySettings.from_context()
+
+    assert settings.tapdb_config_path == tmp_path / "tapdb" / "custom-config.yaml"
+    assert settings.tapdb_domain_registry_path == tmp_path / "tapdb" / "domain.json"
+    assert settings.tapdb_prefix_registry_path == tmp_path / "tapdb" / "prefix.json"
 
 
 def test_settings_merge_file_values(monkeypatch, tmp_path):
@@ -227,9 +245,11 @@ def test_repo_ships_tapdb_config_template():
         payload["meta"]["prefix_registry_path"]
         == "~/.config/tapdb/prefix_ownership_registry.json"
     )
+    assert payload["environments"]["dev"]["domain_code"] == "Z"
     assert payload["environments"]["dev"]["port"] == "5544"
     assert payload["environments"]["dev"]["database"] == "zebra_day_dev"
     assert payload["environments"]["dev"]["audit_log_euid_prefix"] == "ZGX"
+    assert payload["environments"]["prod"]["domain_code"] == "Z"
     assert payload["environments"]["prod"]["audit_log_euid_prefix"] == "ZGX"
 
 

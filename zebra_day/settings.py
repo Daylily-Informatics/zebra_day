@@ -312,14 +312,19 @@ class ZebraDaySettings:
         ).strip()
         env_name = str(tapdb.get("env") or "dev").strip() or "dev"
         tapdb_config_path = Path(
-            tapdb.get("config_path")
+            os.environ.get("TAPDB_CONFIG_PATH")
+            or tapdb.get("config_path")
             or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
         )
         tapdb_domain_registry_path = Path(
-            tapdb.get("domain_registry_path") or _default_tapdb_domain_registry_path()
+            os.environ.get("TAPDB_DOMAIN_REGISTRY_PATH")
+            or tapdb.get("domain_registry_path")
+            or _default_tapdb_domain_registry_path()
         )
         tapdb_prefix_registry_path = Path(
-            tapdb.get("prefix_registry_path") or _default_tapdb_prefix_registry_path()
+            os.environ.get("TAPDB_PREFIX_REGISTRY_PATH")
+            or tapdb.get("prefix_registry_path")
+            or _default_tapdb_prefix_registry_path()
         )
 
         return cls(
