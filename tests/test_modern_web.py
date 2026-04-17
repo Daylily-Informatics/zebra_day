@@ -106,9 +106,7 @@ def _runtime_inventory(app) -> tuple[set[tuple[str, str]], set[str]]:
         path = str(getattr(route, "path", "") or "").strip()
         if not path:
             continue
-        route_methods = {
-            method for method in getattr(route, "methods", set()) if method in methods
-        }
+        route_methods = {method for method in getattr(route, "methods", set()) if method in methods}
         if route_methods:
             routes.update((method, path) for method in route_methods)
             continue
@@ -368,9 +366,7 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     assert __version__ in config_response.text
 
 
-def test_config_page_redacts_secrets_and_admin_footer_contains_git_metadata(
-    monkeypatch, tmp_path
-):
+def test_config_page_redacts_secrets_and_admin_footer_contains_git_metadata(monkeypatch, tmp_path):
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-local.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -594,7 +590,10 @@ def test_environment_chrome_can_be_disabled_by_config(tmp_path, monkeypatch):
         response = client.get("/login")
 
     assert response.status_code == 200
-    assert "background: #21ca91; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;" not in response.text
+    assert (
+        "background: #21ca91; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;"
+        not in response.text
+    )
 
 
 def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):

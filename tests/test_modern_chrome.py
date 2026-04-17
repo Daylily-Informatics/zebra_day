@@ -53,11 +53,22 @@ def test_resolve_git_metadata_uses_exact_match_tag(monkeypatch) -> None:
     def _run(cmd, check, capture_output, text):  # noqa: ANN001
         del check, capture_output, text
         commands.append(tuple(cmd))
-        if cmd[:3] == ["git", "-C", "/tmp/repo"] and cmd[3:] == ["rev-parse", "--abbrev-ref", "HEAD"]:
+        if cmd[:3] == ["git", "-C", "/tmp/repo"] and cmd[3:] == [
+            "rev-parse",
+            "--abbrev-ref",
+            "HEAD",
+        ]:
             return SimpleNamespace(returncode=0, stdout="codex/zebra-day-gui-chrome-scm\n")
         if cmd[:3] == ["git", "-C", "/tmp/repo"] and cmd[3:] == ["rev-parse", "HEAD"]:
-            return SimpleNamespace(returncode=0, stdout="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n")
-        if cmd[:3] == ["git", "-C", "/tmp/repo"] and cmd[3:] == ["describe", "--tags", "--exact-match", "HEAD"]:
+            return SimpleNamespace(
+                returncode=0, stdout="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n"
+            )
+        if cmd[:3] == ["git", "-C", "/tmp/repo"] and cmd[3:] == [
+            "describe",
+            "--tags",
+            "--exact-match",
+            "HEAD",
+        ]:
             return SimpleNamespace(returncode=0, stdout="v2.4.6\n")
         return SimpleNamespace(returncode=1, stdout="")
 

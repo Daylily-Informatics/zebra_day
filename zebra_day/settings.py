@@ -307,9 +307,7 @@ class ZebraDaySettings:
         )
 
         client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
-        owner_repo_name = str(
-            tapdb.get("owner_repo_name") or DEFAULT_TAPDB_OWNER_REPO
-        ).strip()
+        owner_repo_name = str(tapdb.get("owner_repo_name") or DEFAULT_TAPDB_OWNER_REPO).strip()
         domain_code = str(tapdb.get("domain_code") or DEFAULT_MERIDIAN_DOMAIN_CODE).strip()
         database_name = str(
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"

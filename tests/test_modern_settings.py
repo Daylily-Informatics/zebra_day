@@ -190,10 +190,7 @@ def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
     config_path.write_text(
-        (
-            "authentication:\n"
-            "  cognito_domain: https://example.auth.us-west-2.amazoncognito.com\n"
-        ),
+        ("authentication:\n  cognito_domain: https://example.auth.us-west-2.amazoncognito.com\n"),
         encoding="utf-8",
     )
 

@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import importlib
 import sys
-from types import ModuleType
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 from typer.testing import CliRunner
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import socket
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from cli_core_yo import ccyo_out
@@ -31,7 +31,7 @@ def _local_ip_stub() -> str:
 
 
 def _public_printer_payload(printer) -> dict[str, Any]:
-    payload = printer.to_payload()
+    payload = cast(dict[str, Any], printer.to_payload())
     payload["printer_euid"] = payload.pop("euid", "")
     payload.pop("printer_id", None)
     return payload

@@ -21,7 +21,6 @@ from zebra_day.client import ZebraDayClient
 from zebra_day.logging_config import get_logger
 from zebra_day.observability import ZebraDayObservability
 from zebra_day.settings import ZebraDaySettings
-from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.auth import (
     CognitoAuthMiddleware,
     CognitoWebAuthError,
@@ -32,6 +31,7 @@ from zebra_day.web.auth import (
     setup_session_auth,
     start_cognito_login,
 )
+from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
 _log = get_logger(__name__)

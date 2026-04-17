@@ -35,7 +35,7 @@ def _stable_color_hex(name: str, *, lightness: float, saturation: float, hue_shi
     digest = hashlib.sha256(str(name or "").encode("utf-8")).digest()
     hue = (int.from_bytes(digest[:8], "big") + hue_shift) % 360
     red, green, blue = colorsys.hls_to_rgb(hue / 360.0, lightness, saturation)
-    return "#%02x%02x%02x" % tuple(round(channel * 255) for channel in (red, green, blue))
+    return f"#{round(red * 255):02x}{round(green * 255):02x}{round(blue * 255):02x}"
 
 
 def deployment_color(name: str) -> str:
@@ -93,7 +93,10 @@ def build_effective_config_rows(settings: ZebraDaySettings) -> list[dict[str, st
         {"label": "Deployment Code", "value": settings.deployment_code},
         {"label": "Deployment Name", "value": deployment_name},
         {"label": "Deployment Chrome Color", "value": deployment_color(deployment_name)},
-        {"label": "UI Environment Chrome", "value": "enabled" if settings.ui_show_environment_chrome else "disabled"},
+        {
+            "label": "UI Environment Chrome",
+            "value": "enabled" if settings.ui_show_environment_chrome else "disabled",
+        },
         {"label": "Region Label", "value": region_name},
         {"label": "Region Chrome Color", "value": region_color(region_name)},
         {"label": "TapDB Client ID", "value": settings.tapdb_client_id},

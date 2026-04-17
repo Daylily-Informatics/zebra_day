@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
-import tomllib
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -56,7 +56,9 @@ def test_activate_is_env_only_and_installs_repo_editable_once() -> None:
     assert 'conda activate "${_ZDAY_ENV_NAME}"' in activate
     assert 'export PATH="${CONDA_PREFIX}/bin:$PATH"' in activate
     assert '"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" -q' in activate
-    assert '"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" --no-deps' not in activate
+    assert (
+        '"${_ZDAY_PYTHON}" -m pip install -e "${ZEBRA_DAY_PROJECT_ROOT}" --no-deps' not in activate
+    )
     assert "daylily-tapdb" not in activate
     assert "daylily-auth-cognito" not in activate
     assert "cli-core-yo" not in activate

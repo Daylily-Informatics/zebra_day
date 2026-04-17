@@ -62,6 +62,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     def fake_import(module_name: str):
         if module_name == "daylily_tapdb":
+
             class _TapdbModule:
                 @staticmethod
                 def TAPDBConnection(**kwargs):
@@ -226,9 +227,24 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
     assert captured["template_count"] > 0
     assert captured["overwrite"] is False
     assert captured["seed_kwargs"]["prefix_registry_path"] == str(tmp_path / "claimed.json")
-    assert {"entity": "generic_template", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "ZGX"} in executed
-    assert {"entity": "generic_instance_lineage", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "LNX"} in executed
-    assert {"entity": "audit_log", "domain_code": "Z", "owner_repo_name": "zebra-day", "prefix": "ALG"} in executed
+    assert {
+        "entity": "generic_template",
+        "domain_code": "Z",
+        "owner_repo_name": "zebra-day",
+        "prefix": "ZGX",
+    } in executed
+    assert {
+        "entity": "generic_instance_lineage",
+        "domain_code": "Z",
+        "owner_repo_name": "zebra-day",
+        "prefix": "LNX",
+    } in executed
+    assert {
+        "entity": "audit_log",
+        "domain_code": "Z",
+        "owner_repo_name": "zebra-day",
+        "prefix": "ALG",
+    } in executed
 
 
 def test_template_lookup_uses_explicit_domain_code(monkeypatch, tmp_path):
@@ -296,7 +312,9 @@ def test_api_client_direct_print_uses_remote_resolution(monkeypatch):
             "printer_euid": repository.get_printer("default", "printer-1").euid,
             **{
                 key: value
-                for key, value in repository.get_printer("default", "printer-1").to_payload().items()
+                for key, value in repository.get_printer("default", "printer-1")
+                .to_payload()
+                .items()
                 if key != "euid"
             },
         },

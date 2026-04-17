@@ -62,7 +62,7 @@ def _pyproject_dependency_version(dependency_name: str) -> str:
     data = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     for dependency in data["project"]["dependencies"]:
         if dependency.startswith(f"{dependency_name}=="):
-            return dependency.split("==", 1)[1]
+            return str(dependency.split("==", 1)[1])
     raise RuntimeError(f"Missing pinned dependency: {dependency_name}")
 
 
@@ -107,7 +107,9 @@ def _ensure_prefix_ownership_registry(
         )
 
     changed = False
-    for prefix in sorted({str(prefix).strip().upper() for prefix in prefixes if str(prefix).strip()}):
+    for prefix in sorted(
+        {str(prefix).strip().upper() for prefix in prefixes if str(prefix).strip()}
+    ):
         existing = domain_claims.get(prefix)
         if existing is None:
             domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
@@ -679,9 +681,7 @@ class ZebraDayClient:
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         return self.repository.list_printers(lab)
 
-    def get_printer(
-        self, printer_euid: str, lab: str | None = None
-    ) -> PrinterRecord | None:
+    def get_printer(self, printer_euid: str, lab: str | None = None) -> PrinterRecord | None:
         candidate = self.repository.get_printer_by_euid(printer_euid)
         if candidate is None:
             return None
