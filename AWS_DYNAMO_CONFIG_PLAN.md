@@ -592,23 +592,11 @@ This is **not in scope** for the initial implementation. Keep it simple: DynamoD
 
 ## 10. Dependency Management
 
-### New Optional Dependency Group
+### Historical Optional Dependency Group
 
-```toml
-[project.optional-dependencies]
-aws = [
-    "boto3>=1.26.0",
-]
-auth = [
-    "daylily-auth-cognito>=0.1.10",
-    "python-jose[cryptography]>=3.3.0",
-    "boto3>=1.26.0",
-]
-```
-
-The `aws` group contains only `boto3`. The `auth` group already has `boto3` so there's
-overlap — that's fine, pip handles deduplication. Users who want DynamoDB without Cognito
-install `pip install zebra_day[aws]`.
+This plan predates the current repo contract. The live project now keeps all Python
+dependencies in `project.dependencies` and uses a single editable install path.
+There is no supported extras setup in the current packaging.
 
 ### Import Guard
 
@@ -622,7 +610,7 @@ class DynamoBackend:
         except ImportError:
             raise ImportError(
                 "boto3 is required for DynamoDB backend. "
-                "Install with: pip install zebra_day[aws]"
+                "Install the editable repo checkout first."
             ) from None
         self._ddb = boto3.resource("dynamodb", region_name=region)
         self._s3 = boto3.client("s3", region_name=region)
@@ -700,14 +688,8 @@ def dynamo_backend():
 
 ### Test Dependencies
 
-Add to `[project.optional-dependencies]`:
-
-```toml
-dev = [
-    ...existing...
-    "moto[dynamodb,s3]>=5.0.0",
-]
-```
+This archived plan used extras for test dependencies. The current repo contract keeps
+those Python dependencies in `project.dependencies` instead.
 
 ### CLI Tests
 

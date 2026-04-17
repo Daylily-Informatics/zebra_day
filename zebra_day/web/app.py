@@ -31,6 +31,7 @@ from zebra_day.web.auth import (
     setup_session_auth,
     start_cognito_login,
 )
+from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 
 _log = get_logger(__name__)
@@ -115,6 +116,8 @@ def create_app(
     if auth is not None:
         resolved_settings = ZebraDaySettings.from_context(resolved_settings.deployment_code)
         object.__setattr__(resolved_settings, "auth_mode", auth)
+    chrome_context = build_chrome_context(resolved_settings)
+    git_metadata = resolve_git_metadata(Path(__file__).resolve().parents[2]).model_dump()
 
     @asynccontextmanager
     async def _lifespan(app: FastAPI):
@@ -144,6 +147,8 @@ def create_app(
     app.state.pkg_path = _PKG_PATH
     app.state.print_rate_limiter = print_rate_limiter
     app.state.observability = ZebraDayObservability(resolved_settings)
+    app.state.chrome_context = chrome_context
+    app.state.git_metadata = git_metadata
 
     cognito_binding = None
     if resolved_settings.auth_mode == "cognito":
@@ -175,14 +180,31 @@ def create_app(
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
 
     @app.get("/healthz")
-    async def healthz():
-        return {"status": "healthy"}
+    async def healthz(request: Request):
+        return app.state.observability.public_healthz_payload(request)
 
     @app.get("/readyz")
-    async def readyz():
-        return {
-            "status": "ready" if getattr(app.state, "zebra_day", None) is not None else "not_ready"
+    async def readyz(request: Request):
+        backend_ready = getattr(app.state, "zebra_day", None) is not None
+        database_check = {
+            "status": "ok" if backend_ready else "error",
+            "latency_ms": 0.0,
+            "detail": "tapdb client ready" if backend_ready else "tapdb client unavailable",
+            "details": {
+                "backend": "tapdb",
+                "env": resolved_settings.tapdb_env,
+                "namespace": {
+                    "client_id": resolved_settings.tapdb_client_id,
+                    "database_name": resolved_settings.tapdb_database_name,
+                },
+            },
         }
+        payload = app.state.observability.public_readyz_payload(
+            request,
+            ready=backend_ready,
+            database_check=database_check,
+        )
+        return JSONResponse(status_code=200 if backend_ready else 503, content=payload)
 
     @app.get("/health")
     async def health(request: Request):

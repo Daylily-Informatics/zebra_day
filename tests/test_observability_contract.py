@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
+import jsonschema
 from fastapi.testclient import TestClient
 
 from tests.fakes import sample_repository
@@ -11,6 +14,18 @@ from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_ROOT = PROJECT_ROOT / "contracts" / "observability"
+
+
+def _schema_root() -> Path:
+    return SCHEMA_ROOT
+
+
+def _validate(name: str, payload: dict) -> None:
+    schema = json.loads((_schema_root() / name).read_text(encoding="utf-8"))
+    jsonschema.validate(payload, schema)
 
 
 def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
@@ -70,17 +85,10 @@ def _make_cognito_app(
     tmp_path, monkeypatch, *, claims: dict[str, object], profile_claims: dict[str, object]
 ):
     _set_xdg(monkeypatch, tmp_path)
-    monkeypatch.setattr(
-        "zebra_day.web.auth.load_daycog_contract",
-        lambda: {
-            "region": "us-west-2",
-            "user_pool_id": "pool",
-            "app_client_id": "client",
-            "cognito_domain": "example.com",
-            "callback_url": "https://localhost:8118/auth/callback",
-            "logout_url": "https://localhost:8118/login",
-        },
-    )
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.com")
     monkeypatch.setattr(
         "zebra_day.web.app.setup_cognito_auth",
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
@@ -134,8 +142,8 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
 
     with TestClient(app) as client:
-        client.get("/healthz")
-        client.get("/readyz")
+        healthz_payload = client.get("/healthz").json()
+        readyz_payload = client.get("/readyz").json()
         client.get("/api/v1/labs/default/printers")
 
         health_payload = client.get("/health").json()
@@ -146,6 +154,9 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
         auth_payload = client.get("/auth_health").json()
 
         assert client.get("/my_health").status_code == 404
+
+    _validate("healthz.schema.json", healthz_payload)
+    _validate("readyz.schema.json", readyz_payload)
 
     for payload in (
         health_payload,
@@ -168,6 +179,8 @@ def test_observability_contract_routes_match_expected_shapes_no_auth(monkeypatch
         _assert_projection(payload)
 
     assert "checks" in health_payload
+    assert healthz_payload["checks"]["process"]["status"] == "ok"
+    assert "database" in readyz_payload["checks"]
     assert "families" in api_payload
     assert "page" in endpoint_payload
     assert "items" in endpoint_payload

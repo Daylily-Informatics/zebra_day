@@ -21,6 +21,10 @@ DEFAULT_PORT = 8118
 DEFAULT_SERVICE_NAME = "zebra-day"
 DEFAULT_AUTH_MODE = "cognito"
 DEFAULT_TAPDB_CLIENT_ID = "zebra-day"
+DEFAULT_TAPDB_OWNER_REPO = "zebra-day"
+DEFAULT_MERIDIAN_DOMAIN_CODE = "Z"
+DEFAULT_TAPDB_LOCAL_DB_PORT = 5544
+DEFAULT_TAPDB_LOCAL_UI_PORT = 8118
 DEFAULT_DEPLOYMENT_BANNER_COLOR = "#AFEEEE"
 PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
@@ -56,6 +60,15 @@ def _load_yaml(path: Path) -> dict[str, Any]:
         return {}
     content = yaml.safe_load(path.read_text()) or {}
     return content if isinstance(content, dict) else {}
+
+
+def _validate_cognito_domain(value: Any) -> str:
+    domain = str(value or "").strip()
+    if not domain:
+        return ""
+    if any(marker in domain for marker in ("://", "/", "?", "#", ":")):
+        raise ValueError("authentication.cognito_domain must be a bare host without a scheme")
+    return domain
 
 
 def _stable_deployment_color_hex(name: str) -> str:
@@ -103,6 +116,10 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "session_secret_key": _DEFAULT_SESSION_SECRET_KEY,
             "callback_path": "/auth/callback",
             "logout_path": "/auth/logout",
+            "cognito_region": "",
+            "cognito_user_pool_id": "",
+            "cognito_app_client_id": "",
+            "cognito_domain": "",
             "group_role_map": DEFAULT_COGNITO_GROUP_ROLE_MAP,
             "allowed_email_domains": list(DEFAULT_ALLOWED_EMAIL_DOMAINS),
             "default_tenant_id": ZERO_TENANT_ID,
@@ -110,8 +127,20 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
         },
         "tapdb": {
             "client_id": DEFAULT_TAPDB_CLIENT_ID,
+            "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
+            "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
+            "config_path": str(
+                Path.home()
+                / ".config"
+                / "tapdb"
+                / DEFAULT_TAPDB_CLIENT_ID
+                / f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
+                / "tapdb-config.yaml"
+            ),
             "env": "dev",
+            "domain_registry_path": "/absolute/path/to/domain_code_registry.json",
+            "prefix_ownership_registry_path": "/absolute/path/to/prefix_ownership_registry.json",
         },
         "discovery": {
             "default_scan_wait_seconds": 0.5,
@@ -121,6 +150,9 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "name": "",
             "color": "",
             "is_production": False,
+        },
+        "ui": {
+            "show_environment_chrome": True,
         },
     }
     rendered = yaml.safe_dump(payload, sort_keys=False)
@@ -167,13 +199,29 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append(
                 "authentication.auto_provision_allowed_domains must contain at least one domain"
             )
+        cognito_domain = str(auth.get("cognito_domain") or "").strip()
+        if cognito_domain:
+            try:
+                _validate_cognito_domain(cognito_domain)
+            except ValueError as exc:
+                errors.append(str(exc))
 
     tapdb = config.get("tapdb") or {}
     if isinstance(tapdb, dict):
         if not str(tapdb.get("client_id") or "").strip():
             errors.append("tapdb.client_id is required")
+        if not str(tapdb.get("owner_repo_name") or "").strip():
+            errors.append("tapdb.owner_repo_name is required")
+        if not str(tapdb.get("domain_code") or "").strip():
+            errors.append("tapdb.domain_code is required")
         if not str(tapdb.get("database_name") or "").strip():
             errors.append("tapdb.database_name is required")
+        if not str(tapdb.get("config_path") or "").strip():
+            errors.append("tapdb.config_path is required")
+        if not str(tapdb.get("domain_registry_path") or "").strip():
+            errors.append("tapdb.domain_registry_path is required")
+        if not str(tapdb.get("prefix_ownership_registry_path") or "").strip():
+            errors.append("tapdb.prefix_ownership_registry_path is required")
 
     return errors
 
@@ -186,6 +234,7 @@ class ZebraDaySettings:
     deployment_name: str
     deployment_color: str
     deployment_is_production: bool
+    ui_show_environment_chrome: bool
     config_path: Path
     config_dir: Path
     data_dir: Path
@@ -202,10 +251,18 @@ class ZebraDaySettings:
     allowed_email_domains: list[str]
     cognito_default_tenant_id: str
     cognito_auto_provision_allowed_domains: list[str]
+    cognito_region: str
+    cognito_user_pool_id: str
+    cognito_app_client_id: str
+    cognito_domain: str
     tapdb_client_id: str
+    tapdb_owner_repo_name: str
+    tapdb_domain_code: str
     tapdb_database_name: str
     tapdb_env: str
     tapdb_config_path: Path
+    tapdb_domain_registry_path: Path
+    tapdb_prefix_ownership_registry_path: Path
     callback_path: str
     logout_path: str
     cognito_group_role_map: dict[str, str]
@@ -227,7 +284,7 @@ class ZebraDaySettings:
         merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
         file_payload = _load_yaml(config_path)
 
-        for section in ("service", "authentication", "tapdb", "discovery", "deployment"):
+        for section in ("service", "authentication", "tapdb", "discovery", "deployment", "ui"):
             file_section = file_payload.get(section)
             if isinstance(file_section, dict):
                 merged.setdefault(section, {})
@@ -237,6 +294,8 @@ class ZebraDaySettings:
         auth = merged.get("authentication") or {}
         tapdb = merged.get("tapdb") or {}
         discovery = merged.get("discovery") or {}
+        ui = merged.get("ui") or {}
+        auth_cognito = auth.get("cognito") or {}
         deployment_chrome = _resolve_deployment_chrome(
             name=(merged.get("deployment") or {}).get("name")
             if isinstance(merged.get("deployment"), dict)
@@ -248,20 +307,35 @@ class ZebraDaySettings:
         )
 
         client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
+        owner_repo_name = str(tapdb.get("owner_repo_name") or DEFAULT_TAPDB_OWNER_REPO).strip()
+        domain_code = str(tapdb.get("domain_code") or DEFAULT_MERIDIAN_DOMAIN_CODE).strip()
         database_name = str(
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
         env_name = str(tapdb.get("env") or "dev").strip() or "dev"
-        tapdb_config_path = Path(
-            tapdb.get("config_path")
-            or (Path.home() / ".config" / "tapdb" / client_id / database_name / "tapdb-config.yaml")
-        )
+        tapdb_config_value = str(tapdb.get("config_path") or "").strip()
+        if not tapdb_config_value:
+            raise ValueError("tapdb.config_path is required")
+        tapdb_config_path = Path(tapdb_config_value).expanduser()
+        tapdb_domain_registry_value = str(tapdb.get("domain_registry_path") or "").strip()
+        if not tapdb_domain_registry_value:
+            raise ValueError("tapdb.domain_registry_path is required")
+        tapdb_prefix_ownership_registry_value = str(
+            tapdb.get("prefix_ownership_registry_path") or ""
+        ).strip()
+        if not tapdb_prefix_ownership_registry_value:
+            raise ValueError("tapdb.prefix_ownership_registry_path is required")
+        tapdb_domain_registry_path = Path(tapdb_domain_registry_value).expanduser()
+        tapdb_prefix_ownership_registry_path = Path(
+            tapdb_prefix_ownership_registry_value
+        ).expanduser()
 
         return cls(
             deployment_code=deployment_code,
             deployment_name=str(deployment_chrome["name"]),
             deployment_color=str(deployment_chrome["color"]),
             deployment_is_production=bool(deployment_chrome["is_production"]),
+            ui_show_environment_chrome=bool(ui.get("show_environment_chrome", True)),
             config_path=config_path,
             config_dir=xdg.get_config_dir(),
             data_dir=xdg.get_data_dir(),
@@ -293,10 +367,38 @@ class ZebraDaySettings:
                 auth.get("auto_provision_allowed_domains") or ["lsmc.com"]
             )
             or ["lsmc.com"],
+            cognito_region=str(
+                os.environ.get("COGNITO_REGION")
+                or auth.get("cognito_region")
+                or auth_cognito.get("region")
+                or ""
+            ).strip(),
+            cognito_user_pool_id=str(
+                os.environ.get("COGNITO_USER_POOL_ID")
+                or auth.get("cognito_user_pool_id")
+                or auth_cognito.get("user_pool_id")
+                or ""
+            ).strip(),
+            cognito_app_client_id=str(
+                os.environ.get("COGNITO_APP_CLIENT_ID")
+                or auth.get("cognito_app_client_id")
+                or auth_cognito.get("app_client_id")
+                or ""
+            ).strip(),
+            cognito_domain=_validate_cognito_domain(
+                os.environ.get("COGNITO_DOMAIN")
+                or auth.get("cognito_domain")
+                or auth_cognito.get("domain")
+                or ""
+            ),
             tapdb_client_id=client_id,
+            tapdb_owner_repo_name=owner_repo_name,
+            tapdb_domain_code=domain_code,
             tapdb_database_name=database_name,
             tapdb_env=env_name,
             tapdb_config_path=tapdb_config_path,
+            tapdb_domain_registry_path=tapdb_domain_registry_path,
+            tapdb_prefix_ownership_registry_path=tapdb_prefix_ownership_registry_path,
             callback_path=str(auth.get("callback_path") or "/auth/callback"),
             logout_path=str(auth.get("logout_path") or "/auth/logout"),
             cognito_group_role_map=normalize_group_role_map(

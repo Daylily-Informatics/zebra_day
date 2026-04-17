@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from zebra_day.client import PrinterRecord
@@ -26,7 +27,15 @@ class FakeFleetRepository:
     def get_printer(self, lab: str, printer_id: str) -> PrinterRecord | None:
         return self.printers.get((lab, printer_id))
 
+    def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None:
+        for printer in self.printers.values():
+            if printer.euid == printer_euid:
+                return printer
+        return None
+
     def upsert_printer(self, printer: PrinterRecord) -> PrinterRecord:
+        if not printer.euid:
+            printer = replace(printer, euid=f"{printer.lab}-printer-{len(self.printers) + 1:04d}")
         self.printers[(printer.lab, printer.printer_id)] = printer
         return printer
 
@@ -90,6 +99,7 @@ def sample_repository() -> FakeFleetRepository:
             serial="SER123",
             label_profiles=["tube_2inX1in"],
             default_label_profile="tube_2inX1in",
+            euid="default-printer-0001",
         )
     )
     return repository

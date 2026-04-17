@@ -108,6 +108,21 @@
 
 <div class="card mt-lg">
     <div class="card-header">
+        <h3 class="card-title">Effective Config</h3>
+    </div>
+    <div class="table-container" style="box-shadow:none;">
+        <table class="table">
+            <tbody>
+                {% for row in config_rows %}
+                <tr><th>{{ row.label }}</th><td>{{ row.value }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card mt-lg">
+    <div class="card-header">
         <h3 class="card-title">Observability Endpoints</h3>
     </div>
     <div class="grid grid-2">

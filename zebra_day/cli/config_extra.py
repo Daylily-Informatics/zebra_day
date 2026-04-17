@@ -40,8 +40,14 @@ def _status() -> None:
             "config_path": str(settings.tapdb_config_path),
             "config_exists": settings.tapdb_config_path.exists(),
             "client_id": settings.tapdb_client_id,
+            "owner_repo_name": getattr(settings, "tapdb_owner_repo_name", ""),
+            "domain_code": getattr(settings, "tapdb_domain_code", ""),
             "database_name": settings.tapdb_database_name,
             "env": settings.tapdb_env,
+            "domain_registry_path": str(getattr(settings, "tapdb_domain_registry_path", "")),
+            "prefix_ownership_registry_path": str(
+                getattr(settings, "tapdb_prefix_ownership_registry_path", "")
+            ),
         },
         "gui": gui_data,
     }
@@ -78,6 +84,8 @@ def _status() -> None:
     ccyo_out.detail(
         f"TapDB namespace: {settings.tapdb_client_id}/{settings.tapdb_database_name} ({settings.tapdb_env})"
     )
+    ccyo_out.detail(f"TapDB owner repo: {getattr(settings, 'tapdb_owner_repo_name', '')}")
+    ccyo_out.detail(f"TapDB domain code: {getattr(settings, 'tapdb_domain_code', '')}")
     ccyo_out.detail(f"Auth mode: {settings.auth_mode}")
     if status_data["gui"]["running"]:
         ccyo_out.success(f"GUI server running (PID {status_data['gui']['pid']})")
@@ -145,7 +153,12 @@ def _bootstrap(
     if not skip_scan:
         resolved_ip_stub = ip_stub or _derive_ip_stub()
         printers = client.discover_printers(ip_stub=resolved_ip_stub, lab=lab)
-        result["discovered_printers"] = [printer.to_payload() for printer in printers]
+        result["discovered_printers"] = []
+        for printer in printers:
+            payload = printer.to_payload()
+            payload["printer_euid"] = payload.pop("euid", "")
+            payload.pop("printer_id", None)
+            result["discovered_printers"].append(payload)
         result["ip_stub"] = resolved_ip_stub
 
     if get_context().json_mode:

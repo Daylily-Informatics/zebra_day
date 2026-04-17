@@ -21,7 +21,7 @@ export ZDAY_E2E_ADMIN_PASSWORD="CodexPlaywright1!"
 Install browser support:
 
 ```bash
-pip install -e ".[dev,auth]"
+python -m pip install -e .
 playwright install chromium
 ```
 

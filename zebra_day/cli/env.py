@@ -22,6 +22,10 @@ console = Console()  # retained for Rich Panel rendering
 env_app = typer.Typer(help="Development environment management")
 
 
+def _is_active_conda_env() -> bool:
+    return os.environ.get("CONDA_DEFAULT_ENV", "").startswith("ZEBRA_DAY-")
+
+
 def _find_project_root() -> Path | None:
     """Find the zebra_day project root by looking for pyproject.toml."""
     for env_var in ("ZEBRA_DAY_PROJECT_ROOT", "ZDAY_PROJECT_ROOT"):
@@ -78,7 +82,7 @@ def deactivate():
     the command you need to run.
     """
     # Check if environment is active
-    if not os.environ.get("ZEBRA_DAY_ACTIVE"):
+    if not _is_active_conda_env():
         ccyo_out.warning("zebra_day environment is not active")
         return
 
@@ -110,7 +114,7 @@ def deactivate():
 @env_app.command("status")
 def status():
     """Show current environment status."""
-    is_active = bool(os.environ.get("ZEBRA_DAY_ACTIVE"))
+    is_active = _is_active_conda_env()
     project_root = os.environ.get("ZEBRA_DAY_PROJECT_ROOT") or os.environ.get(
         "ZDAY_PROJECT_ROOT", ""
     )
@@ -154,7 +158,7 @@ def reset():
         raise typer.Exit(1)
 
     # Check if currently active
-    is_active = bool(os.environ.get("ZEBRA_DAY_ACTIVE"))
+    is_active = _is_active_conda_env()
 
     if is_active and deactivate_script.exists():
         # Show combined command

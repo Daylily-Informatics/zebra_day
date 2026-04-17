@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlparse
 from fastapi.testclient import TestClient
 
 from tests.fakes import sample_repository
+from zebra_day import __version__
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
 from zebra_day.web.app import create_app
@@ -23,8 +24,8 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
 
 
-def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:
-    _set_xdg(monkeypatch, tmp_path)
+def _seed_client(tmp_path, monkeypatch, deployment="local") -> ZebraDayClient:
+    _set_xdg(monkeypatch, tmp_path, deployment=deployment)
     settings = ZebraDaySettings.from_context()
     return ZebraDayClient(settings=settings, repository=sample_repository())
 
@@ -72,17 +73,10 @@ def _make_cognito_app(
     tmp_path, monkeypatch, *, claims: dict[str, object], profile_claims: dict[str, object]
 ):
     _set_xdg(monkeypatch, tmp_path)
-    monkeypatch.setattr(
-        "zebra_day.web.auth.load_daycog_contract",
-        lambda: {
-            "region": "us-west-2",
-            "user_pool_id": "pool",
-            "app_client_id": "client",
-            "cognito_domain": "example.com",
-            "callback_url": "https://localhost:8118/auth/callback",
-            "logout_url": "https://localhost:8118/login",
-        },
-    )
+    monkeypatch.setenv("COGNITO_REGION", "us-west-2")
+    monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool")
+    monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client")
+    monkeypatch.setenv("COGNITO_DOMAIN", "example.com")
     monkeypatch.setattr(
         "zebra_day.web.app.setup_cognito_auth",
         lambda app, settings: _make_cognito_binding(claims, profile_claims),
@@ -104,6 +98,23 @@ def _cognito_client(app):
     return TestClient(app, base_url="https://localhost:8118")
 
 
+def _runtime_inventory(app) -> tuple[set[tuple[str, str]], set[str]]:
+    methods = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+    routes: set[tuple[str, str]] = set()
+    mounts: set[str] = set()
+    for route in app.routes:
+        path = str(getattr(route, "path", "") or "").strip()
+        if not path:
+            continue
+        route_methods = {method for method in getattr(route, "methods", set()) if method in methods}
+        if route_methods:
+            routes.update((method, path) for method in route_methods)
+            continue
+        if getattr(route, "app", None) is not None:
+            mounts.add(path)
+    return routes, mounts
+
+
 def _authenticate_session(test_client: TestClient) -> None:
     login_response = test_client.get("/auth/login", follow_redirects=False)
     state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
@@ -123,6 +134,79 @@ def test_root_route_renders(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert "LOCAL" in response.text
     assert "TapDB-backed printer fleet state" in response.text
+
+
+def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    base_app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    base_routes, base_mounts = _runtime_inventory(base_app)
+    expected_base_routes = {
+        ("GET", "/"),
+        ("GET", "/admin"),
+        ("GET", "/printers"),
+        ("GET", "/printers/{lab}"),
+        ("GET", "/templates"),
+        ("GET", "/print"),
+        ("GET", "/config"),
+        ("GET", "/api/v1/labs"),
+        ("GET", "/api/v1/labs/{lab}/printers"),
+        ("GET", "/api/v1/labs/{lab}/printers/{printer_euid}"),
+        ("PATCH", "/api/v1/labs/{lab}/printers/{printer_euid}"),
+        ("POST", "/api/v1/labs/{lab}/discover"),
+        ("POST", "/api/v1/labs/{lab}/printers/{printer_euid}/sync"),
+        ("GET", "/api/v1/templates"),
+        ("GET", "/api/v1/templates/{template_name}"),
+        ("POST", "/api/v1/templates"),
+        ("DELETE", "/api/v1/templates/{template_name}"),
+        ("GET", "/api/v1/label-profiles"),
+        ("GET", "/api/v1/label-profiles/{profile_name}"),
+        ("POST", "/api/v1/render"),
+        ("POST", "/api/v1/render/png"),
+        ("POST", "/api/v1/print/resolve"),
+        ("POST", "/api/v1/print"),
+        ("GET", "/api/v1/config"),
+        ("GET", "/healthz"),
+        ("GET", "/readyz"),
+        ("GET", "/health"),
+        ("GET", "/obs_services"),
+        ("GET", "/api_health"),
+        ("GET", "/endpoint_health"),
+        ("GET", "/db_health"),
+        ("GET", "/auth_health"),
+        ("GET", "/auth/login"),
+        ("GET", "/login"),
+        ("GET", "/auth/callback"),
+        ("GET", "/auth/logout"),
+        ("POST", "/auth/logout"),
+        ("GET", "/auth/error"),
+        ("GET", "/openapi.json"),
+        ("GET", "/docs"),
+        ("GET", "/api/docs"),
+        ("GET", "/redoc"),
+        ("GET", "/api/redoc"),
+    }
+    expected_mounts = {"/static", "/generated"}
+    if (base_app.state.pkg_path / "etc").exists():
+        expected_mounts.add("/etc")
+
+    assert base_routes == expected_base_routes
+    assert base_mounts == expected_mounts
+    assert not any(path.startswith("/static/") for _method, path in base_routes)
+    assert not any(path.startswith("/generated/") for _method, path in base_routes)
+    assert not any(path.startswith("/etc/") for _method, path in base_routes)
+
+    cognito_app = _make_cognito_app(
+        tmp_path,
+        monkeypatch,
+        claims={"sub": "user", "username": "user", "cognito:groups": ["zebra-day-operator"]},
+        profile_claims={"email": "user@example.com", "name": "Example User"},
+    )
+    cognito_routes, cognito_mounts = _runtime_inventory(cognito_app)
+
+    assert cognito_routes == expected_base_routes | {("GET", "/my_health")}
+    assert cognito_mounts == expected_mounts
 
 
 def test_health_and_observability_routes(monkeypatch, tmp_path):
@@ -154,14 +238,118 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
         )
         submit = client.post(
             "/api/v1/print",
-            json={"lab": "default", "printer": "printer-1", "uid_barcode": "UID-1"},
+            json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-1"},
         )
     assert labs.json() == ["default"]
-    assert printers.json()[0]["printer_id"] == "printer-1"
+    assert printers.json()[0]["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in printers.json()[0]
+    assert "euid" not in printers.json()[0]
     assert printers.json()[0]["default_label_profile"] == "tube_2inX1in"
     assert runtime.json()["tapdb_database_name"] == "zebra-day-local"
+    assert runtime.json()["version"] == __version__
     assert preview.json()["success"] is True
     assert submit.json()["success"] is True
+
+
+def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    monkeypatch.setattr(
+        "zebra_day.client.render_zpl_preview", lambda zpl, path: path.write_bytes(b"png")
+    )
+    monkeypatch.setattr(
+        "zebra_day.client.discover_printers",
+        lambda **_kwargs: [
+            {
+                "printer_id": "printer-2",
+                "ip_address": "192.168.1.60",
+                "printer_name": "Discovery Printer",
+                "model": "ZD421",
+                "serial": "DISC-2",
+                "notes": "zpl+http(80)",
+            }
+        ],
+    )
+
+    class _FakeZebraPrinter:
+        def __init__(self, ip_address: str, port: int = 9100) -> None:
+            self.ip_address = ip_address
+            self.port = port
+
+        def get_host_identification(self, timeout: int):
+            _ = timeout
+            return {"model": "ZD620"}
+
+        def get_serial_number(self, timeout: int):
+            _ = timeout
+            return "SER123"
+
+    monkeypatch.setattr("zebra_day.cmd_mgr.ZebraPrinter", _FakeZebraPrinter)
+
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        printer_detail = client.get("/api/v1/labs/default/printers/default-printer-0001")
+        printer_patch = client.patch(
+            "/api/v1/labs/default/printers/default-printer-0001",
+            json={"printer_name": "Renamed Printer", "lab_location": "Bench 2"},
+        )
+        discover = client.post(
+            "/api/v1/labs/default/discover",
+            json={"ip_stub": "192.168.1", "scan_http_port": 80},
+        )
+        sync = client.post("/api/v1/labs/default/printers/default-printer-0001/sync")
+        template_list = client.get("/api/v1/templates")
+        template_detail = client.get("/api/v1/templates/tube_2inX1in")
+        template_save = client.post(
+            "/api/v1/templates",
+            json={"filename": "custom.zpl", "zpl_content": "^XA^XZ"},
+        )
+        template_delete = client.delete("/api/v1/templates/custom")
+        profile_list = client.get("/api/v1/label-profiles")
+        profile_detail = client.get("/api/v1/label-profiles/tube_2inX1in")
+        render_png = client.post(
+            "/api/v1/render/png",
+            json={"template": "tube_2inX1in", "uid_barcode": "UID-2"},
+        )
+        resolve = client.post(
+            "/api/v1/print/resolve",
+            json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-3"},
+        )
+
+    assert printer_detail.status_code == 200
+    assert printer_detail.json()["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in printer_detail.json()
+    assert "euid" not in printer_detail.json()
+    assert printer_patch.status_code == 200
+    assert printer_patch.json()["printer_name"] == "Renamed Printer"
+    assert printer_patch.json()["lab_location"] == "Bench 2"
+    assert discover.status_code == 200
+    assert discover.json()[0]["printer_euid"]
+    assert "printer_id" not in discover.json()[0]
+    assert "euid" not in discover.json()[0]
+    assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
+    assert sync.status_code == 200
+    assert sync.json()["printer_euid"] == "default-printer-0001"
+    assert "euid" not in sync.json()
+    assert template_list.status_code == 200
+    assert "tube_2inX1in" in template_list.json()
+    assert template_detail.status_code == 200
+    assert template_detail.json()["template_name"] == "tube_2inX1in"
+    assert template_save.status_code == 200
+    assert template_save.json()["template_name"] == "custom"
+    assert template_delete.status_code == 200
+    assert template_delete.json()["success"] is True
+    assert profile_list.status_code == 200
+    assert profile_list.json()[0]["profile_name"] == "tube_2inX1in"
+    assert profile_detail.status_code == 200
+    assert profile_detail.json()["profile_name"] == "tube_2inX1in"
+    assert render_png.status_code == 200
+    assert render_png.headers["content-type"] == "image/png"
+    assert render_png.content == b"png"
+    assert resolve.status_code == 200
+    assert resolve.json()["printer_euid"] == "default-printer-0001"
+    assert "printer_id" not in resolve.json()
+    assert "euid" not in resolve.json()
+    assert resolve.json()["copies"] == 1
 
 
 def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
@@ -170,10 +358,81 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     with TestClient(app) as client:
         config_response = client.get("/config")
         templates_response = client.get("/templates")
-    assert "TapDB Contract" in config_response.text
+    assert "Effective Config" in config_response.text
+    assert "Active Config Path" in config_response.text
     assert "Backend Configuration" not in config_response.text
     assert "Shared Templates" in templates_response.text
     assert "Import Local Templates to DynamoDB" not in templates_response.text
+    assert __version__ in config_response.text
+
+
+def test_config_page_redacts_secrets_and_admin_footer_contains_git_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-local.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        (
+            "authentication:\n"
+            "  session_secret_key: super-secret\n"
+            "tapdb:\n"
+            "  client_id: zebra-day\n"
+            "  database_name: zebra-day-local\n"
+            "ui:\n"
+            "  show_environment_chrome: false\n"
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("INTERNAL_API_KEY", "internal-secret-token")
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+
+    with TestClient(app) as client:
+        config_response = client.get("/config")
+        admin_response = client.get("/admin")
+
+    assert "super-secret" not in config_response.text
+    assert "internal-secret-token" not in config_response.text
+    assert "configured" in config_response.text
+    assert "Active Config Path" in config_response.text
+    assert "branch " in admin_response.text
+    assert "tag " in admin_response.text
+    assert "commit " in admin_response.text
+    assert __version__ in admin_response.text
+
+
+def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        printers_by_lab = client.get("/printers/default")
+        print_page = client.get(
+            "/print?lab=default&printer_euid=default-printer-0001&label_zpl_style=tube_2inX1in"
+        )
+        openapi = client.get("/openapi.json")
+        docs = client.get("/docs")
+        api_docs = client.get("/api/docs")
+        redoc = client.get("/redoc")
+        api_redoc = client.get("/api/redoc")
+        logout_get = client.get("/auth/logout", follow_redirects=False)
+        logout_post = client.post("/auth/logout", follow_redirects=False)
+
+    assert printers_by_lab.status_code == 200
+    assert "Bench Printer" in printers_by_lab.text
+    assert print_page.status_code == 200
+    assert "Print Label" in print_page.text
+    assert openapi.status_code == 200
+    assert "/api/v1/print/resolve" in openapi.json()["paths"]
+    assert docs.status_code == 200
+    assert "SwaggerUIBundle" in docs.text
+    assert api_docs.status_code == 200
+    assert "SwaggerUIBundle" in api_docs.text
+    assert redoc.status_code == 200
+    assert "redoc.standalone.js" in redoc.text
+    assert api_redoc.status_code == 200
+    assert "redoc.standalone.js" in api_redoc.text
+    assert logout_get.status_code == 302
+    assert logout_get.headers["location"] == "/login"
+    assert logout_post.status_code == 302
+    assert logout_post.headers["location"] == "/login"
 
 
 def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch):
@@ -203,6 +462,9 @@ def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
     assert "location" not in response.headers
     assert "/auth/login?next=/admin" in response.text
     assert "LOCAL" in response.text
+    assert "branch " in response.text
+    assert "tag " in response.text
+    assert "commit " in response.text
 
 
 def test_cognito_mode_allows_local_docs_without_auth(tmp_path, monkeypatch):
@@ -264,6 +526,8 @@ def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):
     assert 'data-testid="auth-error-card"' in response.text
     assert "Zebra Day Dashboard" not in response.text
     assert 'data-testid="auth-error-login"' in response.text
+    assert "branch " in response.text
+    assert "tag " in response.text
 
 
 def test_auth_error_reason_auth_error_returns_sign_in_page(tmp_path, monkeypatch):
@@ -311,22 +575,25 @@ def test_auth_callback_redirects_to_blocked_domain_for_disallowed_email(tmp_path
     assert response.headers["location"] == "/auth/error?reason=blocked_domain"
 
 
-def test_prod_deployment_hides_top_banner(tmp_path, monkeypatch):
+def test_environment_chrome_can_be_disabled_by_config(tmp_path, monkeypatch):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
     config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-qa-1.yaml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
-        "deployment:\n  name: prod\n  color: ''\n",
+        "ui:\n  show_environment_chrome: false\n",
         encoding="utf-8",
     )
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
-    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch, deployment="qa-1"))
 
     with TestClient(app) as client:
         response = client.get("/login")
 
     assert response.status_code == 200
-    assert "PROD" not in response.text
+    assert (
+        "background: #21ca91; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;"
+        not in response.text
+    )
 
 
 def test_auth_callback_persists_groups_and_roles(tmp_path, monkeypatch):

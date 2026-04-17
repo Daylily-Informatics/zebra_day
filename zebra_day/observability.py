@@ -167,6 +167,46 @@ class ZebraDayObservability:
         frame["projection"] = self.projection(name, observed_at=frame["observed_at"]).model_dump()
         return frame
 
+    def public_healthz_payload(self, request: Request) -> dict[str, Any]:
+        payload = self.base_frame(request, status="ok")
+        observed_at = str(payload.get("observed_at") or _utcnow())
+        payload["checks"] = {
+            "process": {
+                "status": "ok",
+                "started_at": self.started_at,
+            }
+        }
+        payload["projection"] = self.projection("healthz", observed_at=observed_at).model_dump()
+        return payload
+
+    def public_readyz_payload(
+        self,
+        request: Request,
+        *,
+        ready: bool,
+        database_check: dict[str, Any],
+        process_details: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = self.base_frame(request, status="ok" if ready else "degraded")
+        observed_at = str(payload.get("observed_at") or _utcnow())
+        payload["ready"] = ready
+        payload["checks"] = {
+            "process": {
+                "status": "ok",
+                "started_at": self.started_at,
+                "details": dict(process_details or {}),
+            },
+            "database": {
+                "status": str(database_check.get("status") or "unknown"),
+                "latency_ms": database_check.get("latency_ms"),
+                "detail": database_check.get("detail"),
+                "observed_at": database_check.get("observed_at") or observed_at,
+                "details": dict(database_check.get("details") or {}),
+            },
+        }
+        payload["projection"] = self.projection("readyz", observed_at=observed_at).model_dump()
+        return payload
+
     def record_route(self, path_template: str) -> None:
         self.route_templates.add(path_template)
 

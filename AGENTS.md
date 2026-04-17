@@ -25,6 +25,29 @@ templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 - In JSON mode, `output.error()` and other display primitives are **auto-suppressed**. Use `output.emit_json()` to emit machine-readable payloads.
 - Pin cli-core-yo, typer, and rich versions per `pyproject.toml` ranges.
 
+## Activate Contract
+
+- `source ./activate <deploy-name>` is env setup only.
+- `activate` may create the conda env if missing, activate it, and run exactly one `python -m pip install -e .` on first create.
+- Do not add package installs, dependency probes, TapDB bootstrap, config copying, registry writes, loader-path hacks, or `conda install` steps to `activate`.
+- If a CLI is missing after activation, fix packaging entry points or `pyproject.toml`, not `activate`.
+- If deployment-scoped config is missing, fix `zday config init` or the explicit config/bootstrap path, not `activate`.
+
+## Dependency Boundary
+
+- `environment.yaml` is for Python bootstrap and non-Python/system packages only.
+- Do not add Python libraries to `environment.yaml`, including `pip:` blocks or editable/dev dependency installs.
+- All Python libraries belong in `pyproject.toml` under `project.dependencies`.
+- Do not add or rely on extras groups for this repo.
+- Do not add any secondary install set such as `.[dev]`, `.[test]`, or `requirements-dev.txt`.
+- If a test or runtime import is missing, fix `pyproject.toml` or the explicit setup command, not `environment.yaml` or `activate`.
+
+## PATH / CLI Availability
+
+- Console scripts declared in `[project.scripts]` must be available from the active conda env after activation.
+- If a script is missing from `PATH`, treat that as a packaging/editable-install bug.
+- Do not repair `PATH` by adding shell aliases or repo-local wrapper hacks in `activate`.
+
 ## Testing
 
 - **Framework**: `pytest` + `pytest-cov`
@@ -87,3 +110,4 @@ pytest tests/ -v --tb=short
 - Use `console.print()` for user-facing output (use `output.*` primitives).
 - Store real patient data or PHI in tests or examples.
 - Edit `_version.py` manually.
+- Move Python dependency management or config bootstrap logic back into `activate`.

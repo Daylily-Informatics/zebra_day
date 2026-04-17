@@ -25,7 +25,7 @@ from zebra_day.cli._registry_v2 import (
 )
 from zebra_day.client import ZebraDayClient
 from zebra_day.settings import ZebraDaySettings
-from zebra_day.web.auth import load_daycog_contract
+from zebra_day.web.auth import setup_cognito_auth
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -133,7 +133,7 @@ def _running_pid(settings: ZebraDaySettings) -> int | None:
 def _ensure_runtime_ready(settings: ZebraDaySettings, auth_mode: str) -> None:
     ZebraDayClient(settings)
     if auth_mode == "cognito":
-        load_daycog_contract()
+        setup_cognito_auth(None, settings)
 
 
 def _display_url(host: str, port: int, https_enabled: bool) -> str:

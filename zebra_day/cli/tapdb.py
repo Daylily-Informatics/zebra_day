@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import typer
 from cli_core_yo import ccyo_out
 
 from zebra_day.cli._registry_v2 import REQUIRED_MUTATING, register_group_commands
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import (
+    DEFAULT_TAPDB_LOCAL_DB_PORT,
+    DEFAULT_TAPDB_LOCAL_UI_PORT,
+    ZebraDaySettings,
+)
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -21,16 +27,43 @@ tapdb_app.add_typer(bootstrap_app, name="bootstrap")
 _PASSTHROUGH_ARGS = typer.Argument(None, metavar="ARGS...")
 
 
+def _require_absolute_path(value: str, *, label: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        ccyo_out.error(f"{label} must be an absolute path: {path}")
+        raise typer.Exit(1)
+    return path
+
+
 def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
+    tapdb_config_path = _require_absolute_path(
+        str(settings.tapdb_config_path),
+        label="tapdb_config_path",
+    )
+    domain_registry_path = _require_absolute_path(
+        str(settings.tapdb_domain_registry_path),
+        label="tapdb_domain_registry_path",
+    )
+    prefix_registry_path = _require_absolute_path(
+        str(settings.tapdb_prefix_ownership_registry_path),
+        label="tapdb_prefix_ownership_registry_path",
+    )
+    env = os.environ.copy()
+    env["MERIDIAN_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_OWNER_REPO"] = str(settings.tapdb_owner_repo_name)
+    env["TAPDB_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_DOMAIN_REGISTRY_PATH"] = str(domain_registry_path)
+    env["TAPDB_PREFIX_REGISTRY_PATH"] = str(prefix_registry_path)
     result = subprocess.run(
         [
             "tapdb",
             "--config",
-            str(settings.tapdb_config_path),
+            str(tapdb_config_path),
             "--env",
-            settings.tapdb_env,
+            str(settings.tapdb_env),
             *args,
         ],
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -42,6 +75,107 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
         raise typer.Exit(result.returncode)
 
 
+def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
+    tapdb_config_path = _require_absolute_path(
+        str(settings.tapdb_config_path),
+        label="tapdb_config_path",
+    )
+    domain_registry_path = _require_absolute_path(
+        str(settings.tapdb_domain_registry_path),
+        label="tapdb_domain_registry_path",
+    )
+    prefix_registry_path = _require_absolute_path(
+        str(settings.tapdb_prefix_ownership_registry_path),
+        label="tapdb_prefix_ownership_registry_path",
+    )
+    tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
+    env = os.environ.copy()
+    env["MERIDIAN_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_OWNER_REPO"] = str(settings.tapdb_owner_repo_name)
+    env["TAPDB_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
+    env["TAPDB_DOMAIN_REGISTRY_PATH"] = str(domain_registry_path)
+    env["TAPDB_PREFIX_REGISTRY_PATH"] = str(prefix_registry_path)
+    init_result = subprocess.run(
+        [
+            "tapdb",
+            "--config",
+            str(tapdb_config_path),
+            "db-config",
+            "init",
+            "--client-id",
+            str(settings.tapdb_client_id),
+            "--database-name",
+            str(settings.tapdb_database_name),
+            "--owner-repo-name",
+            str(settings.tapdb_owner_repo_name),
+            "--domain-code",
+            f"{settings.tapdb_env}={settings.tapdb_domain_code}",
+            "--domain-registry-path",
+            str(domain_registry_path),
+            "--prefix-ownership-registry-path",
+            str(prefix_registry_path),
+            "--env",
+            str(settings.tapdb_env),
+            "--db-port",
+            f"{settings.tapdb_env}={str(DEFAULT_TAPDB_LOCAL_DB_PORT)}",
+            "--ui-port",
+            f"{settings.tapdb_env}={str(DEFAULT_TAPDB_LOCAL_UI_PORT)}",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if init_result.stdout:
+        ccyo_out.print_text(init_result.stdout.rstrip())
+    if init_result.returncode != 0:
+        if init_result.stderr:
+            ccyo_out.error(init_result.stderr.strip())
+        raise typer.Exit(init_result.returncode)
+
+    update_result = subprocess.run(
+        [
+            "tapdb",
+            "--config",
+            str(tapdb_config_path),
+            "--client-id",
+            str(settings.tapdb_client_id),
+            "--database-name",
+            str(settings.tapdb_database_name),
+            "db-config",
+            "update",
+            "--env",
+            str(settings.tapdb_env),
+            "--owner-repo-name",
+            str(settings.tapdb_owner_repo_name),
+            "--domain-code",
+            str(settings.tapdb_domain_code),
+            "--domain-registry-path",
+            str(domain_registry_path),
+            "--prefix-ownership-registry-path",
+            str(prefix_registry_path),
+            "--engine-type",
+            "local",
+            "--host",
+            "localhost",
+            "--port",
+            str(DEFAULT_TAPDB_LOCAL_DB_PORT),
+            "--ui-port",
+            str(DEFAULT_TAPDB_LOCAL_UI_PORT),
+            "--database",
+            str(settings.tapdb_database_name),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if update_result.stdout:
+        ccyo_out.print_text(update_result.stdout.rstrip())
+    if update_result.returncode != 0:
+        if update_result.stderr:
+            ccyo_out.error(update_result.stderr.strip())
+        raise typer.Exit(update_result.returncode)
+
+
 @bootstrap_app.command("local")
 def bootstrap_local(
     no_gui: bool = typer.Option(True, "--no-gui/--gui", help="Skip or start the TapDB GUI"),
@@ -50,7 +184,9 @@ def bootstrap_local(
     args = ["bootstrap", "local"]
     if no_gui:
         args.append("--no-gui")
-    _run_tapdb(ZebraDaySettings.from_context(), args)
+    settings = ZebraDaySettings.from_context()
+    _ensure_local_tapdb_namespace_config(settings)
+    _run_tapdb(settings, args)
 
 
 @tapdb_app.command("db")

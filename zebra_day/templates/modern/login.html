@@ -12,12 +12,7 @@
     <link rel="stylesheet" href="/static/zebra_modern.css?v={{ cache_bust | default('1') }}">
 </head>
 <body class="auth-page">
-    {% set deployment_info = deployment|default({'name': '', 'is_production': false, 'color': '#AFEEEE'}) %}
-    {% if deployment_info.name and not deployment_info.is_production %}
-    <div style="height: 18px; background: {{ deployment_info.color }}; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">
-        {{ deployment_info.name|upper }}
-    </div>
-    {% endif %}
+    {% include "modern/_chrome.html" %}
     <div class="zebra-stripe-bar"></div>
     <main class="auth-layout">
         <section class="auth-shell-grid">
@@ -60,5 +55,10 @@
             </section>
         </section>
     </main>
+    <footer class="footer auth-footer">
+        <div class="container">
+            {% include "modern/_footer_meta.html" %}
+        </div>
+    </footer>
 </body>
 </html>

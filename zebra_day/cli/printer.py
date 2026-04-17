@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import socket
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import typer
 from cli_core_yo import ccyo_out
@@ -30,6 +30,13 @@ def _local_ip_stub() -> str:
         return ".".join(probe.getsockname()[0].split(".")[:-1])
 
 
+def _public_printer_payload(printer) -> dict[str, Any]:
+    payload = cast(dict[str, Any], printer.to_payload())
+    payload["printer_euid"] = payload.pop("euid", "")
+    payload.pop("printer_id", None)
+    return payload
+
+
 @printer_app.command("list")
 def list_printers(
     lab: str | None = typer.Option(None, "--lab", help="Filter printers by lab"),
@@ -40,7 +47,7 @@ def list_printers(
     client = ZebraDayClient.from_context()
     rows: list[dict[str, Any]] = []
     for printer in client.list_printers(lab):
-        payload = printer.to_payload()
+        payload = _public_printer_payload(printer)
         if live and payload["ip_address"]:
             status = get_cached_status(payload["ip_address"], timeout=timeout)
             payload["live_status"] = status
@@ -56,7 +63,7 @@ def list_printers(
         return
 
     for row in rows:
-        header = f"{row['lab']}/{row['printer_id']}  {row['ip_address']}"
+        header = f"{row['lab']}/{row['printer_euid']}  {row['ip_address']}"
         ccyo_out.bullet(header)
         ccyo_out.detail(
             f"name={row['printer_name'] or '-'} model={row['model'] or '-'} serial={row['serial'] or '-'}"
@@ -97,30 +104,30 @@ def scan(
         lab=lab,
         scan_http_port=scan_http_port,
     )
-    payload = [printer.to_payload() for printer in found]
+    payload = [_public_printer_payload(printer) for printer in found]
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
         return
     ccyo_out.success(f"Discovered {len(found)} printer(s) in lab '{lab}'")
     for printer in found:
         ccyo_out.bullet(
-            f"{printer.printer_id} {printer.ip_address} {printer.model or '-'} {printer.serial or '-'}"
+            f"{printer.euid} {printer.ip_address} {printer.model or '-'} {printer.serial or '-'}"
         )
 
 
 @printer_app.command("sync")
 def sync(
     lab: str = typer.Option(..., "--lab", help="Lab containing the printer"),
-    printer_id: str = typer.Argument(..., help="Printer ID to sync"),
+    printer_euid: str = typer.Argument(..., help="Printer EUID to sync"),
 ) -> None:
     """Refresh one printer's metadata from the live device."""
     client = ZebraDayClient.from_context()
-    printer = client.sync_printer_metadata(printer_id, lab)
-    payload = printer.to_payload()
+    printer = client.sync_printer_metadata(printer_euid, lab)
+    payload = _public_printer_payload(printer)
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
         return
-    ccyo_out.success(f"Synchronized {lab}/{printer_id}")
+    ccyo_out.success(f"Synchronized {lab}/{printer_euid}")
     ccyo_out.detail(f"Model: {payload['model'] or '-'}")
     ccyo_out.detail(f"Serial: {payload['serial'] or '-'}")
 

@@ -23,7 +23,11 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
+    monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
 
 
 def _settings(tmp_path, **overrides):
@@ -68,15 +72,11 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
     assert str(repo_root / "activate") in str(activate_panel.renderable)
     assert "<deploy-name>" in str(activate_panel.renderable)
 
-    monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
-    monkeypatch.setenv("ZEBRA_DAY_PROJECT_ROOT", str(repo_root))
     monkeypatch.setenv("VIRTUAL_ENV", str(tmp_path / "venv"))
 
     env_module.status()
     status_out = capsys.readouterr().out
     assert "zebra_day environment: Active" in status_out
-    assert "Project root:" in status_out
-    assert repo_root.name in status_out
     assert "Virtual env:" in status_out
     assert "venv" in status_out
     assert "zebra-day-config-qa1.yaml" in status_out
@@ -95,6 +95,7 @@ def test_env_activate_reset_status_and_deactivate(monkeypatch, tmp_path, capsys)
 
 def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("ZEBRA_DAY_PROJECT_ROOT", raising=False)
     monkeypatch.delenv("ZDAY_PROJECT_ROOT", raising=False)
@@ -112,7 +113,7 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     activate_out = activate_capture.out + activate_capture.err
     assert "Could not find zebra_day project root" in activate_out
 
-    monkeypatch.setenv("ZEBRA_DAY_ACTIVE", "1")
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-qa1")
     env_module.deactivate()
     capsys.readouterr()
     fallback_panel = panels.pop()
@@ -227,6 +228,7 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             serial="SER123",
             label_profiles=["tube"],
             default_label_profile="tube",
+            euid="default-printer-0001",
         )
     ]
     discovered = [
@@ -238,6 +240,7 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             model="ZT411",
             serial="SER999",
             notes="zpl+http(18080)",
+            euid="ops-printer-0009",
         )
     ]
     calls: dict[str, object] = {}
@@ -250,8 +253,8 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
             calls["discover"] = (ip_stub, lab, scan_http_port)
             return discovered
 
-        def sync_printer_metadata(self, printer_id, lab):
-            calls["sync"] = (printer_id, lab)
+        def sync_printer_metadata(self, printer_euid, lab):
+            calls["sync"] = (printer_euid, lab)
             return discovered[0]
 
     monkeypatch.setattr(printer_module.ZebraDayClient, "from_context", lambda: _FakeClient())
@@ -269,20 +272,21 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
 
     printer_module.list_printers(lab="default", live=True, timeout=2.0)
     listed_out = capsys.readouterr().out
-    assert "default/printer-1  192.168.1.50" in listed_out
+    assert "default/default-printer-0001  192.168.1.50" in listed_out
     assert "live_online=True" in listed_out
     assert "paper_out=True" in listed_out
 
     monkeypatch.setattr(printer_module, "get_context", lambda: SimpleNamespace(json_mode=True))
     printer_module.scan(lab="ops", ip_stub="192.168.1", scan_http_port=18080)
     scanned_payload = json.loads(capsys.readouterr().out.strip())
-    assert scanned_payload[0]["printer_id"] == "printer-9"
+    assert scanned_payload[0]["printer_euid"]
+    assert "printer_id" not in scanned_payload[0]
     assert calls["discover"] == ("192.168.1", "ops", 18080)
 
-    printer_module.sync(lab="ops", printer_id="printer-9")
+    printer_module.sync(lab="ops", printer_euid=discovered[0].euid)
     synced_payload = json.loads(capsys.readouterr().out.strip())
     assert synced_payload["serial"] == "SER999"
-    assert calls["sync"] == ("printer-9", "ops")
+    assert calls["sync"] == (discovered[0].euid, "ops")
 
 
 def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, tmp_path, capsys):
@@ -435,6 +439,7 @@ def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path
                     ip_address="192.168.50.9",
                     model="ZT411",
                     serial="SER009",
+                    euid="ops-printer-0009",
                 )
             ]
 

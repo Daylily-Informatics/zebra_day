@@ -13,6 +13,7 @@ def _isolate_xdg_dirs(tmp_path: Path, monkeypatch, deployment: str = "local2") -
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg_data"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg_state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg_cache"))
+    monkeypatch.delenv("CONDA_DEFAULT_ENV", raising=False)
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
 
 
@@ -23,6 +24,14 @@ def test_config_path_is_deployment_scoped(tmp_path, monkeypatch):
         xdg.get_config_file_path()
         == tmp_path / "xdg_config" / "zebra_day" / "zebra-day-config-qa-1.yaml"
     )
+
+
+def test_deployment_code_prefers_active_conda_env_name(tmp_path, monkeypatch):
+    _isolate_xdg_dirs(tmp_path, monkeypatch, deployment="ignored")
+    monkeypatch.delenv("ZEBRA_DAY_DEPLOYMENT_CODE", raising=False)
+    monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-fuckme")
+
+    assert xdg.get_deployment_code() == "fuckme"
 
 
 def test_data_state_and_cache_dirs_include_deployment(tmp_path, monkeypatch):

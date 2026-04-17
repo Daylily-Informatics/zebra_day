@@ -48,8 +48,8 @@
                 {% for printer in printers %}
                 <tr>
                     <td>
-                        <strong>{{ printer.printer_name or printer.printer_id }}</strong>
-                        <br><small class="text-muted">{{ printer.lab }}/{{ printer.printer_id }}</small>
+                        <strong>{{ printer.printer_name or printer.euid }}</strong>
+                        <br><small class="text-muted">{{ printer.lab }}/{{ printer.euid }}</small>
                     </td>
                     <td>
                         <code>{{ printer.ip_address }}</code>

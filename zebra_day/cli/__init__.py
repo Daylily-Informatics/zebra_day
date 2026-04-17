@@ -82,7 +82,7 @@ spec = CliSpec(
         validator=validate_settings_yaml,
     ),
     env=EnvSpec(
-        active_env_var="ZEBRA_DAY_ACTIVE",
+        active_env_var="CONDA_DEFAULT_ENV",
         project_root_env_var="ZEBRA_DAY_PROJECT_ROOT",
         activate_script_name="activate <deploy-name>",
         deactivate_script_name="zebra_day_deactivate",
@@ -121,16 +121,15 @@ spec = CliSpec(
                     sys.executable,
                     "-c",
                     "import os, sys; "
-                    "deploy = os.environ.get('ZEBRA_DAY_DEPLOYMENT_CODE', '').strip() or 'local'; "
                     "env = os.environ.get('CONDA_DEFAULT_ENV', '').strip(); "
-                    "sys.exit(0 if env == f'ZEBRA_DAY-{deploy}' else 1)",
+                    "sys.exit(0 if env.startswith('ZEBRA_DAY-') and len(env) > len('ZEBRA_DAY-') else 1)",
                 ),
                 help="Use the deployment-scoped conda env created by source ./activate <deploy-name>.",
                 applies_to_backends={"zebra-day-conda"},
                 tags={ZEBRA_RUNTIME_TAG},
                 success_message="Deployment-scoped conda environment name matches the deployment.",
                 failure_message=(
-                    "zebra_day CLI requires CONDA_DEFAULT_ENV to match "
+                    "zebra_day CLI requires CONDA_DEFAULT_ENV to start with "
                     "`ZEBRA_DAY-<deploy-name>`. Run `source ./activate <deploy-name>`."
                 ),
             ),
