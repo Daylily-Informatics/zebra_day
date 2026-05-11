@@ -63,6 +63,8 @@ def _pyproject_dependency_version(dependency_name: str) -> str:
     for dependency in data["project"]["dependencies"]:
         if dependency.startswith(f"{dependency_name}=="):
             return str(dependency.split("==", 1)[1])
+        if dependency.startswith(f"{dependency_name} @ ") and "@" in dependency:
+            return str(dependency.rsplit("@", 1)[1].strip())
     raise RuntimeError(f"Missing pinned dependency: {dependency_name}")
 
 
