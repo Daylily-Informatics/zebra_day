@@ -104,7 +104,7 @@ def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
             "--database-name",
             str(settings.tapdb_database_name),
             "--schema-name",
-            str(settings.tapdb_schema_name),
+            f"{settings.tapdb_env}={settings.tapdb_schema_name}",
             "--owner-repo-name",
             str(settings.tapdb_owner_repo_name),
             "--domain-code",
