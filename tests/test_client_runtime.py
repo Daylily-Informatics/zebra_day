@@ -78,6 +78,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
                     "user": "postgres",
                     "password": "pw",
                     "database": "zebra_day",
+                    "schema_name": settings.tapdb_schema_name,
                     "engine_type": "local",
                 }
             )
@@ -91,6 +92,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
+    assert captured["schema_name"] == settings.tapdb_schema_name
     assert "domain_registry_path" not in captured
     assert "prefix_registry_path" not in captured
 

@@ -338,6 +338,7 @@ class TapDBFleetRepository:
             db_user=cfg["user"],
             db_pass=cfg["password"],
             db_name=cfg["database"],
+            schema_name=cfg["schema_name"],
             engine_type=str(cfg.get("engine_type") or "local"),
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
