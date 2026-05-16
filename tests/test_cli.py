@@ -163,6 +163,8 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "zebra-day",
             "--database-name",
             "zebra-day-dev1",
+            "--schema-name",
+            "tapdb_zebra_day_dev1_dev",
             "--owner-repo-name",
             "zebra-day",
             "--domain-code",
@@ -208,6 +210,8 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "8118",
             "--database",
             "zebra-day-dev1",
+            "--schema-name",
+            "tapdb_zebra_day_dev1_dev",
         ],
         [
             "tapdb",

@@ -130,6 +130,10 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
             "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
+            "schema_name": f"tapdb_zebra_day_{deployment_code.replace('-', '_')}_dev",
+            "physical_database": "",
+            "local_db_port": DEFAULT_TAPDB_LOCAL_DB_PORT,
+            "local_ui_port": DEFAULT_TAPDB_LOCAL_UI_PORT,
             "config_path": str(
                 Path.home()
                 / ".config"
@@ -216,6 +220,8 @@ def validate_settings_yaml(content: str) -> list[str]:
             errors.append("tapdb.domain_code is required")
         if not str(tapdb.get("database_name") or "").strip():
             errors.append("tapdb.database_name is required")
+        if not str(tapdb.get("schema_name") or "").strip():
+            errors.append("tapdb.schema_name is required")
         if not str(tapdb.get("config_path") or "").strip():
             errors.append("tapdb.config_path is required")
         if not str(tapdb.get("domain_registry_path") or "").strip():
@@ -259,7 +265,11 @@ class ZebraDaySettings:
     tapdb_owner_repo_name: str
     tapdb_domain_code: str
     tapdb_database_name: str
+    tapdb_schema_name: str
+    tapdb_physical_database: str
     tapdb_env: str
+    tapdb_local_db_port: int
+    tapdb_local_ui_port: int
     tapdb_config_path: Path
     tapdb_domain_registry_path: Path
     tapdb_prefix_ownership_registry_path: Path
@@ -312,6 +322,12 @@ class ZebraDaySettings:
         database_name = str(
             tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
         ).strip()
+        schema_name = str(tapdb.get("schema_name") or "").strip()
+        if not schema_name:
+            raise ValueError("tapdb.schema_name is required")
+        physical_database = str(tapdb.get("physical_database") or "").strip()
+        local_db_port = int(tapdb.get("local_db_port") or DEFAULT_TAPDB_LOCAL_DB_PORT)
+        local_ui_port = int(tapdb.get("local_ui_port") or DEFAULT_TAPDB_LOCAL_UI_PORT)
         env_name = str(tapdb.get("env") or "dev").strip() or "dev"
         tapdb_config_value = str(tapdb.get("config_path") or "").strip()
         if not tapdb_config_value:
@@ -395,7 +411,11 @@ class ZebraDaySettings:
             tapdb_owner_repo_name=owner_repo_name,
             tapdb_domain_code=domain_code,
             tapdb_database_name=database_name,
+            tapdb_schema_name=schema_name,
+            tapdb_physical_database=physical_database,
             tapdb_env=env_name,
+            tapdb_local_db_port=local_db_port,
+            tapdb_local_ui_port=local_ui_port,
             tapdb_config_path=tapdb_config_path,
             tapdb_domain_registry_path=tapdb_domain_registry_path,
             tapdb_prefix_ownership_registry_path=tapdb_prefix_ownership_registry_path,

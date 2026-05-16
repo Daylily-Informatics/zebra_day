@@ -11,11 +11,7 @@ import typer
 from cli_core_yo import ccyo_out
 
 from zebra_day.cli._registry_v2 import REQUIRED_MUTATING, register_group_commands
-from zebra_day.settings import (
-    DEFAULT_TAPDB_LOCAL_DB_PORT,
-    DEFAULT_TAPDB_LOCAL_UI_PORT,
-    ZebraDaySettings,
-)
+from zebra_day.settings import ZebraDaySettings
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -51,6 +47,7 @@ def _run_tapdb(settings: ZebraDaySettings, args: list[str]) -> None:
     env = os.environ.copy()
     env["MERIDIAN_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
     env["TAPDB_OWNER_REPO"] = str(settings.tapdb_owner_repo_name)
+    env["TAPDB_SCHEMA_NAME"] = str(settings.tapdb_schema_name)
     env["TAPDB_DOMAIN_CODE"] = str(settings.tapdb_domain_code)
     env["TAPDB_DOMAIN_REGISTRY_PATH"] = str(domain_registry_path)
     env["TAPDB_PREFIX_REGISTRY_PATH"] = str(prefix_registry_path)
@@ -106,6 +103,8 @@ def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
             str(settings.tapdb_client_id),
             "--database-name",
             str(settings.tapdb_database_name),
+            "--schema-name",
+            str(settings.tapdb_schema_name),
             "--owner-repo-name",
             str(settings.tapdb_owner_repo_name),
             "--domain-code",
@@ -117,9 +116,9 @@ def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
             "--env",
             str(settings.tapdb_env),
             "--db-port",
-            f"{settings.tapdb_env}={str(DEFAULT_TAPDB_LOCAL_DB_PORT)}",
+            f"{settings.tapdb_env}={str(settings.tapdb_local_db_port)}",
             "--ui-port",
-            f"{settings.tapdb_env}={str(DEFAULT_TAPDB_LOCAL_UI_PORT)}",
+            f"{settings.tapdb_env}={str(settings.tapdb_local_ui_port)}",
         ],
         env=env,
         capture_output=True,
@@ -158,11 +157,13 @@ def _ensure_local_tapdb_namespace_config(settings: ZebraDaySettings) -> None:
             "--host",
             "localhost",
             "--port",
-            str(DEFAULT_TAPDB_LOCAL_DB_PORT),
+            str(settings.tapdb_local_db_port),
             "--ui-port",
-            str(DEFAULT_TAPDB_LOCAL_UI_PORT),
+            str(settings.tapdb_local_ui_port),
             "--database",
-            str(settings.tapdb_database_name),
+            str(settings.tapdb_physical_database or settings.tapdb_database_name),
+            "--schema-name",
+            str(settings.tapdb_schema_name),
         ],
         env=env,
         capture_output=True,
