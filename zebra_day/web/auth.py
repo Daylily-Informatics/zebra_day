@@ -466,7 +466,9 @@ async def complete_external_broker_callback(
     expected_state = _clean(request.session.get(EXTERNAL_BROKER_STATE_KEY))
     if not expected_state or state != expected_state:
         raise CognitoWebAuthError("invalid_state", "External broker state mismatch")
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    ca_bundle = _clean(settings.external_broker_ca_bundle)
+    verify: bool | str = ca_bundle if ca_bundle else True
+    async with httpx.AsyncClient(timeout=10.0, verify=verify) as client:
         response = await client.post(
             settings.external_broker_handoff_exchange_url,
             json={"code": code},
