@@ -209,7 +209,7 @@ Deliverables:
 - deployment-scoped YAML settings at
   `~/.config/zebra-day-<deployment>/zebra-day-config-<deployment>.yaml`
 - repo-owned JSON TapDB packs under `config/tapdb_templates/`
-- TapDB namespace via explicit service config fields `tapdb.client_id`, `tapdb.database_name`, and `tapdb.env`
+- TapDB namespace via explicit service config fields `tapdb.client_id`, `tapdb.database_name`, `tapdb.schema_name`, and `tapdb.config_path`
 
 ### Supported Python Facade
 

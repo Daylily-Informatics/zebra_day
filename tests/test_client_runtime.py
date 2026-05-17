@@ -72,7 +72,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
             return _TapdbModule
         if module_name == "daylily_tapdb.cli.db_config":
             return SimpleNamespace(
-                get_db_config_for_env=lambda *_args, **_kwargs: {
+                get_db_config=lambda *_args, **_kwargs: {
                     "host": "localhost",
                     "port": "5533",
                     "user": "postgres",

@@ -100,7 +100,7 @@ The plan is therefore:
 
 ## Assumptions
 - `local` and `staging` are the exact Dayhoff deployment names to use for this tranche.
-- `tapdb.env` remains `dev` for both environments because that is how Dayhoff now seeds the explicit service TapDB contract.
+- TapDB no longer uses a `dev`/`prod` selector; each environment is represented by one explicit config path and service-owned schema.
 - The Aurora target for zebra_day staging is the shared service cluster identifier `zebra-day` in `us-west-2`.
 - A global admin email is required because both `local` and `staging` are treated as brand-new Dayhoff deployments unless the AWS stack already exists.
 - Live Playwright/Cognito E2E, cross-repo PRs, tagging, and publish work remain blocked until this startup-validation tranche passes.

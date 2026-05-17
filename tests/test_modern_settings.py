@@ -41,6 +41,7 @@ def test_default_config_template_is_valid_yaml():
     assert payload["authentication"]["cognito_user_pool_id"] == ""
     assert payload["authentication"]["cognito_app_client_id"] == ""
     assert payload["authentication"]["cognito_domain"] == ""
+    assert payload["authentication"]["external_broker"]["service_id"] == "zebra-day"
     assert payload["authentication"]["allowed_email_domains"] == [
         "lsmc.com",
         "lsmc.bio",
@@ -51,6 +52,7 @@ def test_default_config_template_is_valid_yaml():
     assert payload["authentication"]["auto_provision_allowed_domains"] == ["lsmc.com"]
     assert payload["tapdb"]["owner_repo_name"] == "zebra-day"
     assert payload["tapdb"]["domain_code"] == "Z"
+    assert "env" not in payload["tapdb"]
     assert isinstance(payload["tapdb"]["config_path"], str) and payload["tapdb"]["config_path"]
     assert isinstance(payload["tapdb"]["domain_registry_path"], str)
     assert isinstance(payload["tapdb"]["prefix_ownership_registry_path"], str)
@@ -119,7 +121,6 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
             f"  config_path: {tapdb_config_path}\n"
             f"  domain_registry_path: {domain_registry_path}\n"
             f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-            "  env: sandbox\n"
             "deployment:\n"
             "  name: sandbox-g\n"
             "  color: '#123456'\n"
@@ -146,7 +147,6 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     assert settings.cognito_default_tenant_id == "00000000-0000-0000-0000-000000000000"
     assert settings.cognito_auto_provision_allowed_domains == ["lsmc.com"]
     assert settings.tapdb_database_name == "zebra-day-prod-custom"
-    assert settings.tapdb_env == "sandbox"
     assert settings.tapdb_config_path == tapdb_config_path
     assert settings.tapdb_domain_registry_path == domain_registry_path
     assert settings.tapdb_prefix_ownership_registry_path == prefix_registry_path
@@ -184,6 +184,31 @@ def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
     assert settings.cognito_user_pool_id == "pool-env"
     assert settings.cognito_app_client_id == "client-env"
     assert settings.cognito_domain == "example.env.auth.us-west-2.amazoncognito.com"
+
+
+def test_settings_accepts_external_broker_mode(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="broker")
+    config_path = xdg.get_config_file_path()
+    config_path.write_text(
+        (
+            "authentication:\n"
+            "  mode: external_broker\n"
+            "  external_broker:\n"
+            "    service_id: zebra-day\n"
+            "    login_url: https://dev.login.lsmc.com/auth/login\n"
+            "    handoff_exchange_url: https://dev.login.lsmc.com/auth/handoff/consume\n"
+            "    callback_url: https://localhost:8118/auth/lsmc/callback\n"
+            "    logout_url: https://dev.login.lsmc.com/auth/logout\n"
+        ),
+        encoding="utf-8",
+    )
+
+    settings = ZebraDaySettings.from_context()
+
+    assert settings.auth_mode == "external_broker"
+    assert settings.external_broker_service_id == "zebra-day"
+    assert settings.external_broker_login_url == "https://dev.login.lsmc.com/auth/login"
+    assert settings.external_broker_callback_url == "https://localhost:8118/auth/lsmc/callback"
 
 
 def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):

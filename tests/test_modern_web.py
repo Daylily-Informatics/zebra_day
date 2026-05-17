@@ -178,6 +178,7 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/auth/login"),
         ("GET", "/login"),
         ("GET", "/auth/callback"),
+        ("GET", "/auth/lsmc/callback"),
         ("GET", "/auth/logout"),
         ("POST", "/auth/logout"),
         ("GET", "/auth/error"),
@@ -509,6 +510,78 @@ def test_auth_login_redirects_to_cognito_hosted_ui(tmp_path, monkeypatch):
         "redirect_uri=https%3A%2F%2Flocalhost%3A8118%2Fauth%2Fcallback"
         in response.headers["location"]
     )
+
+
+def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch):
+    monkeypatch.setenv("LSMC_AUTH_BROKER_SERVICE_ID", "zebra-day")
+    monkeypatch.setenv("LSMC_AUTH_BROKER_LOGIN_URL", "https://dev.login.lsmc.com/auth/login")
+    monkeypatch.setenv(
+        "LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL",
+        "https://dev.login.lsmc.com/auth/handoff/consume",
+    )
+    monkeypatch.setenv("LSMC_AUTH_BROKER_LOGOUT_URL", "https://dev.login.lsmc.com/auth/logout")
+
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "user": {
+                    "canonical_user_id": "usr_johnm",
+                    "email": "johnm@lsmc.com",
+                    "display_name": "John Major",
+                    "groups": ["lsmc:global-admin"],
+                    "roles": [],
+                    "service_entitlements": [],
+                }
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, *, timeout):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, json):
+            assert url == "https://dev.login.lsmc.com/auth/handoff/consume"
+            assert json == {"code": "handoff-code"}
+            return FakeResponse()
+
+    monkeypatch.setattr("zebra_day.web.auth.httpx.AsyncClient", FakeAsyncClient)
+    app = create_app(
+        auth="external_broker",
+        client=_seed_client(tmp_path, monkeypatch),
+    )
+
+    with TestClient(app, base_url="https://localhost:8118") as client:
+        login = client.get("/auth/login?next=/printers", follow_redirects=False)
+        assert login.status_code == 302
+        login_url = urlparse(login.headers["location"])
+        assert f"{login_url.scheme}://{login_url.netloc}{login_url.path}" == (
+            "https://dev.login.lsmc.com/auth/login"
+        )
+        query = parse_qs(login_url.query)
+        assert query["service"] == ["zebra-day"]
+        assert query["next"] == ["/printers"]
+        assert query["callback_url"] == ["https://localhost:8118/auth/lsmc/callback"]
+
+        callback = client.get(
+            f"/auth/lsmc/callback?code=handoff-code&state={query['state'][0]}",
+            follow_redirects=False,
+        )
+        assert callback.status_code == 302
+        assert callback.headers["location"] == "/printers"
+
+        health = client.get("/my_health")
+        assert health.status_code == 200
+        principal = health.json()["principal"]
+        assert principal["email"] == "johnm@lsmc.com"
+        assert principal["roles"] == ["ADMIN", "OPERATOR"]
+        assert principal["auth_mode"] == "external_broker"
 
 
 def test_auth_error_page_does_not_render_dashboard(tmp_path, monkeypatch):

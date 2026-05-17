@@ -326,8 +326,7 @@ class TapDBFleetRepository:
     def _build_connection(self):
         tapdb_mod = _tapdb_import("daylily_tapdb")
         db_config_mod = _tapdb_import("daylily_tapdb.cli.db_config")
-        cfg = db_config_mod.get_db_config_for_env(
-            self.settings.tapdb_env,
+        cfg = db_config_mod.get_db_config(
             config_path=str(self.settings.tapdb_config_path),
             client_id=self.settings.tapdb_client_id,
             database_name=self.settings.tapdb_database_name,
@@ -998,7 +997,7 @@ class ZebraDayClient:
             "tapdb_owner_repo_name": self.settings.tapdb_owner_repo_name,
             "tapdb_domain_code": self.settings.tapdb_domain_code,
             "tapdb_database_name": self.settings.tapdb_database_name,
-            "tapdb_env": self.settings.tapdb_env,
+            "tapdb_target": "target",
             "tapdb_config_path": str(self.settings.tapdb_config_path),
             "tapdb_domain_registry_path": str(self.settings.tapdb_domain_registry_path),
             "tapdb_prefix_ownership_registry_path": str(

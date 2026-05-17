@@ -49,7 +49,7 @@ def _zday_info_hook() -> list[tuple[str, str]]:
             ("Config File", str(settings.config_path)),
             ("TapDB Config", str(settings.tapdb_config_path)),
             ("TapDB Namespace", settings.tapdb_database_name),
-            ("TapDB Env", settings.tapdb_env),
+            ("TapDB Target", "target"),
             ("Auth Mode", settings.auth_mode),
         ]
     )

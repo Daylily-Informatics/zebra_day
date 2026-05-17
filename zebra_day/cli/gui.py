@@ -173,7 +173,11 @@ def start(
         help="Run in background or foreground",
     ),
     reload: bool = typer.Option(False, "--reload", help="Enable auto reload"),
-    auth: str = typer.Option("cognito", "--auth", help="Auth mode: cognito or none"),
+    auth: str = typer.Option(
+        "cognito",
+        "--auth",
+        help="Auth mode: cognito, external_broker, or none",
+    ),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
     no_https: bool = typer.Option(
         False,
@@ -189,8 +193,8 @@ def start(
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     selected_auth = "none" if settings.auth_mode == "none" else auth
-    if selected_auth not in {"none", "cognito"}:
-        ccyo_out.error("auth must be 'cognito' or 'none'")
+    if selected_auth not in {"none", "cognito", "external_broker"}:
+        ccyo_out.error("auth must be 'cognito', 'external_broker', or 'none'")
         raise typer.Exit(1)
 
     existing_pid = _running_pid(settings)

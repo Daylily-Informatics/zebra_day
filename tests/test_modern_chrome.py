@@ -27,7 +27,6 @@ def test_build_chrome_context_uses_environment_chrome_toggle_and_canonical_color
         deployment_code="510x2",
         deployment_name="510x2",
         deployment_is_production=False,
-        tapdb_env="us-east-1",
         ui_show_environment_chrome=False,
     )
 
@@ -41,9 +40,9 @@ def test_build_chrome_context_uses_environment_chrome_toggle_and_canonical_color
         "is_production": False,
     }
     assert chrome["region"] == {
-        "name": "us-east-1",
-        "label": "US-EAST-1",
-        "color": "#8aca72",
+        "name": "510x2",
+        "label": "510X2",
+        "color": region_color("510x2"),
     }
 
 

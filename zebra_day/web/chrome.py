@@ -68,7 +68,7 @@ def resolve_git_metadata(repo_root: Path | None = None) -> GitMetadata:
 
 def build_chrome_context(settings: ZebraDaySettings) -> dict[str, Any]:
     deployment_name = str(settings.deployment_name or settings.deployment_code or "").strip()
-    region_name = str(settings.tapdb_env or settings.deployment_code or "").strip()
+    region_name = str(settings.deployment_code or "").strip()
     return {
         "show_environment_chrome": bool(getattr(settings, "ui_show_environment_chrome", True)),
         "deployment": {
@@ -87,7 +87,7 @@ def build_chrome_context(settings: ZebraDaySettings) -> dict[str, Any]:
 
 def build_effective_config_rows(settings: ZebraDaySettings) -> list[dict[str, str]]:
     deployment_name = str(settings.deployment_name or settings.deployment_code or "").strip()
-    region_name = str(settings.tapdb_env or settings.deployment_code or "").strip()
+    region_name = str(settings.deployment_code or "").strip()
     return [
         {"label": "Active Config Path", "value": str(settings.config_path)},
         {"label": "Deployment Code", "value": settings.deployment_code},
@@ -103,7 +103,7 @@ def build_effective_config_rows(settings: ZebraDaySettings) -> list[dict[str, st
         {"label": "TapDB Owner Repo", "value": settings.tapdb_owner_repo_name},
         {"label": "TapDB Domain Code", "value": settings.tapdb_domain_code},
         {"label": "TapDB Database Name", "value": settings.tapdb_database_name},
-        {"label": "TapDB Environment", "value": settings.tapdb_env},
+        {"label": "TapDB Target", "value": "target"},
         {
             "label": "TapDB Domain Registry",
             "value": str(settings.tapdb_domain_registry_path),

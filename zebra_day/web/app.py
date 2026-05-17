@@ -26,10 +26,12 @@ from zebra_day.web.auth import (
     CognitoWebAuthError,
     clear_session_principal,
     complete_cognito_callback,
+    complete_external_broker_callback,
     load_session_principal,
     setup_cognito_auth,
     setup_session_auth,
     start_cognito_login,
+    start_external_broker_login,
 )
 from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
@@ -107,7 +109,7 @@ def create_app(
     *,
     debug: bool = False,
     css_theme: str | None = None,
-    auth: Literal["none", "cognito"] | None = None,
+    auth: Literal["none", "cognito", "external_broker"] | None = None,
     settings: ZebraDaySettings | None = None,
     client: ZebraDayClient | None = None,
 ) -> FastAPI:
@@ -192,7 +194,7 @@ def create_app(
             "detail": "tapdb client ready" if backend_ready else "tapdb client unavailable",
             "details": {
                 "backend": "tapdb",
-                "env": resolved_settings.tapdb_env,
+                "target": "target",
                 "namespace": {
                     "client_id": resolved_settings.tapdb_client_id,
                     "database_name": resolved_settings.tapdb_database_name,
@@ -227,7 +229,7 @@ def create_app(
                     "database": {
                         "status": "ok",
                         "backend": "tapdb",
-                        "env": resolved_settings.tapdb_env,
+                        "target": "target",
                         "namespace": {
                             "client_id": resolved_settings.tapdb_client_id,
                             "database_name": resolved_settings.tapdb_database_name,
@@ -276,7 +278,7 @@ def create_app(
                 "database": {
                     "status": "ok",
                     "backend": "tapdb",
-                    "env": resolved_settings.tapdb_env,
+                    "target": "target",
                     "namespace": {
                         "client_id": resolved_settings.tapdb_client_id,
                         "database_name": resolved_settings.tapdb_database_name,
@@ -359,6 +361,12 @@ def create_app(
     async def auth_login(request: Request, next: str = "/"):
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url=next or "/", status_code=302)
+        if resolved_settings.auth_mode == "external_broker":
+            try:
+                return start_external_broker_login(request, resolved_settings, next or "/")
+            except ValueError as exc:
+                _log.warning("External broker sign-in is misconfigured: %s", exc)
+                return RedirectResponse(url="/auth/error?reason=auth_error", status_code=302)
         return start_cognito_login(request, app.state.web_session_config, next or "/")
 
     @app.get("/login", name="login_page", response_class=HTMLResponse)
@@ -394,12 +402,39 @@ def create_app(
                 url="/auth/error?reason=token_validation_failed", status_code=302
             )
 
+    @app.get("/auth/lsmc/callback", name="external_broker_callback")
+    async def external_broker_callback(
+        request: Request,
+        code: str | None = None,
+        state: str | None = None,
+    ):
+        if resolved_settings.auth_mode != "external_broker":
+            return RedirectResponse(url="/auth/error?reason=auth_error", status_code=302)
+        try:
+            return await complete_external_broker_callback(
+                request,
+                resolved_settings,
+                code=code,
+                state=state,
+            )
+        except CognitoWebAuthError as exc:
+            _log.warning("External broker callback failed: %s", exc)
+            return RedirectResponse(
+                url=f"/auth/error?reason={_auth_error_reason(exc.reason)}",
+                status_code=302,
+            )
+
     @app.get("/auth/logout", name="auth_logout")
     async def auth_logout(request: Request):
         clear_session_principal(request)
         request.session.clear()
         if resolved_settings.auth_mode == "none":
             return RedirectResponse(url="/login", status_code=302)
+        if resolved_settings.auth_mode == "external_broker":
+            return RedirectResponse(
+                url=resolved_settings.external_broker_logout_url,
+                status_code=302,
+            )
         return RedirectResponse(
             url=app.state.cognito_auth.build_logout_url(request), status_code=302
         )
@@ -437,7 +472,7 @@ def create_app(
             description=app.description,
             routes=app.routes,
         )
-        if resolved_settings.auth_mode == "cognito":
+        if resolved_settings.auth_mode in {"cognito", "external_broker"}:
             schema["paths"] = {
                 path: value
                 for path, value in schema.get("paths", {}).items()

@@ -43,7 +43,6 @@ def _settings(tmp_path, **overrides):
         "tapdb_config_path": tapdb_config_path,
         "tapdb_client_id": "zebra-day",
         "tapdb_database_name": "zebra-day-local",
-        "tapdb_env": "dev",
         "auth_mode": "cognito",
         "state_dir": state_dir,
         "logs_dir": logs_dir,

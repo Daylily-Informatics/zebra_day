@@ -43,7 +43,7 @@ def _status() -> None:
             "owner_repo_name": getattr(settings, "tapdb_owner_repo_name", ""),
             "domain_code": getattr(settings, "tapdb_domain_code", ""),
             "database_name": settings.tapdb_database_name,
-            "env": settings.tapdb_env,
+            "target": "target",
             "domain_registry_path": str(getattr(settings, "tapdb_domain_registry_path", "")),
             "prefix_ownership_registry_path": str(
                 getattr(settings, "tapdb_prefix_ownership_registry_path", "")
@@ -82,7 +82,7 @@ def _status() -> None:
     ccyo_out.detail(f"Config: {settings.config_path}")
     ccyo_out.detail(f"TapDB config: {settings.tapdb_config_path}")
     ccyo_out.detail(
-        f"TapDB namespace: {settings.tapdb_client_id}/{settings.tapdb_database_name} ({settings.tapdb_env})"
+        f"TapDB namespace: {settings.tapdb_client_id}/{settings.tapdb_database_name}"
     )
     ccyo_out.detail(f"TapDB owner repo: {getattr(settings, 'tapdb_owner_repo_name', '')}")
     ccyo_out.detail(f"TapDB domain code: {getattr(settings, 'tapdb_domain_code', '')}")

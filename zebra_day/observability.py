@@ -142,7 +142,7 @@ class ZebraDayObservability:
         return {
             "contract_version": CONTRACT_VERSION,
             "service": SERVICE_NAME,
-            "environment": self.settings.tapdb_env or os.environ.get("ENVIRONMENT") or "dev",
+            "environment": self.settings.deployment_code or os.environ.get("ENVIRONMENT") or "",
             "instance_id": self.instance_id,
             "observed_at": _utcnow(),
             "status": status,

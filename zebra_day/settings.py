@@ -30,6 +30,9 @@ PRODUCTION_DEPLOYMENT_NAMES = {"prod", "production"}
 DEFAULT_COGNITO_GROUP_ROLE_MAP = {
     "admin": "ADMIN",
     "platform-admin": "ADMIN",
+    "lsmc:global-admin": "ADMIN",
+    "lsmc:internal-user": "OPERATOR",
+    "lsmc:zebra-day:admin": "ADMIN",
     "zebra-day-admin": "ADMIN",
     "zebra-day-operator": "OPERATOR",
 }
@@ -116,6 +119,13 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "session_secret_key": _DEFAULT_SESSION_SECRET_KEY,
             "callback_path": "/auth/callback",
             "logout_path": "/auth/logout",
+            "external_broker": {
+                "service_id": DEFAULT_SERVICE_NAME,
+                "login_url": "",
+                "handoff_exchange_url": "",
+                "callback_url": "",
+                "logout_url": "",
+            },
             "cognito_region": "",
             "cognito_user_pool_id": "",
             "cognito_app_client_id": "",
@@ -130,7 +140,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "owner_repo_name": DEFAULT_TAPDB_OWNER_REPO,
             "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
-            "schema_name": f"tapdb_zebra_day_{deployment_code.replace('-', '_')}_dev",
+            "schema_name": f"tapdb_zebra_day_{deployment_code.replace('-', '_')}",
             "physical_database": "",
             "local_db_port": DEFAULT_TAPDB_LOCAL_DB_PORT,
             "local_ui_port": DEFAULT_TAPDB_LOCAL_UI_PORT,
@@ -142,7 +152,6 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
                 / f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
                 / "tapdb-config.yaml"
             ),
-            "env": "dev",
             "domain_registry_path": "/absolute/path/to/domain_code_registry.json",
             "prefix_ownership_registry_path": "/absolute/path/to/prefix_ownership_registry.json",
         },
@@ -182,8 +191,16 @@ def validate_settings_yaml(content: str) -> list[str]:
     auth = config.get("authentication") or {}
     if isinstance(auth, dict):
         mode = str(auth.get("mode") or "").strip().lower()
-        if mode not in {"none", "cognito"}:
-            errors.append("authentication.mode must be 'none' or 'cognito'")
+        if mode not in {"none", "cognito", "external_broker"}:
+            errors.append("authentication.mode must be 'none', 'cognito', or 'external_broker'")
+        broker = auth.get("external_broker") or {}
+        if mode == "external_broker":
+            if not isinstance(broker, dict):
+                errors.append("authentication.external_broker must be a mapping")
+            else:
+                for key in ("service_id", "login_url", "handoff_exchange_url", "logout_url"):
+                    if not str(broker.get(key) or "").strip():
+                        errors.append(f"authentication.external_broker.{key} is required")
         group_role_map = auth.get("group_role_map") or {}
         if not isinstance(group_role_map, dict):
             errors.append("authentication.group_role_map must be a mapping")
@@ -261,13 +278,17 @@ class ZebraDaySettings:
     cognito_user_pool_id: str
     cognito_app_client_id: str
     cognito_domain: str
+    external_broker_service_id: str
+    external_broker_login_url: str
+    external_broker_handoff_exchange_url: str
+    external_broker_callback_url: str
+    external_broker_logout_url: str
     tapdb_client_id: str
     tapdb_owner_repo_name: str
     tapdb_domain_code: str
     tapdb_database_name: str
     tapdb_schema_name: str
     tapdb_physical_database: str
-    tapdb_env: str
     tapdb_local_db_port: int
     tapdb_local_ui_port: int
     tapdb_config_path: Path
@@ -306,6 +327,7 @@ class ZebraDaySettings:
         discovery = merged.get("discovery") or {}
         ui = merged.get("ui") or {}
         auth_cognito = auth.get("cognito") or {}
+        auth_external_broker = auth.get("external_broker") or {}
         deployment_chrome = _resolve_deployment_chrome(
             name=(merged.get("deployment") or {}).get("name")
             if isinstance(merged.get("deployment"), dict)
@@ -328,7 +350,6 @@ class ZebraDaySettings:
         physical_database = str(tapdb.get("physical_database") or "").strip()
         local_db_port = int(tapdb.get("local_db_port") or DEFAULT_TAPDB_LOCAL_DB_PORT)
         local_ui_port = int(tapdb.get("local_ui_port") or DEFAULT_TAPDB_LOCAL_UI_PORT)
-        env_name = str(tapdb.get("env") or "dev").strip() or "dev"
         tapdb_config_value = str(tapdb.get("config_path") or "").strip()
         if not tapdb_config_value:
             raise ValueError("tapdb.config_path is required")
@@ -407,13 +428,42 @@ class ZebraDaySettings:
                 or auth_cognito.get("domain")
                 or ""
             ),
+            external_broker_service_id=str(
+                os.environ.get("LSMC_AUTH_BROKER_SERVICE_ID")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_SERVICE_ID")
+                or auth_external_broker.get("service_id")
+                or DEFAULT_SERVICE_NAME
+            ).strip(),
+            external_broker_login_url=str(
+                os.environ.get("LSMC_AUTH_BROKER_LOGIN_URL")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_LOGIN_URL")
+                or auth_external_broker.get("login_url")
+                or ""
+            ).strip(),
+            external_broker_handoff_exchange_url=str(
+                os.environ.get("LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_HANDOFF_EXCHANGE_URL")
+                or auth_external_broker.get("handoff_exchange_url")
+                or ""
+            ).strip(),
+            external_broker_callback_url=str(
+                os.environ.get("LSMC_AUTH_BROKER_CALLBACK_URL")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_CALLBACK_URL")
+                or auth_external_broker.get("callback_url")
+                or ""
+            ).strip(),
+            external_broker_logout_url=str(
+                os.environ.get("LSMC_AUTH_BROKER_LOGOUT_URL")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_LOGOUT_URL")
+                or auth_external_broker.get("logout_url")
+                or ""
+            ).strip(),
             tapdb_client_id=client_id,
             tapdb_owner_repo_name=owner_repo_name,
             tapdb_domain_code=domain_code,
             tapdb_database_name=database_name,
             tapdb_schema_name=schema_name,
             tapdb_physical_database=physical_database,
-            tapdb_env=env_name,
             tapdb_local_db_port=local_db_port,
             tapdb_local_ui_port=local_ui_port,
             tapdb_config_path=tapdb_config_path,

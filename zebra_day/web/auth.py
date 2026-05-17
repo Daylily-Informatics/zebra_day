@@ -14,8 +14,9 @@ from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 
+import httpx
 import yaml
 from daylily_auth_cognito.browser import session as cognito_session
 from daylily_auth_cognito.browser.oauth import build_logout_url
@@ -66,7 +67,17 @@ __all__ = [
 ]
 
 PUBLIC_PATHS = ["/healthz", "/readyz", "/login"]
-AUTH_PATHS = ["/auth/login", "/auth/callback", "/auth/logout", "/auth/error", "/login"]
+EXTERNAL_BROKER_CALLBACK_PATH = "/auth/lsmc/callback"
+EXTERNAL_BROKER_STATE_KEY = "zebra_day_external_broker_state"
+EXTERNAL_BROKER_NEXT_KEY = "zebra_day_external_broker_next"
+AUTH_PATHS = [
+    "/auth/login",
+    "/auth/callback",
+    EXTERNAL_BROKER_CALLBACK_PATH,
+    "/auth/logout",
+    "/auth/error",
+    "/login",
+]
 STRUCTURED_PATHS = {
     "/health",
     "/obs_services",
@@ -145,6 +156,66 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
         "roles": roles,
         "cognito_groups": groups,
         "auth_mode": "cognito_session",
+        "service_principal": False,
+    }
+
+
+def build_external_broker_identity(
+    user: dict[str, Any],
+    settings: ZebraDaySettings,
+) -> dict[str, Any]:
+    email = _clean(user.get("email")).lower()
+    if not email:
+        raise CognitoWebAuthError(
+            "auth_error",
+            "External broker handoff omitted email",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            redirect_to_error=True,
+        )
+    domain = _email_domain(email)
+    allowed_domains = getattr(settings, "allowed_email_domains", DEFAULT_ALLOWED_EMAIL_DOMAINS)
+    if domain not in {item.lower() for item in allowed_domains}:
+        raise CognitoWebAuthError(
+            "blocked_domain",
+            "Email domain is not allowed",
+            status_code=status.HTTP_403_FORBIDDEN,
+            redirect_to_error=True,
+        )
+    groups = [str(group).strip() for group in user.get("groups") or [] if str(group).strip()]
+    service_id = _clean(settings.external_broker_service_id) or "zebra-day"
+    roles = {
+        str(role).strip().upper()
+        for role in user.get("roles") or []
+        if str(role).strip()
+    }
+    if "lsmc:global-admin" in groups or f"lsmc:{service_id}:admin" in groups:
+        roles.add("ADMIN")
+    for entitlement in user.get("service_entitlements") or []:
+        if not isinstance(entitlement, dict):
+            continue
+        if _clean(entitlement.get("service")) != service_id:
+            continue
+        roles.update(
+            str(role).strip().upper()
+            for role in entitlement.get("roles") or []
+            if str(role).strip()
+        )
+    if "ADMIN" in roles:
+        roles.add("OPERATOR")
+    if not roles:
+        raise CognitoWebAuthError(
+            "not_authorized",
+            "External broker user has no Zebra Day role",
+            status_code=status.HTTP_403_FORBIDDEN,
+            redirect_to_error=True,
+        )
+    return {
+        "sub": _clean(user.get("canonical_user_id") or user.get("sub") or email),
+        "email": email,
+        "name": _clean(user.get("display_name") or user.get("name") or email),
+        "roles": sorted(roles),
+        "cognito_groups": groups,
+        "auth_mode": "external_broker",
         "service_principal": False,
     }
 
@@ -266,7 +337,7 @@ def _runtime_public_base_url(settings: ZebraDaySettings) -> str:
     configured = _clean(os.environ.get(_PUBLIC_BASE_URL_ENV))
     if configured:
         return configured
-    scheme = "https" if settings.auth_mode == "cognito" else "http"
+    scheme = "https" if settings.auth_mode in {"cognito", "external_broker"} else "http"
     return f"{scheme}://localhost:{settings.port}"
 
 
@@ -296,15 +367,42 @@ def _require_cognito_runtime_settings(settings: ZebraDaySettings) -> SimpleNames
     )
 
 
+def _require_external_broker_runtime_settings(settings: ZebraDaySettings) -> None:
+    missing = [
+        name
+        for name, value in (
+            ("LSMC_AUTH_BROKER_SERVICE_ID", settings.external_broker_service_id),
+            ("LSMC_AUTH_BROKER_LOGIN_URL", settings.external_broker_login_url),
+            (
+                "LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL",
+                settings.external_broker_handoff_exchange_url,
+            ),
+            ("LSMC_AUTH_BROKER_LOGOUT_URL", settings.external_broker_logout_url),
+        )
+        if not _clean(value)
+    ]
+    if missing:
+        raise ValueError("Missing zebra_day external broker settings: " + ", ".join(missing))
+
+
 def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionConfig:
     """Build the shared browser-session config for the current runtime."""
     public_base_url = _runtime_public_base_url(settings)
-    callback_url = f"{public_base_url}{settings.callback_path}"
+    callback_url = (
+        _clean(settings.external_broker_callback_url)
+        or f"{public_base_url}{EXTERNAL_BROKER_CALLBACK_PATH}"
+        if settings.auth_mode == "external_broker"
+        else f"{public_base_url}{settings.callback_path}"
+    )
     logout_url = f"{public_base_url}/login"
     if settings.auth_mode == "cognito":
         _require_cognito_runtime_settings(settings)
         domain = settings.cognito_domain
         client_id = settings.cognito_app_client_id
+    elif settings.auth_mode == "external_broker":
+        _require_external_broker_runtime_settings(settings)
+        domain = urlsplit(settings.external_broker_login_url).netloc
+        client_id = settings.external_broker_service_id
     else:
         domain = _clean(settings.cognito_domain) or "localhost"
         client_id = _clean(settings.cognito_app_client_id) or settings.tapdb_client_id
@@ -319,7 +417,86 @@ def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionCon
         public_base_url=public_base_url,
         server_instance_id=get_server_instance_id(),
         allow_insecure_http=public_base_url.startswith("http://"),
+        auth_mode=settings.auth_mode,
     )
+
+
+def start_external_broker_login(
+    request: Request,
+    settings: ZebraDaySettings,
+    next_path: str | None,
+) -> RedirectResponse:
+    _require_external_broker_runtime_settings(settings)
+    target = str(next_path or "/").strip() or "/"
+    if not target.startswith("/"):
+        target = f"/{target}"
+    state = secrets.token_urlsafe(32)
+    request.session[EXTERNAL_BROKER_STATE_KEY] = state
+    request.session[EXTERNAL_BROKER_NEXT_KEY] = target
+    callback_url = (
+        _clean(settings.external_broker_callback_url)
+        or f"{_runtime_public_base_url(settings)}{EXTERNAL_BROKER_CALLBACK_PATH}"
+    )
+    return RedirectResponse(
+        url=f"{settings.external_broker_login_url.rstrip('/')}?"
+        + urlencode(
+            {
+                "service": settings.external_broker_service_id,
+                "next": target,
+                "callback_url": callback_url,
+                "state": state,
+            }
+        ),
+        status_code=302,
+    )
+
+
+async def complete_external_broker_callback(
+    request: Request,
+    settings: ZebraDaySettings,
+    *,
+    code: str | None,
+    state: str | None,
+) -> RedirectResponse:
+    if not code:
+        raise CognitoWebAuthError("missing_code", "External broker callback omitted code")
+    expected_state = _clean(request.session.get(EXTERNAL_BROKER_STATE_KEY))
+    if not expected_state or state != expected_state:
+        raise CognitoWebAuthError("invalid_state", "External broker state mismatch")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.post(
+            settings.external_broker_handoff_exchange_url,
+            json={"code": code},
+        )
+    if response.status_code >= 400:
+        raise CognitoWebAuthError(
+            "auth_error",
+            f"External broker handoff exchange failed with status {response.status_code}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            redirect_to_error=True,
+        )
+    payload = response.json()
+    user = payload.get("user") if isinstance(payload, dict) else None
+    if not isinstance(user, dict):
+        raise CognitoWebAuthError("auth_error", "External broker response omitted user")
+    identity = build_external_broker_identity(user, settings)
+    principal = SessionPrincipal(
+        user_sub=identity["sub"],
+        email=identity["email"],
+        name=identity["name"] or None,
+        roles=list(identity["roles"]),
+        cognito_groups=list(identity["cognito_groups"]),
+        auth_mode="external_broker",
+        authenticated_at=datetime.now(timezone.utc).isoformat(),
+        server_instance_id=get_server_instance_id(),
+        app_context={},
+    )
+    cognito_session.store_session_principal(request, build_web_session_config(settings), principal)
+    request.session.pop(EXTERNAL_BROKER_STATE_KEY, None)
+    redirect_to = _clean(request.session.pop(EXTERNAL_BROKER_NEXT_KEY, None)) or "/"
+    if not redirect_to.startswith("/"):
+        redirect_to = "/"
+    return RedirectResponse(url=redirect_to, status_code=302)
 
 
 def _principal_to_user_context(
