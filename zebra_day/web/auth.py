@@ -183,11 +183,7 @@ def build_external_broker_identity(
         )
     groups = [str(group).strip() for group in user.get("groups") or [] if str(group).strip()]
     service_id = _clean(settings.external_broker_service_id) or "zebra-day"
-    roles = {
-        str(role).strip().upper()
-        for role in user.get("roles") or []
-        if str(role).strip()
-    }
+    roles = {str(role).strip().upper() for role in user.get("roles") or [] if str(role).strip()}
     if "lsmc:global-admin" in groups or f"lsmc:{service_id}:admin" in groups:
         roles.add("ADMIN")
     for entitlement in user.get("service_entitlements") or []:
@@ -247,13 +243,10 @@ def _daycog_config_path() -> Path:
 def _load_daycog_file_values() -> dict[str, str]:
     path = _daycog_config_path()
     if not path.exists():
-        return {}
-    try:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return {}
+        raise RuntimeError(f"daycog config store is required: {path}")
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        return {}
+        raise RuntimeError(f"daycog config store must be a YAML mapping: {path}")
     return {str(key): str(value) for key, value in payload.items() if value is not None}
 
 
@@ -614,27 +607,6 @@ class CognitoBinding:
             raise ValueError("Invalid Cognito id token") from exc
         return dict(claims)
 
-    def _decode_id_token_unverified(self, id_token: str) -> dict[str, Any]:
-        from jose import JWTError, jwt
-
-        try:
-            claims = jwt.decode(
-                id_token,
-                key="",
-                options={
-                    "verify_signature": False,
-                    "verify_exp": False,
-                    "verify_iss": False,
-                    "verify_aud": False,
-                    "verify_nbf": False,
-                    "verify_iat": False,
-                    "verify_at_hash": False,
-                },
-            )
-        except JWTError as exc:
-            raise ValueError("Invalid Cognito id token payload") from exc
-        return dict(claims)
-
     def exchange_code(self, request: Request, code: str) -> dict[str, Any]:
         tokens = _run_sync(
             cognito_session.exchange_authorization_code_async(
@@ -652,20 +624,7 @@ class CognitoBinding:
         profile_claims: dict[str, Any] = {}
         id_token = _clean(tokens.get("id_token"))
         if id_token:
-            try:
-                profile_claims = self._verify_id_token(id_token, access_token=access_token)
-            except ValueError as exc:
-                _log.warning(
-                    "Falling back to unverified Cognito id token decode for profile claims: %s",
-                    exc,
-                )
-                try:
-                    profile_claims = self._decode_id_token_unverified(id_token)
-                except ValueError as decode_exc:
-                    _log.warning(
-                        "Continuing without Cognito id token profile claims: %s",
-                        decode_exc,
-                    )
+            profile_claims = self._verify_id_token(id_token, access_token=access_token)
         return {"tokens": tokens, "claims": claims, "profile_claims": profile_claims}
 
     def resolve_principal(
@@ -679,21 +638,7 @@ class CognitoBinding:
         profile_claims: dict[str, Any] = {}
         id_token = _clean(token_payload.get("id_token"))
         if id_token:
-            try:
-                profile_claims = self._verify_id_token(id_token, access_token=access_token)
-            except ValueError as exc:
-                _log.warning(
-                    "Falling back to unverified Cognito id token decode for profile claims: %s",
-                    exc,
-                )
-                try:
-                    profile_claims = self._decode_id_token_unverified(id_token)
-                except ValueError as decode_exc:
-                    _log.warning(
-                        "Continuing without Cognito id token profile claims: %s",
-                        decode_exc,
-                    )
-                    profile_claims = {}
+            profile_claims = self._verify_id_token(id_token, access_token=access_token)
 
         merged_claims = dict(claims)
         for key, value in profile_claims.items():

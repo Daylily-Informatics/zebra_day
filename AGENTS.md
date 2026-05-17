@@ -32,6 +32,7 @@ templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 - Do not add package installs, dependency probes, TapDB bootstrap, config copying, registry writes, loader-path hacks, or `conda install` steps to `activate`.
 - If a CLI is missing after activation, fix packaging entry points or `pyproject.toml`, not `activate`.
 - If deployment-scoped config is missing, fix `zday config init` or the explicit config/bootstrap path, not `activate`.
+- Fallback behavior is an antipattern in this workspace. Do not add, preserve, or rely on inferred config paths, deprecated CLI aliases, alternate TLS discovery, generated substitute values, compatibility shims, or silent printer/rendering success when required state is missing. Missing config, certs, TapDB namespace, printer state, renderer dependency, or malformed input must fail hard with a clear error.
 
 ## Dependency Boundary
 

@@ -4,12 +4,14 @@ Tests for the zebra_day authentication module.
 
 import sys
 import threading
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 
 import pytest
+import yaml
 
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import ZebraDaySettings, build_default_config_template
 from zebra_day.web import auth
 
 
@@ -20,6 +22,15 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+
+
+def _write_explicit_config(tmp_path, deployment: str = "local") -> Path:
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_load(build_default_config_template(deployment))
+    payload["tapdb"]["physical_database"] = f"tapdb_{deployment}"
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return config_path
 
 
 class TestCognitoAvailability:
@@ -127,7 +138,7 @@ def test_exchange_code_verifies_access_token_and_profiles_from_id_token():
     assert result["profile_claims"]["email"] == "user@example.com"
 
 
-def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
+def test_exchange_code_rejects_unverified_id_token_profile_decode():
     auth_client = SimpleNamespace(
         verify_token=lambda token: (
             {"sub": "access-sub", "username": "atlas-user"}
@@ -163,25 +174,14 @@ def test_exchange_code_falls_back_to_unverified_id_token_profile_decode():
         raise ValueError("jwt failed")
 
     binding._verify_id_token = _verify_id_token
-    binding._decode_id_token_unverified = lambda token: (
-        {
-            "email": "fallback@example.com",
-            "name": "Fallback User",
-        }
-        if token == "id-token"
-        else pytest.fail("expected id token fallback decode")
-    )
-
     try:
-        result = binding.exchange_code(object(), "auth-code")
+        with pytest.raises(ValueError, match="jwt failed"):
+            binding.exchange_code(object(), "auth-code")
     finally:
         monkeypatch.undo()
 
-    assert result["claims"]["sub"] == "access-sub"
-    assert result["profile_claims"]["email"] == "fallback@example.com"
 
-
-def test_exchange_code_continues_when_id_token_cannot_be_decoded():
+def test_exchange_code_fails_when_id_token_cannot_be_verified():
     auth_client = SimpleNamespace(
         verify_token=lambda token: (
             {"sub": "access-sub", "username": "atlas-user"}
@@ -217,17 +217,11 @@ def test_exchange_code_continues_when_id_token_cannot_be_decoded():
         raise ValueError("jwt failed")
 
     binding._verify_id_token = _verify_id_token
-    binding._decode_id_token_unverified = lambda token: (_ for _ in ()).throw(
-        ValueError("payload failed")
-    )
-
     try:
-        result = binding.exchange_code(object(), "auth-code")
+        with pytest.raises(ValueError, match="jwt failed"):
+            binding.exchange_code(object(), "auth-code")
     finally:
         monkeypatch.undo()
-
-    assert result["claims"]["sub"] == "access-sub"
-    assert result["profile_claims"] == {}
 
 
 def test_exchange_code_works_when_called_inside_running_event_loop():
@@ -434,6 +428,7 @@ def test_load_daycog_contract_falls_back_to_daycog_config_file_with_bare_host(mo
 
 def test_setup_cognito_auth_uses_runtime_settings_without_daycog(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
+    _write_explicit_config(tmp_path)
     monkeypatch.setenv("COGNITO_REGION", "us-west-2")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-123")
     monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-123")
@@ -511,24 +506,5 @@ def test_verify_id_token_passes_paired_access_token_to_jose_decode(monkeypatch):
     assert decode_kwargs["audience"] == "client-id"
 
 
-def test_decode_id_token_unverified_disables_at_hash_verification(monkeypatch):
-    binding = auth.CognitoBinding(
-        settings=SimpleNamespace(),
-        config=SimpleNamespace(),
-        auth=SimpleNamespace(),
-        jwks=SimpleNamespace(),
-    )
-
-    decode_mock = Mock(return_value={"email": "user@example.com"})
-    monkeypatch.setitem(
-        sys.modules,
-        "jose",
-        SimpleNamespace(
-            JWTError=ValueError,
-            jwt=SimpleNamespace(decode=decode_mock),
-        ),
-    )
-    claims = binding._decode_id_token_unverified("id-token")
-
-    assert claims["email"] == "user@example.com"
-    assert decode_mock.call_args.kwargs["options"]["verify_at_hash"] is False
+def test_unverified_id_token_decode_helper_is_removed():
+    assert not hasattr(auth.CognitoBinding, "_decode_id_token_unverified")

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+import yaml
 
 from tests.fakes import sample_repository
 from zebra_day.client import (
@@ -18,6 +19,7 @@ from zebra_day.settings import (
     DEFAULT_MERIDIAN_DOMAIN_CODE,
     DEFAULT_TAPDB_OWNER_REPO,
     ZebraDaySettings,
+    build_default_config_template,
 )
 
 
@@ -28,6 +30,18 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("ZEBRA_DAY_SESSION_SECRET", f"test-secret-{deployment}")
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        build_default_config_template(deployment).decode("utf-8"),
+        encoding="utf-8",
+    )
+
+
+def _write_config(path: Path, deployment: str, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
 
 def test_direct_client_fails_fast_without_tapdb(monkeypatch, tmp_path):
@@ -43,16 +57,15 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-local" / "tapdb-config.yaml"
     domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
     prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        (
-            "tapdb:\n"
-            f"  config_path: {tapdb_config_path}\n"
-            f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-        ),
-        encoding="utf-8",
+    payload = yaml.safe_load(build_default_config_template("local").decode("utf-8"))
+    payload["tapdb"].update(
+        {
+            "config_path": str(tapdb_config_path),
+            "domain_registry_path": str(domain_registry_path),
+            "prefix_ownership_registry_path": str(prefix_registry_path),
+        }
     )
+    _write_config(config_path, "local", payload)
     tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
     tapdb_config_path.write_text("tapdb: {}\n", encoding="utf-8")
     monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(config_path))

@@ -1,32 +1,21 @@
 meta:
-  config_version: 3
+  config_version: 4
   client_id: zebra-day
-  database_name: zebra-day
+  database_name: zebra-day-local
   owner_repo_name: zebra-day
   domain_code: Z
   domain_registry_path: /absolute/path/to/domain_code_registry.json
   prefix_registry_path: /absolute/path/to/prefix_ownership_registry.json
-environments:
-  dev:
-    engine_type: local
-    host: localhost
-    port: '5544'
-    ui_port: '8118'
-    database: zebra_day_dev
-    audit_log_euid_prefix: ZGX
-    support_email: support@lsmc.bio
-    cognito_user_pool_id: ''
-  prod:
-    engine_type: aurora
-    host: zebra-day.cluster-REPLACE.us-west-2.rds.amazonaws.com
-    port: '5432'
-    user: tapdb_admin
-    password: ''
-    database: zebra_day_prod
-    audit_log_euid_prefix: ZGX
-    support_email: support@lsmc.bio
-    cognito_user_pool_id: ''
-    region: us-west-2
-    cluster_identifier: zebra-day
-    iam_auth: 'true'
-    ssl: 'true'
+target:
+  engine_type: local
+  host: localhost
+  port: '5544'
+  ui_port: '8118'
+  user: postgres
+  password: null
+  database: tapdb_local
+  schema_name: tapdb_zebra_day_local
+  audit_log_euid_prefix: ZGX
+safety:
+  safety_tier: local
+  destructive_operations: confirm_required

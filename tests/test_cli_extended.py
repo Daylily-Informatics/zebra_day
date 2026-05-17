@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+import typer
 from click.exceptions import Abort, Exit
 
 from zebra_day.cli import cognito as cognito_module
@@ -113,11 +114,9 @@ def test_env_missing_root_and_inactive_paths(monkeypatch, tmp_path, capsys):
     assert "Could not find zebra_day project root" in activate_out
 
     monkeypatch.setenv("CONDA_DEFAULT_ENV", "ZEBRA_DAY-qa1")
-    env_module.deactivate()
-    capsys.readouterr()
-    fallback_panel = panels.pop()
-    assert "zebra_day_deactivate" in str(fallback_panel.renderable)
-    assert "deactivate" in str(fallback_panel.renderable)
+    with pytest.raises(typer.BadParameter, match="project root could not be resolved"):
+        env_module.deactivate()
+    assert panels == []
 
     with pytest.raises(Exit):
         env_module.reset()

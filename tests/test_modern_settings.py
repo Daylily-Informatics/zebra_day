@@ -7,7 +7,6 @@ import yaml
 
 from zebra_day import paths as xdg
 from zebra_day.settings import (
-    DEFAULT_DEPLOYMENT_BANNER_COLOR,
     ZebraDaySettings,
     _resolve_deployment_chrome,
     _stable_deployment_color_hex,
@@ -25,11 +24,24 @@ def _set_xdg(monkeypatch, tmp_path, deployment="stage-1") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("ZEBRA_DAY_SESSION_SECRET", f"test-secret-{deployment}")
     monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
 
 
-def test_default_config_template_is_valid_yaml():
+def _default_payload(deployment: str) -> dict:
+    return yaml.safe_load(build_default_config_template(deployment).decode("utf-8"))
+
+
+def _write_config(path: Path, deployment: str, payload: dict | None = None) -> dict:
+    resolved = payload or _default_payload(deployment)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(resolved, sort_keys=False), encoding="utf-8")
+    return resolved
+
+
+def test_default_config_template_is_valid_yaml(monkeypatch):
+    monkeypatch.setenv("ZEBRA_DAY_SESSION_SECRET", "explicit-test-secret")
     content = build_default_config_template("dev").decode("utf-8")
     payload = yaml.safe_load(content)
     assert validate_settings_yaml(content) == []
@@ -54,6 +66,7 @@ def test_default_config_template_is_valid_yaml():
     assert payload["tapdb"]["domain_code"] == "Z"
     assert "env" not in payload["tapdb"]
     assert isinstance(payload["tapdb"]["config_path"], str) and payload["tapdb"]["config_path"]
+    assert payload["tapdb"]["physical_database"] == "tapdb_dev"
     assert isinstance(payload["tapdb"]["domain_registry_path"], str)
     assert isinstance(payload["tapdb"]["prefix_ownership_registry_path"], str)
     assert payload["ui"]["show_environment_chrome"] is True
@@ -72,16 +85,11 @@ def test_settings_from_context_uses_env_paths(monkeypatch, tmp_path):
     tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-qa-1" / "tapdb-config.yaml"
     domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
     prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
-    explicit_config.parent.mkdir(parents=True, exist_ok=True)
-    explicit_config.write_text(
-        (
-            "tapdb:\n"
-            f"  config_path: {tapdb_config_path}\n"
-            f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-        ),
-        encoding="utf-8",
-    )
+    payload = _default_payload("qa-1")
+    payload["tapdb"]["config_path"] = str(tapdb_config_path)
+    payload["tapdb"]["domain_registry_path"] = str(domain_registry_path)
+    payload["tapdb"]["prefix_ownership_registry_path"] = str(prefix_registry_path)
+    _write_config(explicit_config, "qa-1", payload)
 
     settings = ZebraDaySettings.from_context()
 
@@ -104,29 +112,27 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
     tapdb_config_path = tmp_path / "tapdb" / "tapdb-prod-custom.yaml"
     domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
     prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
-    config_path.write_text(
-        (
-            "service:\n"
-            "  host: localhost\n"
-            "  port: 8119\n"
-            "authentication:\n"
-            "  mode: none\n"
-            "  cognito_region: us-west-2\n"
-            "  cognito_user_pool_id: pool-123\n"
-            "  cognito_app_client_id: client-123\n"
-            "  cognito_domain: example.auth.us-west-2.amazoncognito.com\n"
-            "tapdb:\n"
-            "  client_id: zebra-day\n"
-            "  database_name: zebra-day-prod-custom\n"
-            f"  config_path: {tapdb_config_path}\n"
-            f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-            "deployment:\n"
-            "  name: sandbox-g\n"
-            "  color: '#123456'\n"
-        ),
-        encoding="utf-8",
+    payload = _default_payload("prodx")
+    payload["service"].update({"host": "localhost", "port": 8119})
+    payload["authentication"].update(
+        {
+            "mode": "none",
+            "cognito_region": "us-west-2",
+            "cognito_user_pool_id": "pool-123",
+            "cognito_app_client_id": "client-123",
+            "cognito_domain": "example.auth.us-west-2.amazoncognito.com",
+        }
     )
+    payload["tapdb"].update(
+        {
+            "database_name": "zebra-day-prod-custom",
+            "config_path": str(tapdb_config_path),
+            "domain_registry_path": str(domain_registry_path),
+            "prefix_ownership_registry_path": str(prefix_registry_path),
+        }
+    )
+    payload["deployment"].update({"name": "sandbox-g", "color": "#123456"})
+    _write_config(config_path, "prodx", payload)
 
     settings = ZebraDaySettings.from_context()
 
@@ -163,16 +169,16 @@ def test_settings_merge_file_values(monkeypatch, tmp_path):
 def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
-    config_path.write_text(
-        (
-            "authentication:\n"
-            "  cognito_region: us-east-1\n"
-            "  cognito_user_pool_id: pool-file\n"
-            "  cognito_app_client_id: client-file\n"
-            "  cognito_domain: example.file.auth.us-west-2.amazoncognito.com\n"
-        ),
-        encoding="utf-8",
+    payload = _default_payload("prodx")
+    payload["authentication"].update(
+        {
+            "cognito_region": "us-east-1",
+            "cognito_user_pool_id": "pool-file",
+            "cognito_app_client_id": "client-file",
+            "cognito_domain": "example.file.auth.us-west-2.amazoncognito.com",
+        }
     )
+    _write_config(config_path, "prodx", payload)
     monkeypatch.setenv("COGNITO_REGION", "us-west-2")
     monkeypatch.setenv("COGNITO_USER_POOL_ID", "pool-env")
     monkeypatch.setenv("COGNITO_APP_CLIENT_ID", "client-env")
@@ -189,19 +195,18 @@ def test_settings_env_overrides_cognito_file_values(monkeypatch, tmp_path):
 def test_settings_accepts_external_broker_mode(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="broker")
     config_path = xdg.get_config_file_path()
-    config_path.write_text(
-        (
-            "authentication:\n"
-            "  mode: external_broker\n"
-            "  external_broker:\n"
-            "    service_id: zebra-day\n"
-            "    login_url: https://dev.login.lsmc.com/auth/login\n"
-            "    handoff_exchange_url: https://dev.login.lsmc.com/auth/handoff/consume\n"
-            "    callback_url: https://localhost:8118/auth/lsmc/callback\n"
-            "    logout_url: https://dev.login.lsmc.com/auth/logout\n"
-        ),
-        encoding="utf-8",
+    payload = _default_payload("broker")
+    payload["authentication"]["mode"] = "external_broker"
+    payload["authentication"]["external_broker"].update(
+        {
+            "service_id": "zebra-day",
+            "login_url": "https://dev.login.lsmc.com/auth/login",
+            "handoff_exchange_url": "https://dev.login.lsmc.com/auth/handoff/consume",
+            "callback_url": "https://localhost:8118/auth/lsmc/callback",
+            "logout_url": "https://dev.login.lsmc.com/auth/logout",
+        }
     )
+    _write_config(config_path, "broker", payload)
 
     settings = ZebraDaySettings.from_context()
 
@@ -214,10 +219,9 @@ def test_settings_accepts_external_broker_mode(monkeypatch, tmp_path):
 def test_settings_rejects_schemeful_cognito_domain(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="prodx")
     config_path = xdg.get_config_file_path()
-    config_path.write_text(
-        ("authentication:\n  cognito_domain: https://example.auth.us-west-2.amazoncognito.com\n"),
-        encoding="utf-8",
-    )
+    payload = _default_payload("prodx")
+    payload["authentication"]["cognito_domain"] = "https://example.auth.us-west-2.amazoncognito.com"
+    _write_config(config_path, "prodx", payload)
 
     with pytest.raises(ValueError, match="bare host"):
         ZebraDaySettings.from_context()
@@ -277,10 +281,9 @@ def test_validate_settings_yaml_requires_tapdb_registry_paths() -> None:
 def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="qa-1")
     config_path = xdg.get_config_file_path()
-    config_path.write_text(
-        "deployment:\n  name: production\n  color: ''\n",
-        encoding="utf-8",
-    )
+    payload = _default_payload("qa-1")
+    payload["deployment"].update({"name": "production", "color": ""})
+    _write_config(config_path, "qa-1", payload)
 
     settings = ZebraDaySettings.from_context()
 
@@ -291,12 +294,9 @@ def test_prod_deployment_name_hides_banner(monkeypatch, tmp_path):
     }
 
 
-def test_light_aqua_is_used_without_any_deployment_name():
-    assert _resolve_deployment_chrome(name="", color="", fallback_name="") == {
-        "name": "",
-        "color": DEFAULT_DEPLOYMENT_BANNER_COLOR,
-        "is_production": False,
-    }
+def test_deployment_chrome_requires_name_or_deployment_code():
+    with pytest.raises(ValueError, match="deployment.name is required"):
+        _resolve_deployment_chrome(name="", color="", deployment_code="")
 
 
 def test_repo_ships_tapdb_config_template():
@@ -304,17 +304,18 @@ def test_repo_ships_tapdb_config_template():
     payload = yaml.safe_load(template_path.read_text(encoding="utf-8"))
 
     assert template_path.is_file()
-    assert payload["meta"]["config_version"] == 3
+    assert payload["meta"]["config_version"] == 4
     assert payload["meta"]["client_id"] == "zebra-day"
-    assert payload["meta"]["database_name"] == "zebra-day"
+    assert payload["meta"]["database_name"] == "zebra-day-local"
     assert payload["meta"]["owner_repo_name"] == "zebra-day"
     assert payload["meta"]["domain_code"] == "Z"
     assert isinstance(payload["meta"]["domain_registry_path"], str)
     assert isinstance(payload["meta"]["prefix_registry_path"], str)
-    assert payload["environments"]["dev"]["port"] == "5544"
-    assert payload["environments"]["dev"]["database"] == "zebra_day_dev"
-    assert payload["environments"]["dev"]["audit_log_euid_prefix"] == "ZGX"
-    assert payload["environments"]["prod"]["audit_log_euid_prefix"] == "ZGX"
+    assert "environments" not in payload
+    assert payload["target"]["port"] == "5544"
+    assert payload["target"]["database"] == "tapdb_local"
+    assert payload["target"]["schema_name"] == "tapdb_zebra_day_local"
+    assert payload["target"]["audit_log_euid_prefix"] == "ZGX"
 
 
 def test_repo_ships_single_zebra_day_template_prefix():

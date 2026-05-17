@@ -40,6 +40,15 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12", "3.13"]
     runs-on: ${{ matrix.os }}
+    env:
+      ZEBRA_DAY_DEPLOYMENT_CODE: ci
+      DEPLOYMENT_CODE: ci
+      LSMC_DEPLOYMENT_CODE: ci
+      ZEBRA_DAY_SESSION_SECRET: zebra-day-ci-session-secret
+      XDG_CONFIG_HOME: ${{ runner.temp }}/zebra-day/config
+      XDG_DATA_HOME: ${{ runner.temp }}/zebra-day/data
+      XDG_STATE_HOME: ${{ runner.temp }}/zebra-day/state
+      XDG_CACHE_HOME: ${{ runner.temp }}/zebra-day/cache
 
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +62,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
+
+      - name: Prepare explicit CI runtime config
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zebra_day.settings import build_default_config_template
+
+          config_dir = Path(__import__("os").environ["XDG_CONFIG_HOME"]) / "zebra_day"
+          config_dir.mkdir(parents=True, exist_ok=True)
+          (config_dir / "zebra-day-config-ci.yaml").write_bytes(
+              build_default_config_template("ci")
+          )
+          PY
 
       - name: Install Playwright browsers
         run: |
