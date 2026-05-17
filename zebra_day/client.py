@@ -333,6 +333,7 @@ class TapDBFleetRepository:
         )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
         return tapdb_mod.TAPDBConnection(
+            app_username=self.settings.tapdb_client_id,
             db_hostname=db_hostname,
             db_user=cfg["user"],
             db_pass=cfg["password"],

@@ -106,6 +106,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     assert captured["domain_code"] == DEFAULT_MERIDIAN_DOMAIN_CODE
     assert captured["owner_repo_name"] == DEFAULT_TAPDB_OWNER_REPO
     assert captured["schema_name"] == settings.tapdb_schema_name
+    assert captured["app_username"] == settings.tapdb_client_id
     assert "domain_registry_path" not in captured
     assert "prefix_registry_path" not in captured
 
