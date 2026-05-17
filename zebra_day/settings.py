@@ -125,6 +125,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
                 "handoff_exchange_url": "",
                 "callback_url": "",
                 "logout_url": "",
+                "ca_bundle": "",
             },
             "cognito_region": "",
             "cognito_user_pool_id": "",
@@ -283,6 +284,7 @@ class ZebraDaySettings:
     external_broker_handoff_exchange_url: str
     external_broker_callback_url: str
     external_broker_logout_url: str
+    external_broker_ca_bundle: str
     tapdb_client_id: str
     tapdb_owner_repo_name: str
     tapdb_domain_code: str
@@ -299,6 +301,11 @@ class ZebraDaySettings:
     cognito_group_role_map: dict[str, str]
     default_scan_wait_seconds: float
     default_http_port: int | None
+
+    def __post_init__(self) -> None:
+        ca_bundle = str(self.external_broker_ca_bundle or "").strip()
+        if ca_bundle and not Path(ca_bundle).is_file():
+            raise ValueError("authentication.external_broker.ca_bundle does not exist")
 
     @property
     def deployment(self) -> dict[str, object]:
@@ -462,6 +469,12 @@ class ZebraDaySettings:
                 os.environ.get("LSMC_AUTH_BROKER_LOGOUT_URL")
                 or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_LOGOUT_URL")
                 or auth_external_broker.get("logout_url")
+                or ""
+            ).strip(),
+            external_broker_ca_bundle=str(
+                os.environ.get("LSMC_AUTH_BROKER_CA_BUNDLE")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_CA_BUNDLE")
+                or auth_external_broker.get("ca_bundle")
                 or ""
             ).strip(),
             tapdb_client_id=client_id,

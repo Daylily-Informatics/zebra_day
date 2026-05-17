@@ -550,8 +550,9 @@ def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch
             }
 
     class FakeAsyncClient:
-        def __init__(self, *, timeout):
+        def __init__(self, *, timeout, verify):
             self.timeout = timeout
+            self.verify = verify
 
         async def __aenter__(self):
             return self
