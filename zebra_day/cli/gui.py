@@ -173,10 +173,10 @@ def start(
         help="Run in background or foreground",
     ),
     reload: bool = typer.Option(False, "--reload", help="Enable auto reload"),
-    auth: str = typer.Option(
-        "cognito",
+    auth: str | None = typer.Option(
+        None,
         "--auth",
-        help="Auth mode: cognito, external_broker, or none",
+        help="Auth mode override: cognito, external_broker, or none. Omit to use the configured mode.",
     ),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
@@ -186,7 +186,7 @@ def start(
     settings = ZebraDaySettings.from_context()
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
     settings.state_dir.mkdir(parents=True, exist_ok=True)
-    selected_auth = "none" if settings.auth_mode == "none" else auth
+    selected_auth = str(auth or settings.auth_mode).strip()
     if selected_auth not in {"none", "cognito", "external_broker"}:
         ccyo_out.error("auth must be 'cognito', 'external_broker', or 'none'")
         raise typer.Exit(1)
