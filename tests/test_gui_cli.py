@@ -101,6 +101,66 @@ def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
     assert str(key_file) in calls["cmd"][2]
 
 
+def test_gui_start_uses_configured_auth_mode_when_auth_option_omitted(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path, deployment="broker")
+    config_path = tmp_path / "config" / "zebra_day" / "zebra-day-config-broker.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_load(build_default_config_template("broker"))
+    payload["tapdb"]["physical_database"] = "tapdb_broker"
+    payload["authentication"]["mode"] = "external_broker"
+    payload["authentication"]["external_broker"].update(
+        {
+            "service_id": "zebra-day",
+            "login_url": "https://localhost:8916/auth/login",
+            "handoff_exchange_url": "https://localhost:8916/auth/handoff/consume",
+            "callback_url": "https://localhost:8118/auth/lsmc/callback",
+            "logout_url": "https://localhost:8916/auth/logout",
+        }
+    )
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    calls: dict[str, object] = {}
+
+    class _Process:
+        pid = 65432
+
+        @staticmethod
+        def poll():
+            return None
+
+    def _ensure_runtime_ready(settings, selected_auth):
+        calls["selected_auth"] = selected_auth
+
+    def fake_popen(cmd, **kwargs):
+        calls["cmd"] = cmd
+        calls["env"] = kwargs["env"]
+        return _Process()
+
+    monkeypatch.setattr(gui_module, "_ensure_runtime_ready", _ensure_runtime_ready)
+    monkeypatch.setattr(gui_module, "_running_pid", lambda *args, **kwargs: None)
+    monkeypatch.setattr(gui_module, "_log_file", lambda settings: tmp_path / "gui.log")
+    monkeypatch.setattr(gui_module, "_pid_file", lambda settings: tmp_path / "gui.pid")
+    monkeypatch.setattr(
+        gui_module,
+        "_runtime_meta_file",
+        lambda settings: tmp_path / "server-meta.json",
+    )
+    monkeypatch.setattr(
+        gui_module,
+        "subprocess",
+        SimpleNamespace(
+            Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT
+        ),
+    )
+
+    result = runner.invoke(zebra_cli.app, ["gui", "start", "--background", "--no-ssl"])
+
+    assert result.exit_code == 0
+    assert calls["selected_auth"] == "external_broker"
+    assert "auth='external_broker'" in calls["cmd"][2]
+    assert calls["env"]["ZEBRA_DAY_AUTH_MODE"] == "external_broker"
+
+
 def test_gui_start_rejects_removed_no_https_alias(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
 
