@@ -89,13 +89,9 @@ def deactivate():
     project_root = _find_project_root()
 
     if project_root is None:
-        # Fallback: just tell them to run deactivate
-        ccyo_out.print_text(
-            Panel.fit(
-                "[cyan]source zebra_day_deactivate[/cyan]\n[dim]or[/dim]\n[cyan]deactivate[/cyan]",
-                title="Run one of these commands to deactivate",
-                border_style="yellow",
-            )
+        raise typer.BadParameter(
+            "zebra_day project root could not be resolved; run this command from a checkout "
+            "or deactivate the conda environment explicitly."
         )
     else:
         deactivate_script = project_root / "zebra_day_deactivate"

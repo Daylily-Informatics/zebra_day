@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from tests.fakes import sample_repository
 from zebra_day import __version__
 from zebra_day.client import ZebraDayClient
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import ZebraDaySettings, build_default_config_template
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
 
@@ -22,6 +22,13 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("ZEBRA_DAY_SESSION_SECRET", f"test-secret-{deployment}")
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        build_default_config_template(deployment).decode("utf-8"),
+        encoding="utf-8",
+    )
 
 
 def _seed_client(tmp_path, monkeypatch, deployment="local") -> ZebraDayClient:

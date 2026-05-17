@@ -338,7 +338,8 @@ class TapDBFleetRepository:
             db_pass=cfg["password"],
             db_name=cfg["database"],
             schema_name=cfg["schema_name"],
-            engine_type=str(cfg.get("engine_type") or "local"),
+            echo_sql=False,
+            engine_type=str(cfg["engine_type"]),
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
         )
@@ -598,7 +599,10 @@ class TapDBFleetRepository:
 
     def upsert_label_profile(self, profile_name: str, payload: dict[str, Any]) -> None:
         full_payload = dict(payload)
-        full_payload.setdefault("profile_name", profile_name)
+        provided_name = _clean(full_payload.get("profile_name"))
+        if provided_name and provided_name != profile_name:
+            raise ValueError("label profile payload profile_name must match request profile_name")
+        full_payload["profile_name"] = profile_name
         self._upsert_instance(
             template_code=LABEL_PROFILE_TEMPLATE_CODE,
             subtype="profile",

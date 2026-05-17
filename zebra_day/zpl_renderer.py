@@ -75,18 +75,13 @@ class RenderState:
 
 
 def _get_font(height: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Get a font at the specified height. Falls back to default if unavailable."""
-    try:
-        # Try common monospace fonts
-        for font_name in ["DejaVuSansMono.ttf", "Menlo.ttc", "Courier New.ttf", "monospace"]:
-            try:
-                return ImageFont.truetype(font_name, height)
-            except OSError:
-                continue
-        # Fallback to default
-        return ImageFont.load_default()
-    except Exception:
-        return ImageFont.load_default()
+    """Get a configured local monospace font at the specified height."""
+    for font_name in ["DejaVuSansMono.ttf", "Menlo.ttc", "Courier New.ttf", "monospace"]:
+        try:
+            return ImageFont.truetype(font_name, height)
+        except OSError:
+            continue
+    raise RuntimeError("No supported monospace font is available for Zebra Day rendering")
 
 
 def _render_barcode(

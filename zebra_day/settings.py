@@ -5,7 +5,6 @@ from __future__ import annotations
 import colorsys
 import hashlib
 import os
-import secrets
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,9 +42,10 @@ DEFAULT_ALLOWED_EMAIL_DOMAINS = [
     "daylilyinformatics.com",
 ]
 ZERO_TENANT_ID = "00000000-0000-0000-0000-000000000000"
-_DEFAULT_SESSION_SECRET_KEY = os.environ.get("ZEBRA_DAY_SESSION_SECRET") or secrets.token_urlsafe(
-    64
-)
+
+
+def _default_session_secret_key() -> str:
+    return os.environ.get("ZEBRA_DAY_SESSION_SECRET", "").strip()
 
 
 def _normalize_string_list(value: Any) -> list[str]:
@@ -60,9 +60,11 @@ def _normalize_string_list(value: Any) -> list[str]:
 
 def _load_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
-        return {}
-    content = yaml.safe_load(path.read_text()) or {}
-    return content if isinstance(content, dict) else {}
+        raise ValueError(f"Zebra Day config file is required: {path}")
+    content = yaml.safe_load(path.read_text())
+    if not isinstance(content, dict):
+        raise ValueError(f"Zebra Day config root must be a YAML mapping: {path}")
+    return content
 
 
 def _validate_cognito_domain(value: Any) -> str:
@@ -85,16 +87,14 @@ def _resolve_deployment_chrome(
     *,
     name: str | None,
     color: str | None,
-    fallback_name: str | None = None,
+    deployment_code: str | None = None,
 ) -> dict[str, object]:
-    resolved_name = str(name or "").strip() or str(fallback_name or "").strip()
+    resolved_name = str(name or "").strip() or str(deployment_code or "").strip()
+    if not resolved_name:
+        raise ValueError("deployment.name is required")
     resolved_color = str(color or "").strip()
     if not resolved_color:
-        resolved_color = (
-            _stable_deployment_color_hex(resolved_name)
-            if resolved_name
-            else DEFAULT_DEPLOYMENT_BANNER_COLOR
-        )
+        resolved_color = _stable_deployment_color_hex(resolved_name)
     return {
         "name": resolved_name,
         "color": resolved_color,
@@ -116,7 +116,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "mode": DEFAULT_AUTH_MODE,
             "internal_api_key_env": "INTERNAL_API_KEY",
             "session_cookie_name": "zebra_day_session",
-            "session_secret_key": _DEFAULT_SESSION_SECRET_KEY,
+            "session_secret_key": _default_session_secret_key(),
             "callback_path": "/auth/callback",
             "logout_path": "/auth/logout",
             "external_broker": {
@@ -141,7 +141,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
             "domain_code": DEFAULT_MERIDIAN_DOMAIN_CODE,
             "database_name": f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}",
             "schema_name": f"tapdb_zebra_day_{deployment_code.replace('-', '_')}",
-            "physical_database": "",
+            "physical_database": f"tapdb_{deployment_code.replace('-', '_')}",
             "local_db_port": DEFAULT_TAPDB_LOCAL_DB_PORT,
             "local_ui_port": DEFAULT_TAPDB_LOCAL_UI_PORT,
             "config_path": str(
@@ -175,7 +175,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
 def validate_settings_yaml(content: str) -> list[str]:
     """Validate deployment-scoped zebra_day config."""
     try:
-        config = yaml.safe_load(content) or {}
+        config = yaml.safe_load(content)
     except yaml.YAMLError as exc:
         return [f"YAML parse error: {exc}"]
 
@@ -312,14 +312,10 @@ class ZebraDaySettings:
     def from_context(cls, deployment: str | None = None) -> ZebraDaySettings:
         deployment_code = xdg.sanitize_deployment_code(deployment or xdg.get_deployment_code())
         config_path = Path(os.environ.get("ZEBRA_DAY_CONFIG_PATH") or xdg.get_config_file_path())
-        merged = yaml.safe_load(build_default_config_template(deployment_code)) or {}
-        file_payload = _load_yaml(config_path)
-
+        merged = _load_yaml(config_path)
         for section in ("service", "authentication", "tapdb", "discovery", "deployment", "ui"):
-            file_section = file_payload.get(section)
-            if isinstance(file_section, dict):
-                merged.setdefault(section, {})
-                merged[section].update(file_section)
+            if not isinstance(merged.get(section), dict):
+                raise ValueError(f"Zebra Day config section {section!r} is required")
 
         service = merged.get("service") or {}
         auth = merged.get("authentication") or {}
@@ -335,21 +331,33 @@ class ZebraDaySettings:
             color=(merged.get("deployment") or {}).get("color")
             if isinstance(merged.get("deployment"), dict)
             else "",
-            fallback_name=deployment_code,
+            deployment_code=deployment_code,
         )
 
-        client_id = str(tapdb.get("client_id") or DEFAULT_TAPDB_CLIENT_ID).strip()
-        owner_repo_name = str(tapdb.get("owner_repo_name") or DEFAULT_TAPDB_OWNER_REPO).strip()
-        domain_code = str(tapdb.get("domain_code") or DEFAULT_MERIDIAN_DOMAIN_CODE).strip()
-        database_name = str(
-            tapdb.get("database_name") or f"{DEFAULT_TAPDB_CLIENT_ID}-{deployment_code}"
-        ).strip()
+        client_id = str(tapdb.get("client_id") or "").strip()
+        if not client_id:
+            raise ValueError("tapdb.client_id is required")
+        owner_repo_name = str(tapdb.get("owner_repo_name") or "").strip()
+        if not owner_repo_name:
+            raise ValueError("tapdb.owner_repo_name is required")
+        domain_code = str(tapdb.get("domain_code") or "").strip()
+        if not domain_code:
+            raise ValueError("tapdb.domain_code is required")
+        database_name = str(tapdb.get("database_name") or "").strip()
+        if not database_name:
+            raise ValueError("tapdb.database_name is required")
         schema_name = str(tapdb.get("schema_name") or "").strip()
         if not schema_name:
             raise ValueError("tapdb.schema_name is required")
         physical_database = str(tapdb.get("physical_database") or "").strip()
-        local_db_port = int(tapdb.get("local_db_port") or DEFAULT_TAPDB_LOCAL_DB_PORT)
-        local_ui_port = int(tapdb.get("local_ui_port") or DEFAULT_TAPDB_LOCAL_UI_PORT)
+        if not physical_database:
+            raise ValueError("tapdb.physical_database is required")
+        if tapdb.get("local_db_port") in (None, ""):
+            raise ValueError("tapdb.local_db_port is required")
+        if tapdb.get("local_ui_port") in (None, ""):
+            raise ValueError("tapdb.local_ui_port is required")
+        local_db_port = int(str(tapdb["local_db_port"]).strip())
+        local_ui_port = int(str(tapdb["local_ui_port"]).strip())
         tapdb_config_value = str(tapdb.get("config_path") or "").strip()
         if not tapdb_config_value:
             raise ValueError("tapdb.config_path is required")
@@ -391,9 +399,7 @@ class ZebraDaySettings:
             internal_api_key=str(
                 os.environ.get(str(auth.get("internal_api_key_env") or "INTERNAL_API_KEY")) or ""
             ).strip(),
-            session_secret_key=str(
-                auth.get("session_secret_key") or _DEFAULT_SESSION_SECRET_KEY
-            ).strip(),
+            session_secret_key=str(auth.get("session_secret_key") or "").strip(),
             session_cookie_name=str(auth.get("session_cookie_name") or "zebra_day_session"),
             allowed_email_domains=_normalize_string_list(
                 auth.get("allowed_email_domains") or DEFAULT_ALLOWED_EMAIL_DOMAINS
@@ -475,7 +481,7 @@ class ZebraDaySettings:
                 auth.get("group_role_map") or DEFAULT_COGNITO_GROUP_ROLE_MAP
             )
             or dict(DEFAULT_COGNITO_GROUP_ROLE_MAP),
-            default_scan_wait_seconds=float(discovery.get("default_scan_wait_seconds") or 0.5),
+            default_scan_wait_seconds=float(discovery["default_scan_wait_seconds"]),
             default_http_port=(
                 int(discovery["default_http_port"])
                 if discovery.get("default_http_port") not in (None, "")

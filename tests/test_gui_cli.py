@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import yaml
 from typer.testing import CliRunner
 
 import zebra_day.cli as zebra_cli
 from zebra_day.cli import gui as gui_module
+from zebra_day.settings import build_default_config_template
 
 runner = CliRunner()
 
@@ -21,8 +23,17 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / deployment))
 
 
+def _write_explicit_config(tmp_path, deployment: str = "local") -> None:
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_load(build_default_config_template(deployment))
+    payload["tapdb"]["physical_database"] = f"tapdb_{deployment}"
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
 def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path, deployment="jemtest")
+    _write_explicit_config(tmp_path, deployment="jemtest")
     cert_dir = tmp_path / "state" / "dayhoff" / "jemtest" / "certs"
     cert_dir.mkdir(parents=True, exist_ok=True)
     cert_file = cert_dir / "cert.pem"
@@ -90,7 +101,7 @@ def test_gui_start_uses_shared_tls_contract(monkeypatch, tmp_path):
     assert str(key_file) in calls["cmd"][2]
 
 
-def test_gui_start_supports_deprecated_no_https_alias(monkeypatch, tmp_path):
+def test_gui_start_rejects_removed_no_https_alias(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
 
     class _Process:
@@ -100,43 +111,10 @@ def test_gui_start_supports_deprecated_no_https_alias(monkeypatch, tmp_path):
         def poll():
             return None
 
-    monkeypatch.setattr(gui_module, "_ensure_runtime_ready", lambda *args, **kwargs: None)
-    monkeypatch.setattr(gui_module, "_running_pid", lambda *args, **kwargs: None)
-    monkeypatch.setattr(gui_module, "_log_file", lambda settings: tmp_path / "gui.log")
-    monkeypatch.setattr(gui_module, "_pid_file", lambda settings: tmp_path / "gui.pid")
-    monkeypatch.setattr(
-        gui_module, "_runtime_meta_file", lambda settings: tmp_path / "server-meta.json"
-    )
-    monkeypatch.setattr(
-        gui_module,
-        "resolve_https_certs",
-        lambda **kwargs: SimpleNamespace(
-            cert_path=tmp_path / "state" / "dayhoff" / "local" / "certs" / "cert.pem",
-            key_path=tmp_path / "state" / "dayhoff" / "local" / "certs" / "key.pem",
-            source="test",
-        ),
-    )
-    monkeypatch.setattr(
-        gui_module,
-        "shared_dayhoff_certs_dir",
-        lambda deployment_code: tmp_path / "state" / "dayhoff" / deployment_code / "certs",
-    )
-
-    def fake_popen(cmd, **kwargs):
-        return _Process()
-
-    monkeypatch.setattr(
-        gui_module,
-        "subprocess",
-        SimpleNamespace(
-            Popen=fake_popen, run=gui_module.subprocess.run, STDOUT=gui_module.subprocess.STDOUT
-        ),
-    )
-
     result = runner.invoke(zebra_cli.app, ["gui", "start", "--background", "--no-https"])
 
-    assert result.exit_code == 0
-    assert "http://localhost:8118" in result.output
+    assert result.exit_code != 0
+    assert "No such option" in result.output
 
 
 def test_gui_status_reads_runtime_meta(monkeypatch, tmp_path, capsys):

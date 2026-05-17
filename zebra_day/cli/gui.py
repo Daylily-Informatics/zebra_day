@@ -48,7 +48,7 @@ class _ResolveHttpsCerts(Protocol):
         key_path: str | None,
         env: Mapping[str, str],
         shared_certs_dir: Path,
-        fallback_certs_dir: Path,
+        generate_if_missing: bool,
     ) -> _ResolvedCerts: ...
 
 
@@ -158,7 +158,7 @@ def _resolve_ssl(
         key_path=key,
         env=dict(os.environ),
         shared_certs_dir=shared_dayhoff_certs_dir(settings.deployment_code),
-        fallback_certs_dir=settings.config_dir / "certs",
+        generate_if_missing=False,
     )
     return str(resolved.cert_path), str(resolved.key_path), True
 
@@ -179,12 +179,6 @@ def start(
         help="Auth mode: cognito, external_broker, or none",
     ),
     ssl: bool = typer.Option(True, "--ssl/--no-ssl", help="Serve over HTTPS"),
-    no_https: bool = typer.Option(
-        False,
-        "--no-https",
-        help="Deprecated alias for --no-ssl",
-        hidden=True,
-    ),
     cert: str | None = typer.Option(None, "--cert", help="SSL certificate path"),
     key: str | None = typer.Option(None, "--key", help="SSL private key path"),
 ) -> None:
@@ -208,7 +202,7 @@ def start(
         ccyo_out.error(str(exc))
         raise typer.Exit(1) from exc
 
-    https_enabled = ssl and not no_https
+    https_enabled = ssl
     cert_path, key_path, https_enabled = _resolve_ssl(settings, cert, key, https_enabled)
     command = [
         sys.executable,
