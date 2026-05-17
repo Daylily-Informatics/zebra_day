@@ -521,12 +521,18 @@ def test_auth_login_redirects_to_cognito_hosted_ui(tmp_path, monkeypatch):
 
 def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch):
     monkeypatch.setenv("LSMC_AUTH_BROKER_SERVICE_ID", "zebra-day")
-    monkeypatch.setenv("LSMC_AUTH_BROKER_LOGIN_URL", "https://dev.login.lsmc.com/auth/login")
+    monkeypatch.setenv(
+        "LSMC_AUTH_BROKER_LOGIN_URL",
+        "https://dev.login.lsmc.com:8916/auth/login",
+    )
     monkeypatch.setenv(
         "LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL",
-        "https://dev.login.lsmc.com/auth/handoff/consume",
+        "https://dev.login.lsmc.com:8916/auth/handoff/consume",
     )
-    monkeypatch.setenv("LSMC_AUTH_BROKER_LOGOUT_URL", "https://dev.login.lsmc.com/auth/logout")
+    monkeypatch.setenv(
+        "LSMC_AUTH_BROKER_LOGOUT_URL",
+        "https://dev.login.lsmc.com:8916/auth/logout",
+    )
 
     class FakeResponse:
         status_code = 200
@@ -554,7 +560,7 @@ def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch
             return None
 
         async def post(self, url, json):
-            assert url == "https://dev.login.lsmc.com/auth/handoff/consume"
+            assert url == "https://dev.login.lsmc.com:8916/auth/handoff/consume"
             assert json == {"code": "handoff-code"}
             return FakeResponse()
 
@@ -569,7 +575,7 @@ def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch
         assert login.status_code == 302
         login_url = urlparse(login.headers["location"])
         assert f"{login_url.scheme}://{login_url.netloc}{login_url.path}" == (
-            "https://dev.login.lsmc.com/auth/login"
+            "https://dev.login.lsmc.com:8916/auth/login"
         )
         query = parse_qs(login_url.query)
         assert query["service"] == ["zebra-day"]

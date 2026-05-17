@@ -394,7 +394,10 @@ def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionCon
         client_id = settings.cognito_app_client_id
     elif settings.auth_mode == "external_broker":
         _require_external_broker_runtime_settings(settings)
-        domain = urlsplit(settings.external_broker_login_url).netloc
+        domain = _required_url_hostname(
+            settings.external_broker_login_url,
+            field_name="LSMC_AUTH_BROKER_LOGIN_URL",
+        )
         client_id = settings.external_broker_service_id
     else:
         domain = _clean(settings.cognito_domain) or "localhost"
@@ -412,6 +415,13 @@ def build_web_session_config(settings: ZebraDaySettings) -> CognitoWebSessionCon
         allow_insecure_http=public_base_url.startswith("http://"),
         auth_mode=settings.auth_mode,
     )
+
+
+def _required_url_hostname(value: str, *, field_name: str) -> str:
+    parsed = urlsplit(str(value or "").strip())
+    if not parsed.scheme or not parsed.netloc or not parsed.hostname:
+        raise ValueError(f"{field_name} must be an absolute URL with host")
+    return parsed.hostname
 
 
 def start_external_broker_login(
