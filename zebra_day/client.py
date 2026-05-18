@@ -332,17 +332,36 @@ class TapDBFleetRepository:
             database_name=self.settings.tapdb_database_name,
         )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
+        engine_type = str(cfg["engine_type"])
+        connection_kwargs = {
+            "app_username": self.settings.tapdb_client_id,
+            "db_hostname": db_hostname,
+            "db_hostaddr": cfg.get("hostaddr") or None,
+            "db_user": cfg["user"],
+            "db_pass": cfg["password"],
+            "db_name": cfg["database"],
+            "schema_name": cfg["schema_name"],
+            "echo_sql": False,
+            "engine_type": engine_type,
+            "domain_code": self.settings.tapdb_domain_code,
+            "owner_repo_name": self.settings.tapdb_owner_repo_name,
+        }
+        if engine_type == "aurora":
+            region = _clean(cfg.get("region"))
+            if not region:
+                raise RuntimeError("Zebra Day Aurora TapDB config is missing region")
+            connection_kwargs["region"] = region
+            connection_kwargs["iam_auth"] = str(cfg.get("iam_auth") or "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            secret_arn = _clean(cfg.get("secret_arn"))
+            if secret_arn:
+                connection_kwargs["secret_arn"] = secret_arn
         return tapdb_mod.TAPDBConnection(
-            app_username=self.settings.tapdb_client_id,
-            db_hostname=db_hostname,
-            db_user=cfg["user"],
-            db_pass=cfg["password"],
-            db_name=cfg["database"],
-            schema_name=cfg["schema_name"],
-            echo_sql=False,
-            engine_type=str(cfg["engine_type"]),
-            domain_code=self.settings.tapdb_domain_code,
-            owner_repo_name=self.settings.tapdb_owner_repo_name,
+            **connection_kwargs,
         )
 
     def _session(self, *, commit: bool):

@@ -111,6 +111,61 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     assert "prefix_registry_path" not in captured
 
 
+def test_tapdb_fleet_repository_passes_explicit_hostaddr(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    config_path = Path(tmp_path / "config" / "zebra-day-config-local.yaml")
+    tapdb_config_path = tmp_path / "tapdb" / "zebra-day" / "zebra-day-local" / "tapdb-config.yaml"
+    payload = yaml.safe_load(build_default_config_template("local").decode("utf-8"))
+    payload["tapdb"]["config_path"] = str(tapdb_config_path)
+    _write_config(config_path, "local", payload)
+    tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
+    tapdb_config_path.write_text("tapdb: {}\n", encoding="utf-8")
+    monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(config_path))
+    settings = ZebraDaySettings.from_context()
+
+    captured: dict[str, object] = {}
+
+    def fake_import(module_name: str):
+        if module_name == "daylily_tapdb":
+
+            class _TapdbModule:
+                @staticmethod
+                def TAPDBConnection(**kwargs):
+                    captured.update(kwargs)
+                    return SimpleNamespace(session_scope=lambda commit=False: None)
+
+            return _TapdbModule
+        if module_name == "daylily_tapdb.cli.db_config":
+            return SimpleNamespace(
+                get_db_config=lambda *_args, **_kwargs: {
+                    "host": "dayhoff-test.cluster-example.us-west-2.rds.amazonaws.com",
+                    "hostaddr": "127.0.0.1",
+                    "port": "15432",
+                    "user": "zebra",
+                    "password": "secret",
+                    "database": "tapdb_unidbtst_local",
+                    "schema_name": settings.tapdb_schema_name,
+                    "engine_type": "aurora",
+                    "region": "us-west-2",
+                    "iam_auth": "false",
+                    "secret_arn": "arn:aws:secretsmanager:us-west-2:123:secret:tapdb",
+                }
+            )
+        raise AssertionError(f"unexpected import request: {module_name}")
+
+    monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
+
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = settings
+    repository._build_connection()
+
+    assert captured["db_hostname"] == "dayhoff-test.cluster-example.us-west-2.rds.amazonaws.com:15432"
+    assert captured["db_hostaddr"] == "127.0.0.1"
+    assert captured["region"] == "us-west-2"
+    assert captured["iam_auth"] is False
+    assert captured["secret_arn"] == "arn:aws:secretsmanager:us-west-2:123:secret:tapdb"
+
+
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
     registry_path = tmp_path / "prefix_ownership_registry.json"
     registry_path.write_text(

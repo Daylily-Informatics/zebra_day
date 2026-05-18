@@ -192,6 +192,20 @@ def bootstrap_local(
     _run_tapdb(settings, args)
 
 
+@bootstrap_app.command("aurora")
+def bootstrap_aurora(
+    cluster: str = typer.Option(..., "--cluster", help="Aurora cluster identifier"),
+    region: str = typer.Option(..., "--region", help="AWS region"),
+    no_gui: bool = typer.Option(True, "--no-gui/--gui", help="Skip or start the TapDB GUI"),
+) -> None:
+    """Bootstrap an explicit Aurora TapDB runtime for zebra_day."""
+    args = ["bootstrap", "aurora", "--cluster", cluster, "--region", region]
+    if no_gui:
+        args.append("--no-gui")
+    settings = ZebraDaySettings.from_context()
+    _run_tapdb(settings, args)
+
+
 @tapdb_app.command("db")
 def db_passthrough(
     args: list[str] = _PASSTHROUGH_ARGS,
@@ -237,6 +251,7 @@ def register(registry: CommandRegistry, spec: CliSpec) -> None:
         "TapDB bootstrap wrappers",
         [
             ("local", bootstrap_local, REQUIRED_MUTATING),
+            ("aurora", bootstrap_aurora, REQUIRED_MUTATING),
         ],
     )
     registry.add_command(
