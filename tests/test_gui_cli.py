@@ -113,6 +113,7 @@ def test_gui_start_uses_configured_auth_mode_when_auth_option_omitted(monkeypatc
             "service_id": "zebra-day",
             "login_url": "https://localhost:8916/auth/login",
             "handoff_exchange_url": "https://localhost:8916/auth/handoff/consume",
+            "service_token": "zebra-day-service-token",
             "callback_url": "https://localhost:8118/auth/lsmc/callback",
             "logout_url": "https://localhost:8916/auth/logout",
         }

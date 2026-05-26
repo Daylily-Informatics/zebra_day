@@ -123,6 +123,7 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
                 "service_id": DEFAULT_SERVICE_NAME,
                 "login_url": "",
                 "handoff_exchange_url": "",
+                "service_token": "",
                 "callback_url": "",
                 "logout_url": "",
                 "ca_bundle": "",
@@ -199,7 +200,13 @@ def validate_settings_yaml(content: str) -> list[str]:
             if not isinstance(broker, dict):
                 errors.append("authentication.external_broker must be a mapping")
             else:
-                for key in ("service_id", "login_url", "handoff_exchange_url", "logout_url"):
+                for key in (
+                    "service_id",
+                    "login_url",
+                    "handoff_exchange_url",
+                    "service_token",
+                    "logout_url",
+                ):
                     if not str(broker.get(key) or "").strip():
                         errors.append(f"authentication.external_broker.{key} is required")
         group_role_map = auth.get("group_role_map") or {}
@@ -282,6 +289,7 @@ class ZebraDaySettings:
     external_broker_service_id: str
     external_broker_login_url: str
     external_broker_handoff_exchange_url: str
+    external_broker_service_token: str
     external_broker_callback_url: str
     external_broker_logout_url: str
     external_broker_ca_bundle: str
@@ -457,6 +465,12 @@ class ZebraDaySettings:
                 os.environ.get("LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL")
                 or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_HANDOFF_EXCHANGE_URL")
                 or auth_external_broker.get("handoff_exchange_url")
+                or ""
+            ).strip(),
+            external_broker_service_token=str(
+                os.environ.get("LSMC_AUTH_BROKER_SERVICE_TOKEN")
+                or os.environ.get("ZEBRA_DAY_EXTERNAL_BROKER_SERVICE_TOKEN")
+                or auth_external_broker.get("service_token")
                 or ""
             ).strip(),
             external_broker_callback_url=str(

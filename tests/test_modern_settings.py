@@ -202,6 +202,7 @@ def test_settings_accepts_external_broker_mode(monkeypatch, tmp_path):
             "service_id": "zebra-day",
             "login_url": "https://dev.login.lsmc.com/auth/login",
             "handoff_exchange_url": "https://dev.login.lsmc.com/auth/handoff/consume",
+            "service_token": "zebra-day-service-token",
             "callback_url": "https://localhost:8118/auth/lsmc/callback",
             "logout_url": "https://dev.login.lsmc.com/auth/logout",
         }
@@ -212,6 +213,7 @@ def test_settings_accepts_external_broker_mode(monkeypatch, tmp_path):
 
     assert settings.auth_mode == "external_broker"
     assert settings.external_broker_service_id == "zebra-day"
+    assert settings.external_broker_service_token == "zebra-day-service-token"
     assert settings.external_broker_login_url == "https://dev.login.lsmc.com/auth/login"
     assert settings.external_broker_callback_url == "https://localhost:8118/auth/lsmc/callback"
 

@@ -112,3 +112,12 @@ pytest tests/ -v --tb=short
 - Store real patient data or PHI in tests or examples.
 - Edit `_version.py` manually.
 - Move Python dependency management or config bootstrap logic back into `activate`.
+
+## Dayhoff Service Exposure Security
+
+- Zebra Day is an LSMC-internal only Dayhoff service. Do not configure it as an approved-network customer/collaborator service.
+- Do not add globally public Zebra Day ingress, wildcard/fallback vhosts, old callback aliases, inferred return URLs, or service-side host discovery.
+- Zebra Day should consume explicit broker/service claims and explicit Dayhoff-generated service config. Do not infer customer network access locally.
+- `kahlo`, `bloom`, and `zebra_day` are LSMC-internal only; `login`, `atlas`, `dewey`, and `ursa` are approved-network customer/collaborator services.
+- Service-host certs use DNS-01 renewal; do not depend on HTTP-01 public reachability for Zebra Day service hosts.
+- Future dev, test, and stage deployments must use their own approved-source lists, credentials, certificates, fleet state, and tenant data, separate from production.

@@ -370,6 +370,7 @@ def _require_external_broker_runtime_settings(settings: ZebraDaySettings) -> Non
                 "LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL",
                 settings.external_broker_handoff_exchange_url,
             ),
+            ("LSMC_AUTH_BROKER_SERVICE_TOKEN", settings.external_broker_service_token),
             ("LSMC_AUTH_BROKER_LOGOUT_URL", settings.external_broker_logout_url),
         )
         if not _clean(value)
@@ -472,6 +473,10 @@ async def complete_external_broker_callback(
         response = await client.post(
             settings.external_broker_handoff_exchange_url,
             json={"code": code},
+            headers={
+                "Authorization": f"Bearer {settings.external_broker_service_token}",
+                "X-LSMC-Service-ID": settings.external_broker_service_id,
+            },
         )
     if response.status_code >= 400:
         raise CognitoWebAuthError(

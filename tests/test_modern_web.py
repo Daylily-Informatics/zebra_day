@@ -529,6 +529,7 @@ def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch
         "LSMC_AUTH_BROKER_HANDOFF_EXCHANGE_URL",
         "https://dev.login.lsmc.com:8916/auth/handoff/consume",
     )
+    monkeypatch.setenv("LSMC_AUTH_BROKER_SERVICE_TOKEN", "zebra-day-service-token")
     monkeypatch.setenv(
         "LSMC_AUTH_BROKER_LOGOUT_URL",
         "https://dev.login.lsmc.com:8916/auth/logout",
@@ -560,9 +561,13 @@ def test_external_broker_login_and_callback_create_session(tmp_path, monkeypatch
         async def __aexit__(self, exc_type, exc, tb):
             return None
 
-        async def post(self, url, json):
+        async def post(self, url, json, headers):
             assert url == "https://dev.login.lsmc.com:8916/auth/handoff/consume"
             assert json == {"code": "handoff-code"}
+            assert headers == {
+                "Authorization": "Bearer zebra-day-service-token",
+                "X-LSMC-Service-ID": "zebra-day",
+            }
             return FakeResponse()
 
     monkeypatch.setattr("zebra_day.web.auth.httpx.AsyncClient", FakeAsyncClient)
