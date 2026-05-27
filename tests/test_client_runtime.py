@@ -14,7 +14,6 @@ from zebra_day.client import (
     ZebraDayApiClient,
     ZebraDayClient,
     _ensure_prefix_ownership_registry,
-    _get_explicit_env_db_config,
 )
 from zebra_day.settings import (
     DEFAULT_MERIDIAN_DOMAIN_CODE,
@@ -112,35 +111,7 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     assert "prefix_registry_path" not in captured
 
 
-def test_explicit_env_db_config_loads_compose_environment(tmp_path: Path) -> None:
-    config_path = tmp_path / "tapdb-config.yaml"
-    config_path.write_text(
-        yaml.safe_dump(
-            {
-                "environments": {
-                    "dev": {
-                        "engine_type": "compose",
-                        "host": "postgres",
-                        "port": "5432",
-                        "user": "dayhoff",
-                        "password": "pw",
-                        "database": "dayhoff_compose",
-                        "schema_name": "tapdb_zebra_day_compose",
-                    }
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    cfg = _get_explicit_env_db_config(config_path, "dev")
-
-    assert cfg["engine_type"] == "compose"
-    assert cfg["host"] == "postgres"
-    assert cfg["schema_name"] == "tapdb_zebra_day_compose"
-
-
-def test_tapdb_fleet_repository_maps_compose_to_local_connection(monkeypatch, tmp_path):
+def test_tapdb_fleet_repository_uses_explicit_compose_target(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
     config_path = Path(tmp_path / "config" / "zebra-day-config-local.yaml")
     tapdb_config_path = tmp_path / "tapdb" / "tapdb-config.yaml"
@@ -156,28 +127,11 @@ def test_tapdb_fleet_repository_maps_compose_to_local_connection(monkeypatch, tm
     )
     _write_config(config_path, "local", payload)
     tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
-    tapdb_config_path.write_text(
-        yaml.safe_dump(
-            {
-                "environments": {
-                    "dev": {
-                        "engine_type": "compose",
-                        "host": "postgres",
-                        "port": "5432",
-                        "user": "dayhoff",
-                        "password": "pw",
-                        "database": "dayhoff_compose",
-                        "schema_name": "tapdb_zebra_day_compose",
-                    }
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
+    tapdb_config_path.write_text("target: {}\n", encoding="utf-8")
     monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(config_path))
-    monkeypatch.setenv("TAPDB_ENV", "dev")
     settings = ZebraDaySettings.from_context()
     captured: dict[str, object] = {}
+    get_db_calls: list[dict[str, object]] = []
 
     def fake_import(module_name: str):
         if module_name == "daylily_tapdb":
@@ -190,7 +144,18 @@ def test_tapdb_fleet_repository_maps_compose_to_local_connection(monkeypatch, tm
 
             return _TapdbModule
         if module_name == "daylily_tapdb.cli.db_config":
-            return SimpleNamespace()
+            return SimpleNamespace(
+                get_db_config=lambda **kwargs: get_db_calls.append(kwargs)
+                or {
+                    "engine_type": "compose",
+                    "host": "postgres",
+                    "port": "5432",
+                    "user": "dayhoff",
+                    "password": "pw",
+                    "database": "dayhoff_compose",
+                    "schema_name": "tapdb_zebra_day_compose",
+                }
+            )
         raise AssertionError(f"unexpected import request: {module_name}")
 
     monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
@@ -200,7 +165,14 @@ def test_tapdb_fleet_repository_maps_compose_to_local_connection(monkeypatch, tm
     repository._build_connection()
 
     assert captured["db_hostname"] == "postgres:5432"
-    assert captured["engine_type"] == "local"
+    assert captured["engine_type"] == "compose"
+    assert get_db_calls == [
+        {
+            "config_path": str(tapdb_config_path),
+            "client_id": settings.tapdb_client_id,
+            "database_name": settings.tapdb_database_name,
+        }
+    ]
 
 
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
