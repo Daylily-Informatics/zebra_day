@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
+import yaml
 from sqlalchemy import text
 
 from zebra_day import paths as xdg
@@ -309,6 +311,35 @@ class FleetRepository(Protocol):
     def create_print_job(self, payload: dict[str, Any]) -> None: ...
 
 
+def _get_explicit_env_db_config(config_path: Path, env_name: str) -> dict[str, str]:
+    if not config_path.is_file():
+        raise FileNotFoundError(f"TapDB config not found: {config_path}")
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    if not isinstance(payload, dict):
+        raise ValueError(f"TapDB config root must be a mapping: {config_path}")
+    environments = payload.get("environments")
+    if not isinstance(environments, dict):
+        raise ValueError(f"TapDB config is missing environments mapping: {config_path}")
+    env_cfg = environments.get(env_name)
+    if not isinstance(env_cfg, dict):
+        raise ValueError(f"TapDB config is missing environment {env_name!r}: {config_path}")
+    required = ("engine_type", "host", "port", "user", "database", "schema_name")
+    missing = [key for key in required if not str(env_cfg.get(key) or "").strip()]
+    if missing:
+        raise ValueError(
+            f"TapDB config environment {env_name!r} is missing: {', '.join(missing)}"
+        )
+    return {
+        "engine_type": str(env_cfg["engine_type"]).strip(),
+        "host": str(env_cfg["host"]).strip(),
+        "port": str(env_cfg["port"]).strip(),
+        "user": str(env_cfg["user"]).strip(),
+        "password": str(env_cfg.get("password") or ""),
+        "database": str(env_cfg["database"]).strip(),
+        "schema_name": str(env_cfg["schema_name"]).strip(),
+    }
+
+
 class TapDBFleetRepository:
     """TapDB-backed fleet repository."""
 
@@ -326,12 +357,19 @@ class TapDBFleetRepository:
     def _build_connection(self):
         tapdb_mod = _tapdb_import("daylily_tapdb")
         db_config_mod = _tapdb_import("daylily_tapdb.cli.db_config")
-        cfg = db_config_mod.get_db_config(
-            config_path=str(self.settings.tapdb_config_path),
-            client_id=self.settings.tapdb_client_id,
-            database_name=self.settings.tapdb_database_name,
-        )
+        tapdb_env = os.environ.get("TAPDB_ENV", "").strip()
+        if tapdb_env:
+            cfg = _get_explicit_env_db_config(self.settings.tapdb_config_path, tapdb_env)
+        else:
+            cfg = db_config_mod.get_db_config(
+                config_path=str(self.settings.tapdb_config_path),
+                client_id=self.settings.tapdb_client_id,
+                database_name=self.settings.tapdb_database_name,
+            )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
+        connection_engine_type = str(cfg["engine_type"])
+        if connection_engine_type == "compose":
+            connection_engine_type = "local"
         return tapdb_mod.TAPDBConnection(
             app_username=self.settings.tapdb_client_id,
             db_hostname=db_hostname,
@@ -340,7 +378,7 @@ class TapDBFleetRepository:
             db_name=cfg["database"],
             schema_name=cfg["schema_name"],
             echo_sql=False,
-            engine_type=str(cfg["engine_type"]),
+            engine_type=connection_engine_type,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
         )
@@ -368,7 +406,7 @@ class TapDBFleetRepository:
                 entity="generic_template",
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
+                prefix=str(euid_mod.GENERIC_TEMPLATE_PREFIX),
             )
             _ensure_identity_prefix_config(
                 session,

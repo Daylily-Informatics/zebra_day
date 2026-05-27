@@ -518,8 +518,8 @@ wheels = [
 
 [[package]]
 name = "daylily-tapdb"
-version = "7.0.3"
-source = { registry = "https://pypi.org/simple" }
+version = "7.0.6"
+source = { git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=7.0.6#2e913e8b92eaa5806a73e280b0897e062a23d89e" }
 dependencies = [
     { name = "cli-core-yo" },
     { name = "jsonschema" },
@@ -531,10 +531,6 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "typer" },
     { name = "uuid6" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/69/78/78f003bbb52701d5db448955b0d908fd1be7b6bccdd7aac123525966b063/daylily_tapdb-7.0.3.tar.gz", hash = "sha256:0a15a47d506a4ca7baa960c2ca4722c8bc18d7abcbd04a89bb662006159e628b", size = 374262, upload-time = "2026-05-17T10:12:58.97Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/5f/30f618ef19a8562931b436e2bfd0f96497836a9a4ce9025c51987df6dfeb/daylily_tapdb-7.0.3-py3-none-any.whl", hash = "sha256:c7365b2b3870eb60f432c9985ccafb02fd5129cfe7e47933a2c586eea725fbb2", size = 253801, upload-time = "2026-05-17T10:12:57.208Z" },
 ]
 
 [[package]]
@@ -2456,7 +2452,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.26.0" },
     { name = "cli-core-yo", specifier = "==2.1.1" },
     { name = "daylily-auth-cognito", specifier = "==2.1.5" },
-    { name = "daylily-tapdb", specifier = "==7.0.3" },
+    { name = "daylily-tapdb", git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=7.0.6" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "httpx" },
     { name = "ipython", specifier = ">=8.16.0" },
