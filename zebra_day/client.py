@@ -333,15 +333,28 @@ class TapDBFleetRepository:
         )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
         connection_engine_type = str(cfg["engine_type"])
+        region = str(cfg.get("region") or "").strip()
+        if connection_engine_type == "aurora" and not region:
+            raise RuntimeError("TapDB Aurora config is missing region")
+        iam_auth = str(cfg.get("iam_auth") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         return tapdb_mod.TAPDBConnection(
             app_username=self.settings.tapdb_client_id,
             db_hostname=db_hostname,
+            db_hostaddr=str(cfg.get("hostaddr") or "").strip() or None,
             db_user=cfg["user"],
             db_pass=cfg["password"],
             db_name=cfg["database"],
             schema_name=cfg["schema_name"],
             echo_sql=False,
             engine_type=connection_engine_type,
+            region=region,
+            iam_auth=iam_auth,
+            secret_arn=str(cfg.get("secret_arn") or "").strip() or None,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
         )
