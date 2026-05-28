@@ -1,3 +1,10 @@
+# Shell Session Defaults
+
+- Default to an interactive shell for shell work. On this Mac, use the user's default shell unless the user explicitly asks for another shell.
+- For AWS EC2, ParallelCluster, and other remote Linux hosts, default to an interactive `bash` login shell as `ubuntu`. Do not use `root` unless the user explicitly grants permission for that specific work; use targeted `sudo` from `ubuntu` when escalation is required.
+- For Daylily/DayOA/DAY-EC headnode workflow work, use an interactive `ubuntu` tmux/login-shell pane for controllers and workflow commands. Run setup as separate commands in that pane (`source dyoainit`, then `dy-a ...`, then `dy-r ...`) so aliases/functions are defined before use.
+- SSM Run Command is for simple inspection or for writing helper scripts through the supported helpers. Do not launch workflow controllers or rely on `dy-*` aliases from non-interactive SSM scripts.
+
 # AGENTS.md — zebra_day Project Directives
 
 ## What This Repo Is
@@ -90,6 +97,12 @@ pytest tests/ -v --tb=short
 
 - `setuptools_scm` — no hardcoded version. Tags are `X.Y.Z` (no `v` prefix).
 - `_version.py` is generated — do not edit or commit it.
+- Commit first, then tag the exact clean release commit.
+- Use annotated tags for release provenance: `git tag -a 2.0.19 -m "Release 2.0.19"`.
+- Lightweight tags are acceptable only for scratch/internal marks, not package releases.
+- Do not move or overwrite pushed version tags. If a pushed tag is wrong, cut the next patch version.
+- If signing is configured and expected, use signed annotated tags: `git tag -s 2.0.19 -m "Release 2.0.19"`.
+- Verify tag type with `git cat-file -t 2.0.18`; `tag` means annotated and `commit` means lightweight.
 
 ## Environment Variables
 

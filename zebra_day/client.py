@@ -332,6 +332,7 @@ class TapDBFleetRepository:
             database_name=self.settings.tapdb_database_name,
         )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
+        connection_engine_type = str(cfg["engine_type"])
         return tapdb_mod.TAPDBConnection(
             app_username=self.settings.tapdb_client_id,
             db_hostname=db_hostname,
@@ -340,7 +341,7 @@ class TapDBFleetRepository:
             db_name=cfg["database"],
             schema_name=cfg["schema_name"],
             echo_sql=False,
-            engine_type=str(cfg["engine_type"]),
+            engine_type=connection_engine_type,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
         )
@@ -368,7 +369,7 @@ class TapDBFleetRepository:
                 entity="generic_template",
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
+                prefix=str(euid_mod.GENERIC_TEMPLATE_PREFIX),
             )
             _ensure_identity_prefix_config(
                 session,

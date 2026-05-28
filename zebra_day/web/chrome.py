@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import colorsys
 import hashlib
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,17 @@ def region_color(name: str) -> str:
 
 
 def resolve_git_metadata(repo_root: Path | None = None) -> GitMetadata:
+    env_branch = os.environ.get("ZEBRA_DAY_GIT_BRANCH", "").strip()
+    env_tag = os.environ.get("ZEBRA_DAY_GIT_TAG", "").strip()
+    env_commit = os.environ.get("ZEBRA_DAY_GIT_COMMIT", "").strip()
+    if any((env_branch, env_tag, env_commit)):
+        if not all((env_branch, env_tag, env_commit)):
+            raise RuntimeError(
+                "ZEBRA_DAY_GIT_BRANCH, ZEBRA_DAY_GIT_TAG, and ZEBRA_DAY_GIT_COMMIT "
+                "must be set together."
+            )
+        return GitMetadata(branch=env_branch, tag=env_tag, commit=env_commit)
+
     root = repo_root or Path(__file__).resolve().parents[2]
 
     def _git(*args: str) -> str:

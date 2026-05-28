@@ -111,6 +111,61 @@ def test_tapdb_fleet_repository_builds_connection_with_zebra_scope(monkeypatch, 
     assert "prefix_registry_path" not in captured
 
 
+def test_tapdb_fleet_repository_passes_compose_engine_type(monkeypatch, tmp_path):
+    _set_xdg(monkeypatch, tmp_path)
+    config_path = Path(tmp_path / "config" / "zebra-day-config-local.yaml")
+    tapdb_config_path = tmp_path / "tapdb" / "tapdb-config.yaml"
+    domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
+    prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
+    payload = yaml.safe_load(build_default_config_template("local").decode("utf-8"))
+    payload["tapdb"].update(
+        {
+            "config_path": str(tapdb_config_path),
+            "domain_registry_path": str(domain_registry_path),
+            "prefix_ownership_registry_path": str(prefix_registry_path),
+        }
+    )
+    _write_config(config_path, "local", payload)
+    tapdb_config_path.parent.mkdir(parents=True, exist_ok=True)
+    tapdb_config_path.write_text("tapdb: {}\n", encoding="utf-8")
+    monkeypatch.setenv("ZEBRA_DAY_CONFIG_PATH", str(config_path))
+    settings = ZebraDaySettings.from_context()
+    captured: dict[str, object] = {}
+
+    def fake_import(module_name: str):
+        if module_name == "daylily_tapdb":
+
+            class _TapdbModule:
+                @staticmethod
+                def TAPDBConnection(**kwargs):
+                    captured.update(kwargs)
+                    return SimpleNamespace(session_scope=lambda commit=False: None)
+
+            return _TapdbModule
+        if module_name == "daylily_tapdb.cli.db_config":
+            return SimpleNamespace(
+                get_db_config=lambda *_args, **_kwargs: {
+                    "host": "postgres",
+                    "port": "5432",
+                    "user": "dayhoff",
+                    "password": "pw",
+                    "database": "dayhoff_compose",
+                    "schema_name": "tapdb_zebra_day_compose",
+                    "engine_type": "compose",
+                }
+            )
+        raise AssertionError(f"unexpected import request: {module_name}")
+
+    monkeypatch.setattr("zebra_day.client._tapdb_import", fake_import)
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = settings
+
+    repository._build_connection()
+
+    assert captured["db_hostname"] == "postgres:5432"
+    assert captured["engine_type"] == "compose"
+
+
 def test_ensure_prefix_ownership_registry_claims_zebra_prefix(monkeypatch, tmp_path):
     registry_path = tmp_path / "prefix_ownership_registry.json"
     registry_path.write_text(
@@ -226,6 +281,7 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
             )
         if module_name == "daylily_tapdb.euid":
             return SimpleNamespace(
+                GENERIC_TEMPLATE_PREFIX="TPX",
                 GENERIC_INSTANCE_LINEAGE_PREFIX="LNX",
                 AUDIT_LOG_PREFIX="ALG",
             )
@@ -247,7 +303,7 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
         "entity": "generic_template",
         "domain_code": "Z",
         "owner_repo_name": "zebra-day",
-        "prefix": "ZGX",
+        "prefix": "TPX",
     } in executed
     assert {
         "entity": "generic_instance_lineage",

@@ -7,7 +7,6 @@ import pytest
 
 from zebra_day import container_entry
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -16,6 +15,7 @@ def test_docker_runtime_files_use_foreground_uv_and_no_legacy_runtime() -> None:
     entrypoint = (PROJECT_ROOT / "docker" / "entrypoint.sh").read_text(encoding="utf-8")
 
     assert "uv sync --frozen --no-dev --no-install-project" in dockerfile
+    assert "COPY config ./config" in dockerfile
     assert "uv sync --frozen --no-dev" in dockerfile
     assert "USER lsmc" in dockerfile
     assert "python\", \"-m\", \"zebra_day.container_entry" in dockerfile
