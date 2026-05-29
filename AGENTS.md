@@ -134,3 +134,9 @@ pytest tests/ -v --tb=short
 - `kahlo`, `bloom`, and `zebra_day` are LSMC-internal only; `login`, `atlas`, `dewey`, and `ursa` are approved-network customer/collaborator services.
 - Service-host certs use DNS-01 renewal; do not depend on HTTP-01 public reachability for Zebra Day service hosts.
 - Future dev, test, and stage deployments must use their own approved-source lists, credentials, certificates, fleet state, and tenant data, separate from production.
+# DEPLOYED SERVICE GUI AUTH EVIDENCE
+
+- For deployed service acceptance, API health checks and HTTP `302` redirects are not sufficient. Also use Playwright or the bundled Playwright CLI workflow to open each deployed GUI login page, snapshot the page, click through to the Google OAuth option, and capture screenshots.
+- Store screenshots and records under `output/playwright/` or the deployment ledger evidence directory. Record service name, deploy name, URL, timestamp, screenshot paths, and status as `confirmed_success` or `confirmed_fail`.
+- If the Google OAuth click reaches an expected external blocker, such as `redirect_uri_mismatch`, record the exact callback URI and mark the row blocked instead of treating the service as healthy.
+- Debug and fix failures that are in repository/deployment scope. If the failure requires external configuration or human credentials, annotate the reason precisely. Do not enter real user credentials unless the user explicitly authorizes that in the current turn.

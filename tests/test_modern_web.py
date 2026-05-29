@@ -453,7 +453,7 @@ def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch)
     with _cognito_client(app) as test_client:
         response = test_client.get("/printers", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"].startswith("/auth/login?next=/printers")
+    assert response.headers["location"].startswith("/login?next=/printers")
 
 
 def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):
