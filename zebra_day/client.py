@@ -382,7 +382,7 @@ class TapDBFleetRepository:
                 entity="generic_template",
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=str(euid_mod.GENERIC_TEMPLATE_PREFIX),
+                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
             )
             _ensure_identity_prefix_config(
                 session,

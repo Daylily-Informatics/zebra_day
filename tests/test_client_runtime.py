@@ -381,8 +381,14 @@ def test_seed_templates_claims_prefixes_before_loader_seed(monkeypatch, tmp_path
         "entity": "generic_template",
         "domain_code": "Z",
         "owner_repo_name": "zebra-day",
-        "prefix": "TPX",
+        "prefix": "ZGX",
     } in executed
+    assert {
+        "entity": "generic_template",
+        "domain_code": "Z",
+        "owner_repo_name": "zebra-day",
+        "prefix": "TPX",
+    } not in executed
     assert {
         "entity": "generic_instance_lineage",
         "domain_code": "Z",
