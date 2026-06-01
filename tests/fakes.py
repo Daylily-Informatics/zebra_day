@@ -8,6 +8,7 @@ from zebra_day.client import PrinterRecord
 
 class FakeFleetRepository:
     def __init__(self) -> None:
+        self.labs: dict[str, dict[str, Any]] = {}
         self.printers: dict[tuple[str, str], PrinterRecord] = {}
         self.templates: dict[str, dict[str, Any]] = {}
         self.label_profiles: dict[str, dict[str, Any]] = {}
@@ -16,7 +17,18 @@ class FakeFleetRepository:
         self.print_jobs: list[dict[str, Any]] = []
 
     def list_labs(self) -> list[str]:
-        return sorted({lab for lab, _printer_id in self.printers})
+        return sorted(set(self.labs) | {lab for lab, _printer_id in self.printers})
+
+    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        body = {
+            "lab": lab,
+            "display_name": lab.replace("-", " ").title(),
+            "description": "",
+            **(payload or {}),
+        }
+        body["lab"] = lab
+        self.labs[lab] = body
+        return body
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         rows = list(self.printers.values())
@@ -77,6 +89,7 @@ class FakeFleetRepository:
 
 def sample_repository() -> FakeFleetRepository:
     repository = FakeFleetRepository()
+    repository.upsert_lab("default")
     repository.upsert_template(
         "tube_2inX1in", "^XA^FO30,30^FD{uid_barcode}^FS^XZ", source="package"
     )

@@ -26,6 +26,7 @@ from zebra_day.settings import ZebraDaySettings
 _log = get_logger(__name__)
 
 ZEBRA_DAY_TEMPLATE_CATEGORY = "ZGX"
+LAB_TEMPLATE_CODE = "ZGX/fleet/lab/1.0/"
 PRINTER_TEMPLATE_CODE = "ZGX/fleet/printer/1.0/"
 LABEL_PROFILE_TEMPLATE_CODE = "ZGX/labels/profile/1.0/"
 LABEL_TEMPLATE_TEMPLATE_CODE = "ZGX/labels/template/1.0/"
@@ -292,6 +293,7 @@ class PrinterRecord:
 
 class FleetRepository(Protocol):
     def list_labs(self) -> list[str]: ...
+    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]: ...
     def get_printer(self, lab: str, printer_id: str) -> PrinterRecord | None: ...
     def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None: ...
@@ -493,7 +495,30 @@ class TapDBFleetRepository:
                 _clean((item.json_addl or {}).get("lab"))
                 for item in self._query_instances(session, "printer")
             }
+            labs.update(
+                _clean((item.json_addl or {}).get("lab") or getattr(item, "name", ""))
+                for item in self._query_instances(session, "lab")
+            )
             return sorted(lab for lab in labs if lab)
+
+    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        normalized = _clean(lab)
+        if not normalized:
+            raise ValueError("lab is required")
+        body = {
+            "lab": normalized,
+            "display_name": normalized.replace("-", " ").title(),
+            "description": "",
+            **(payload or {}),
+        }
+        body["lab"] = normalized
+        return self._upsert_instance(
+            template_code=LAB_TEMPLATE_CODE,
+            subtype="lab",
+            name=normalized,
+            payload=body,
+            bstatus="active",
+        )
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         with self._session(commit=False) as session:
@@ -699,6 +724,18 @@ class ZebraDayClient:
     def list_labs(self) -> list[str]:
         return self.repository.list_labs()
 
+    def create_lab(
+        self, lab: str, *, display_name: str = "", description: str = ""
+    ) -> dict[str, Any]:
+        normalized = _clean(lab)
+        if not normalized:
+            raise ValueError("lab is required")
+        payload = {
+            "display_name": _clean(display_name) or normalized.replace("-", " ").title(),
+            "description": _clean(description),
+        }
+        return self.repository.upsert_lab(normalized, payload)
+
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         return self.repository.list_printers(lab)
 
@@ -877,6 +914,8 @@ class ZebraDayClient:
         scan_http_port: int | None = None,
         progress_callback=None,
     ) -> list[PrinterRecord]:
+        if lab not in self.list_labs():
+            raise KeyError(f"Lab '{lab}' not found. Create the lab before scanning printers.")
         found: list[PrinterRecord] = []
         for payload in discover_printers(
             ip_stub=ip_stub,
@@ -1068,6 +1107,21 @@ class ZebraDayApiClient:
 
     def list_labs(self) -> list[str]:
         return list(self._json("GET", "/api/v1/labs"))
+
+    def create_lab(
+        self, lab: str, *, display_name: str = "", description: str = ""
+    ) -> dict[str, Any]:
+        return dict(
+            self._json(
+                "POST",
+                "/api/v1/labs",
+                json={
+                    "lab": lab,
+                    "display_name": display_name,
+                    "description": description,
+                },
+            )
+        )
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         if lab is None:

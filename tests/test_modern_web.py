@@ -158,6 +158,7 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/print"),
         ("GET", "/config"),
         ("GET", "/api/v1/labs"),
+        ("POST", "/api/v1/labs"),
         ("GET", "/api/v1/labs/{lab}/printers"),
         ("GET", "/api/v1/labs/{lab}/printers/{printer_euid}"),
         ("PATCH", "/api/v1/labs/{lab}/printers/{printer_euid}"),
@@ -239,6 +240,10 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
     with TestClient(app) as client:
         labs = client.get("/api/v1/labs")
+        create_lab = client.post(
+            "/api/v1/labs",
+            json={"lab": "ops", "display_name": "Operations"},
+        )
         printers = client.get("/api/v1/labs/default/printers")
         runtime = client.get("/api/v1/config")
         preview = client.post(
@@ -248,7 +253,12 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
             "/api/v1/print",
             json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-1"},
         )
+        labs_after_create = client.get("/api/v1/labs")
     assert labs.json() == ["default"]
+    assert create_lab.status_code == 201
+    assert create_lab.json()["lab"] == "ops"
+    assert create_lab.json()["display_name"] == "Operations"
+    assert labs_after_create.json() == ["default", "ops"]
     assert printers.json()[0]["printer_euid"] == "default-printer-0001"
     assert "printer_id" not in printers.json()[0]
     assert "euid" not in printers.json()[0]
@@ -304,6 +314,10 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
             "/api/v1/labs/default/discover",
             json={"ip_stub": "192.168.1", "scan_http_port": 80},
         )
+        missing_lab_discover = client.post(
+            "/api/v1/labs/SS/discover",
+            json={"ip_stub": "192.168.1", "scan_http_port": 80},
+        )
         sync = client.post("/api/v1/labs/default/printers/default-printer-0001/sync")
         template_list = client.get("/api/v1/templates")
         template_detail = client.get("/api/v1/templates/tube_2inX1in")
@@ -335,6 +349,8 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert "printer_id" not in discover.json()[0]
     assert "euid" not in discover.json()[0]
     assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
+    assert missing_lab_discover.status_code == 404
+    assert "Create the lab before scanning printers" in missing_lab_discover.json()["detail"]
     assert sync.status_code == 200
     assert sync.json()["printer_euid"] == "default-printer-0001"
     assert "euid" not in sync.json()
@@ -412,6 +428,7 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
     with TestClient(app) as client:
         printers_by_lab = client.get("/printers/default")
+        missing_lab = client.get("/printers/SS")
         print_page = client.get(
             "/print?lab=default&printer_euid=default-printer-0001&label_zpl_style=tube_2inX1in"
         )
@@ -425,6 +442,10 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
 
     assert printers_by_lab.status_code == 200
     assert "Bench Printer" in printers_by_lab.text
+    assert missing_lab.status_code == 200
+    assert "Create Lab First" in missing_lab.text
+    assert "Lab <strong>SS</strong> is not configured yet" in missing_lab.text
+    assert "create-lab-form" in missing_lab.text
     assert print_page.status_code == 200
     assert "Print Label" in print_page.text
     assert openapi.status_code == 200
