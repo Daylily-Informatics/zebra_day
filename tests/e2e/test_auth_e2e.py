@@ -40,7 +40,8 @@ pytestmark = [
 
 def test_anonymous_root_redirects_into_cognito_login(anonymous_page: Page, base_url: str):
     anonymous_page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    expect_cognito_login_page(anonymous_page)
+    expect(anonymous_page).to_have_url(f"{base_url}/login?next=/")
+    expect(anonymous_page.locator("[data-testid='app-login-link']")).to_be_visible()
 
 
 def test_standard_user_login_round_trip(

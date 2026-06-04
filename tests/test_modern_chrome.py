@@ -47,6 +47,9 @@ def test_build_chrome_context_uses_environment_chrome_toggle_and_canonical_color
 
 
 def test_resolve_git_metadata_uses_exact_match_tag(monkeypatch) -> None:
+    monkeypatch.delenv("ZEBRA_DAY_GIT_BRANCH", raising=False)
+    monkeypatch.delenv("ZEBRA_DAY_GIT_TAG", raising=False)
+    monkeypatch.delenv("ZEBRA_DAY_GIT_COMMIT", raising=False)
     commands: list[tuple[str, ...]] = []
 
     def _run(cmd, check, capture_output, text):  # noqa: ANN001
@@ -80,3 +83,15 @@ def test_resolve_git_metadata_uses_exact_match_tag(monkeypatch) -> None:
     assert metadata.commit == "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
     assert metadata.short_commit == "deadbeefdead"
     assert commands
+
+
+def test_resolve_git_metadata_uses_explicit_container_env(monkeypatch) -> None:
+    monkeypatch.setenv("ZEBRA_DAY_GIT_BRANCH", "main")
+    monkeypatch.setenv("ZEBRA_DAY_GIT_TAG", "6.0.20-1-g9b730e9")
+    monkeypatch.setenv("ZEBRA_DAY_GIT_COMMIT", "9b730e9ffc41afa507d3be2c2ee52aeba49ad00f")
+
+    metadata = resolve_git_metadata(Path("/tmp/repo"))
+
+    assert metadata.branch == "main"
+    assert metadata.tag == "6.0.20-1-g9b730e9"
+    assert metadata.commit == "9b730e9ffc41afa507d3be2c2ee52aeba49ad00f"

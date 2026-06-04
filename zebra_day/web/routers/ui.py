@@ -6,7 +6,7 @@ import json
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from zebra_day.rbac import ADMIN_ALLOWED_ROLES, has_any_role
@@ -145,6 +145,8 @@ async def printers_index(request: Request):
         labs=labs,
         lab="",
         printers=printers,
+        missing_lab=False,
+        labs_json=json.dumps(labs),
         scan_wait=request.app.state.settings.default_scan_wait_seconds,
         ip_root=".".join(request.app.state.local_ip.split(".")[:-1]),
     )
@@ -154,15 +156,17 @@ async def printers_index(request: Request):
 @router.get("/printers/{lab}", response_class=HTMLResponse)
 async def printers_by_lab(request: Request, lab: str):
     client = _client(request)
-    if lab not in client.list_labs():
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+    labs = client.list_labs()
+    lab_exists = lab in labs
     context = get_modern_context(
         request,
         active_page="printers",
-        labs=client.list_labs(),
+        labs=labs,
         lab=lab,
         lab_display_name=lab.replace("-", " ").title(),
-        printers=client.list_printers(lab),
+        printers=client.list_printers(lab) if lab_exists else [],
+        missing_lab=not lab_exists,
+        labs_json=json.dumps(labs),
         scan_wait=request.app.state.settings.default_scan_wait_seconds,
         ip_root=".".join(request.app.state.local_ip.split(".")[:-1]),
     )

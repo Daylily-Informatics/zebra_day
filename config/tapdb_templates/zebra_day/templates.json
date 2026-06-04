@@ -2,6 +2,22 @@
   "$comment": "Canonical zebra_day TapDB template pack",
   "templates": [
     {
+      "name": "zebra_day Lab",
+      "polymorphic_discriminator": "equipment_template",
+      "category": "ZGX",
+      "type": "fleet",
+      "subtype": "lab",
+      "version": "1.0",
+      "instance_prefix": "ZGX",
+      "instance_polymorphic_identity": "equipment_instance",
+      "bstatus": "active",
+      "is_singleton": false,
+      "json_addl": {
+        "managed_by": "zebra-day",
+        "domain": "fleet"
+      }
+    },
+    {
       "name": "zebra_day Printer",
       "polymorphic_discriminator": "equipment_template",
       "category": "ZGX",

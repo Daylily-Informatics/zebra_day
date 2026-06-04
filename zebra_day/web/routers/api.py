@@ -33,6 +33,18 @@ class PrinterInfo(BaseModel):
     discovery_source: str = ""
 
 
+class LabInfo(BaseModel):
+    lab: str
+    display_name: str = ""
+    description: str = ""
+
+
+class LabCreateRequest(BaseModel):
+    lab: str
+    display_name: str = ""
+    description: str = ""
+
+
 class TemplateInfo(BaseModel):
     template_name: str
     zpl_content: str
@@ -124,10 +136,33 @@ async def list_labs(request: Request) -> list[str]:
     return list(_client(request).list_labs())
 
 
+@router.post("/labs", response_model=LabInfo, status_code=201)
+async def create_lab(request: Request, payload: LabCreateRequest) -> LabInfo:
+    lab = payload.lab.strip()
+    if not lab:
+        raise HTTPException(status_code=400, detail="lab is required")
+    try:
+        stored = _client(request).create_lab(
+            lab,
+            display_name=payload.display_name,
+            description=payload.description,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return LabInfo(
+        lab=lab,
+        display_name=str(stored.get("display_name") or lab.replace("-", " ").title()),
+        description=str(stored.get("description") or ""),
+    )
+
+
 @router.get("/labs/{lab}/printers", response_model=list[PrinterInfo])
 async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
     if lab not in _client(request).list_labs():
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Lab '{lab}' not found. Create the lab before managing printers.",
+        )
     return [_printer_info(item) for item in _client(request).list_printers(lab)]
 
 
@@ -164,11 +199,14 @@ async def discover_lab_printers(
     lab: str,
     payload: DiscoverRequest,
 ) -> list[PrinterInfo]:
-    rows = _client(request).discover_printers(
-        ip_stub=payload.ip_stub,
-        lab=lab,
-        scan_http_port=payload.scan_http_port,
-    )
+    try:
+        rows = _client(request).discover_printers(
+            ip_stub=payload.ip_stub,
+            lab=lab,
+            scan_http_port=payload.scan_http_port,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
     return [_printer_info(item) for item in rows]
 
 

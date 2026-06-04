@@ -807,4 +807,4 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         target = request.url.path
         if request.url.query:
             target = f"{target}?{request.url.query}"
-        return RedirectResponse(url=f"/auth/login?next={quote(target)}", status_code=302)
+        return RedirectResponse(url=f"/login?next={quote(target, safe='/')}", status_code=302)
