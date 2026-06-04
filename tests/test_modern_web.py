@@ -385,6 +385,9 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     assert "Effective Config" in config_response.text
     assert "Active Config Path" in config_response.text
     assert "Backend Configuration" not in config_response.text
+    assert "Add Lab Code" in config_response.text
+    assert 'id="config-create-lab-form"' in config_response.text
+    assert "/api/v1/labs" in config_response.text
     assert "Shared Templates" in templates_response.text
     assert "Import Local Templates to DynamoDB" not in templates_response.text
     assert __version__ in config_response.text

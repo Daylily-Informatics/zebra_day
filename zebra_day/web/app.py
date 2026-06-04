@@ -35,6 +35,10 @@ from zebra_day.web.auth import (
 )
 from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
+from zebra_day.web.tapdb_surfaces import (
+    mount_tapdb_surfaces,
+    zebra_day_tapdb_obs_services_fragment,
+)
 
 _log = get_logger(__name__)
 _PKG_PATH = Path(str(files("zebra_day")))
@@ -180,6 +184,7 @@ def create_app(
 
     app.include_router(ui.router)
     app.include_router(api.router, prefix="/api/v1", tags=["api"])
+    mount_tapdb_surfaces(app, resolved_settings)
 
     @app.get("/healthz")
     async def healthz(request: Request):
@@ -241,13 +246,30 @@ def create_app(
 
     @app.get("/obs_services")
     async def obs_services(request: Request):
+        payload = app.state.observability.obs_services_payload(
+            auth_mode=resolved_settings.auth_mode
+        )
+        if getattr(app.state, "tapdb_universal_configured", False):
+            fragment = zebra_day_tapdb_obs_services_fragment()
+            payload["endpoints"] = [
+                *list(payload.get("endpoints") or []),
+                *list(fragment.get("endpoints") or []),
+            ]
+            for key in ("extensions", "capabilities", "external_ref_models"):
+                existing = list(payload.get(key) or [])
+                for item in fragment.get(key) or []:
+                    if item not in existing:
+                        existing.append(item)
+                if existing:
+                    payload[key] = existing
+            payload["tapdb_dag_contract_version"] = str(
+                fragment.get("contract_version") or ""
+            )
         return app.state.observability.with_projection(
             request,
             name="obs_services",
             status="ok",
-            payload=app.state.observability.obs_services_payload(
-                auth_mode=resolved_settings.auth_mode
-            ),
+            payload=payload,
         )
 
     @app.get("/api_health")

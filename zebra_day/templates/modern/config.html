@@ -102,6 +102,27 @@
     </div>
 </div>
 
+<div class="card mt-lg">
+    <div class="card-header">
+        <h3 class="card-title">Add Lab Code</h3>
+    </div>
+    <form id="config-create-lab-form" class="grid grid-3">
+        <div class="form-group mb-0">
+            <label class="form-label" for="config-lab-code">Lab Code</label>
+            <input class="form-control" id="config-lab-code" type="text" placeholder="SS" required>
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label" for="config-lab-display-name">Display Name</label>
+            <input class="form-control" id="config-lab-display-name" type="text" placeholder="Sequencing Services">
+        </div>
+        <div class="form-group mb-0" style="display:flex;align-items:flex-end;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Save Lab
+            </button>
+        </div>
+    </form>
+</div>
+
 {% if labs %}
 <div class="card mt-lg">
     <div class="card-header">
@@ -120,4 +141,37 @@
     </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('config-create-lab-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const lab = document.getElementById('config-lab-code').value.trim();
+    const displayName = document.getElementById('config-lab-display-name').value.trim();
+    if (!lab) {
+        showToast('error', 'Missing lab code', 'Lab code is required.');
+        return;
+    }
+    showLoading('Saving lab...');
+    try {
+        const response = await fetch('/api/v1/labs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({lab: lab, display_name: displayName}),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Save lab failed', payload.detail || 'Unknown error');
+            return;
+        }
+        showToast('success', 'Lab saved', `${payload.lab} is ready for printer discovery.`);
+        window.location.href = `/printers/${encodeURIComponent(payload.lab)}`;
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Save lab failed', error.message || 'Unknown error');
+    }
+});
+</script>
 {% endblock %}
