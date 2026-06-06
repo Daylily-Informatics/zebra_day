@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import uuid
 from collections import defaultdict
@@ -11,9 +12,7 @@ from collections.abc import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from zebra_day.logging_config import get_logger
-
-_log = get_logger(__name__)
+_access_log = logging.getLogger("lsmc.access")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -52,12 +51,24 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             status_code = 500
             outcome = "exception"
-            _log.exception(
+            _access_log.exception(
                 "Request failed",
                 extra={
+                    "request_id": request_id,
+                    "correlation_id": correlation_id,
+                    "service_id": "zebra-day",
+                    "actor": getattr(request.state, "authorized_by_email", None),
+                    "agent_id": getattr(request.state, "agent_id", None),
+                    "ip": client_ip,
                     "client_ip": client_ip,
                     "method": method,
                     "path": path,
+                    "route": path_template or path,
+                    "status": status_code,
+                    "status_code": status_code,
+                    "duration_ms": round((time.perf_counter() - start_time) * 1000, 2),
+                    "auth_mode": getattr(request.state, "auth_mode", None),
+                    "outcome": outcome,
                     "error": str(exc),
                 },
             )
@@ -75,11 +86,14 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "service_id": "zebra-day",
             "actor": getattr(request.state, "authorized_by_email", None),
             "agent_id": getattr(request.state, "agent_id", None),
+            "ip": client_ip,
             "client_ip": client_ip,
             "method": method,
             "path": path,
             "route": path_template or path,
+            "status": status_code,
             "status_code": status_code,
+            "duration_ms": round(elapsed_ms, 2),
             "elapsed_ms": round(elapsed_ms, 2),
             "auth_mode": getattr(request.state, "auth_mode", None),
             "outcome": outcome,
@@ -95,11 +109,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Log at appropriate level
         if status_code >= 500:
-            _log.error("Request completed", extra=log_context)
+            _access_log.error("Request completed", extra=log_context)
         elif status_code >= 400:
-            _log.warning("Request completed", extra=log_context)
+            _access_log.warning("Request completed", extra=log_context)
         else:
-            _log.info("Request completed", extra=log_context)
+            _access_log.info("Request completed", extra=log_context)
 
         observability = getattr(request.app.state, "observability", None)
         if observability is not None:
