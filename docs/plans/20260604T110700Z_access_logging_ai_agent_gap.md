@@ -4,7 +4,14 @@ Created: 2026-06-04T11:07:00Z
 
 ## Status
 
-Zebra Day needs a follow-up implementation pass before Kahlo-issued AI-agent tokens can safely read Zebra Day search/detail APIs directly.
+SUPERSEDED for local `jem-dev` source by commit `b286b77` and release tag
+`7.0.1`. Zebra Day now has the local source pieces for Kahlo-issued read-only
+AI-agent validation, broker-backed theme preferences, and common access logging.
+
+Remaining acceptance moved to the Dayhoff final beta ledger:
+`/Users/jmajor/projects/mega_dayhoff/dayhoff/docs/plans/20260606T080000Z_final_beta_release_consolidation_ledger.md`.
+That acceptance requires the future `jemdev` deployment and must not use
+production `day` services.
 
 ## Required Contract
 
@@ -13,9 +20,12 @@ Zebra Day needs a follow-up implementation pass before Kahlo-issued AI-agent tok
 - Record every endpoint access with request ID, correlation ID, route template, status, duration, client IP, auth mode, human user, service ID, AI-agent ID, authorizing human, token ID prefix/hash, scopes, and denial reason.
 - Never log raw label contents, printer credentials, bearer tokens, cookies, or raw request/response bodies.
 
-## Current Gap
+## Historical Gap
 
-Zebra Day has historical structured/request logging notes, but current source does not prove the new uniform all-endpoint access-log schema with AI-agent provenance or Kahlo-issued AI-agent token validation.
+At creation time, Zebra Day had historical structured/request logging notes, but
+source did not prove the new uniform all-endpoint access-log schema with
+AI-agent provenance or Kahlo-issued AI-agent token validation. That is no longer
+the current local `jem-dev` source state.
 
 ## Acceptance
 
