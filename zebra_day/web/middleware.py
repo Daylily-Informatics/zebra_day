@@ -70,11 +70,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Build log context
         log_context = {
+            "request_id": request_id,
+            "correlation_id": correlation_id,
+            "service_id": "zebra-day",
+            "actor": getattr(request.state, "authorized_by_email", None),
+            "agent_id": getattr(request.state, "agent_id", None),
             "client_ip": client_ip,
             "method": method,
             "path": path,
+            "route": path_template or path,
             "status_code": status_code,
             "elapsed_ms": round(elapsed_ms, 2),
+            "auth_mode": getattr(request.state, "auth_mode", None),
             "outcome": outcome,
         }
 

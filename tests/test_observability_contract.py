@@ -7,11 +7,12 @@ from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
 import jsonschema
+import yaml
 from fastapi.testclient import TestClient
 
 from tests.fakes import sample_repository
 from zebra_day.client import ZebraDayClient
-from zebra_day.settings import ZebraDaySettings
+from zebra_day.settings import ZebraDaySettings, build_default_config_template
 from zebra_day.web.app import create_app
 from zebra_day.web.auth import SessionPrincipal, build_user_identity
 
@@ -35,6 +36,12 @@ def _set_xdg(monkeypatch, tmp_path, deployment: str = "local") -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("ZEBRA_DAY_DEPLOYMENT_CODE", deployment)
+    monkeypatch.setenv("ZEBRA_DAY_SESSION_SECRET", f"test-secret-{deployment}")
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = yaml.safe_load(build_default_config_template(deployment))
+    payload["tapdb"]["physical_database"] = f"tapdb_{deployment}"
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
 
 def _seed_client(tmp_path, monkeypatch) -> ZebraDayClient:

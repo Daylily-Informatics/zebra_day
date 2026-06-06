@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
+from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -12,6 +15,36 @@ from zebra_day import paths as xdg
 from zebra_day.client import PrinterRecord
 
 router = APIRouter()
+THEME_NAMES = {"original", "lsmc", "dark", "light", "tacky"}
+
+
+def _broker_preferences_contract(email: str) -> tuple[str, dict[str, str]]:
+    raw_url = str(os.environ.get("LSMC_AUTH_BROKER_USER_PREFERENCES_URL") or "").strip()
+    token = str(os.environ.get("LSMC_AUTH_BROKER_SERVICE_TOKEN") or "").strip()
+    service_id = str(os.environ.get("LSMC_AUTH_BROKER_SERVICE_ID") or "zebra-day").strip()
+    if not raw_url:
+        raise HTTPException(status_code=503, detail="Broker user preferences URL is not configured")
+    if not token:
+        raise HTTPException(status_code=503, detail="Broker service token is not configured")
+    if "{email}" not in raw_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Broker user preferences URL must include {email}",
+        )
+    return raw_url.replace("{email}", quote(email, safe="")), {
+        "Authorization": f"Bearer {token}",
+        "X-LSMC-Service-ID": service_id,
+    }
+
+
+def _authenticated_email(request: Request) -> str:
+    user = getattr(request.state, "user", None)
+    if not isinstance(user, dict):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    email = str(user.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Authenticated user email is required")
+    return email
 
 
 class PrinterInfo(BaseModel):
@@ -43,6 +76,30 @@ class LabCreateRequest(BaseModel):
     lab: str
     display_name: str = ""
     description: str = ""
+
+
+@router.get("/me/preferences")
+async def current_user_preferences(request: Request) -> dict[str, Any]:
+    url, headers = _broker_preferences_contract(_authenticated_email(request))
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.get(url, headers=headers)
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
+
+
+@router.put("/me/preferences")
+async def update_current_user_preferences(request: Request) -> dict[str, Any]:
+    payload = await request.json()
+    theme = str(payload.get("theme") or "").strip()
+    if theme and theme not in THEME_NAMES:
+        raise HTTPException(status_code=400, detail="Unknown theme")
+    url, headers = _broker_preferences_contract(_authenticated_email(request))
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.put(url, headers=headers, json={"theme": theme or None})
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return response.json()
 
 
 class TemplateInfo(BaseModel):
