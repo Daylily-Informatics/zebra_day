@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -13,6 +14,52 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 _access_log = logging.getLogger("lsmc.access")
+
+
+def _common_access_log_payload(
+    *,
+    request: Request,
+    service_id: str,
+    status_code: int,
+    duration_ms: float,
+    route_template: str,
+) -> dict[str, object]:
+    actor = (
+        getattr(request.state, "authorized_by_email", None)
+        or getattr(request.state, "authorizing_human", None)
+        or getattr(request.state, "actor", None)
+    )
+    ai_agent_id = getattr(request.state, "ai_agent_id", None) or getattr(
+        request.state, "agent_id", None
+    )
+    return {
+        "event": "request_completed",
+        "request_id": getattr(request.state, "request_id", ""),
+        "correlation_id": getattr(request.state, "correlation_id", ""),
+        "service_id": service_id,
+        "actor": actor,
+        "ai_agent_id": ai_agent_id,
+        "authorizing_human": getattr(request.state, "authorizing_human", None)
+        or getattr(request.state, "authorized_by_email", None),
+        "ip": request.client.host if request.client else None,
+        "method": request.method,
+        "path": request.url.path,
+        "route": route_template or request.url.path,
+        "route_template": route_template or request.url.path,
+        "status": status_code,
+        "duration_ms": round(duration_ms, 2),
+        "denial_reason": getattr(request.state, "denial_reason", None)
+        or (f"http_{status_code}" if status_code in {401, 403} else None),
+        "auth_mode": getattr(request.state, "auth_mode", None),
+    }
+
+
+def _emit_access_log(payload: dict[str, object], *, level: int = logging.INFO) -> None:
+    _access_log.log(
+        level,
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+        extra=payload,
+    )
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -51,27 +98,16 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             status_code = 500
             outcome = "exception"
-            _access_log.exception(
-                "Request failed",
-                extra={
-                    "request_id": request_id,
-                    "correlation_id": correlation_id,
-                    "service_id": "zebra-day",
-                    "actor": getattr(request.state, "authorized_by_email", None),
-                    "agent_id": getattr(request.state, "agent_id", None),
-                    "ip": client_ip,
-                    "client_ip": client_ip,
-                    "method": method,
-                    "path": path,
-                    "route": path_template or path,
-                    "status": status_code,
-                    "status_code": status_code,
-                    "duration_ms": round((time.perf_counter() - start_time) * 1000, 2),
-                    "auth_mode": getattr(request.state, "auth_mode", None),
-                    "outcome": outcome,
-                    "error": str(exc),
-                },
+            payload = _common_access_log_payload(
+                request=request,
+                service_id="zebra-day",
+                status_code=status_code,
+                duration_ms=(time.perf_counter() - start_time) * 1000,
+                route_template=path_template or path,
             )
+            payload["outcome"] = outcome
+            payload["error"] = str(exc)
+            _emit_access_log(payload, level=logging.ERROR)
             raise
 
         route = request.scope.get("route")
@@ -79,25 +115,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         request.state.path_template = path_template
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
-        # Build log context
-        log_context = {
-            "request_id": request_id,
-            "correlation_id": correlation_id,
-            "service_id": "zebra-day",
-            "actor": getattr(request.state, "authorized_by_email", None),
-            "agent_id": getattr(request.state, "agent_id", None),
-            "ip": client_ip,
-            "client_ip": client_ip,
-            "method": method,
-            "path": path,
-            "route": path_template or path,
-            "status": status_code,
-            "status_code": status_code,
-            "duration_ms": round(elapsed_ms, 2),
-            "elapsed_ms": round(elapsed_ms, 2),
-            "auth_mode": getattr(request.state, "auth_mode", None),
-            "outcome": outcome,
-        }
+        log_context = _common_access_log_payload(
+            request=request,
+            service_id="zebra-day",
+            status_code=status_code,
+            duration_ms=elapsed_ms,
+            route_template=path_template or path,
+        )
+        log_context["client_ip"] = client_ip
+        log_context["status_code"] = status_code
+        log_context["elapsed_ms"] = round(elapsed_ms, 2)
+        log_context["outcome"] = outcome
 
         # Add print-specific context if relevant
         if lab:
@@ -109,11 +137,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Log at appropriate level
         if status_code >= 500:
-            _access_log.error("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.ERROR)
         elif status_code >= 400:
-            _access_log.warning("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.WARNING)
         else:
-            _access_log.info("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.INFO)
 
         observability = getattr(request.app.state, "observability", None)
         if observability is not None:
