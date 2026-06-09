@@ -172,6 +172,7 @@ class RenderResponse(BaseModel):
 class DiscoverRequest(BaseModel):
     ip_stub: str
     scan_http_port: int | None = None
+    scan_wait: float | None = Field(None, gt=0, le=30)
 
 
 class TemplateSaveRequest(BaseModel):
@@ -263,9 +264,12 @@ async def discover_lab_printers(
             ip_stub=payload.ip_stub,
             lab=lab,
             scan_http_port=payload.scan_http_port,
+            scan_wait=payload.scan_wait,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return [_printer_info(item) for item in rows]
 
 

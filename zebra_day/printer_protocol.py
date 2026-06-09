@@ -142,6 +142,18 @@ def discover_printers(
                     }
                 )
 
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "kind": "checked",
+                    "checked": offset,
+                    "total": total,
+                    "ip": ip_address,
+                    "open": bool(source),
+                    "source": source or "",
+                }
+            )
+
     if progress_callback is not None:
         progress_callback({"kind": "done", "checked": total, "total": total})
     _log.info("Discovery scan complete for %s.*: %d printers found", ip_stub, len(results))

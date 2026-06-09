@@ -191,7 +191,7 @@ function startNetworkScan(event, formEl) {
     return false;
 }
 
-function startNetworkScanWithParams(ipStub, scanWait, lab) {
+function startNetworkScanWithParams(ipStub, scanWait, lab, scanHttpPort) {
     // Close any existing scan stream
     if (window.__zdayNetworkScan.source) {
         try { window.__zdayNetworkScan.source.close(); } catch (_) {}
@@ -227,6 +227,9 @@ function startNetworkScanWithParams(ipStub, scanWait, lab) {
         scan_wait: scanWait,
         lab: lab,
     });
+    if (scanHttpPort) {
+        params.set('scan_http_port', scanHttpPort);
+    }
 
     const source = new EventSource(`/config/scan/stream?${params.toString()}`);
     window.__zdayNetworkScan.source = source;
@@ -263,7 +266,7 @@ function startNetworkScanWithParams(ipStub, scanWait, lab) {
             if (els.list) {
                 const row = document.createElement('div');
                 row.className = 'scan-ip-row';
-                const meta = msg.open ? 'open:9100' : 'closed';
+                const meta = msg.open ? `open:${msg.source || 'printer'}` : 'closed';
                 row.innerHTML = `<span class="scan-ip">${msg.ip}</span><span class="scan-ip-meta">${meta}</span>`;
                 els.list.appendChild(row);
                 els.list.scrollTop = els.list.scrollHeight;
@@ -341,4 +344,3 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
-

@@ -157,6 +157,8 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/templates"),
         ("GET", "/print"),
         ("GET", "/config"),
+        ("GET", "/api/v1/me/preferences"),
+        ("PUT", "/api/v1/me/preferences"),
         ("GET", "/api/v1/labs"),
         ("POST", "/api/v1/labs"),
         ("GET", "/api/v1/labs/{lab}/printers"),
@@ -189,6 +191,8 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/auth/lsmc/callback"),
         ("GET", "/auth/logout"),
         ("POST", "/auth/logout"),
+        ("GET", "/config/scan/stream"),
+        ("POST", "/config/scan/cancel"),
         ("GET", "/auth/error"),
         ("GET", "/openapi.json"),
         ("GET", "/docs"),
@@ -312,7 +316,7 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
         )
         discover = client.post(
             "/api/v1/labs/default/discover",
-            json={"ip_stub": "192.168.1", "scan_http_port": 80},
+            json={"ip_stub": "192.168.1", "scan_http_port": 80, "scan_wait": 0.2},
         )
         missing_lab_discover = client.post(
             "/api/v1/labs/SS/discover",
@@ -445,6 +449,7 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
 
     assert printers_by_lab.status_code == 200
     assert "Bench Printer" in printers_by_lab.text
+    assert "Wait Per IP (s)" in printers_by_lab.text
     assert missing_lab.status_code == 200
     assert "Create Lab First" in missing_lab.text
     assert "Lab <strong>SS</strong> is not configured yet" in missing_lab.text
@@ -465,6 +470,57 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
     assert logout_get.headers["location"] == "/login"
     assert logout_post.status_code == 302
     assert logout_post.headers["location"] == "/login"
+
+
+def test_printer_scan_stream_reports_progress_and_uses_wait(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    observed: dict[str, object] = {}
+
+    def fake_discover(self, *, ip_stub, lab, scan_http_port=None, scan_wait=None, progress_callback=None):
+        del self
+        observed.update(
+            {
+                "ip_stub": ip_stub,
+                "lab": lab,
+                "scan_http_port": scan_http_port,
+                "scan_wait": scan_wait,
+            }
+        )
+        assert progress_callback is not None
+        progress_callback({"kind": "checking", "checked": 0, "total": 254, "ip": "127.0.0.1"})
+        progress_callback(
+            {
+                "kind": "checked",
+                "checked": 1,
+                "total": 254,
+                "ip": "127.0.0.1",
+                "open": True,
+                "source": "http(80)",
+            }
+        )
+        progress_callback({"kind": "done", "checked": 254, "total": 254})
+        return []
+
+    monkeypatch.setattr(ZebraDayClient, "discover_printers", fake_discover)
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        response = client.get(
+            "/config/scan/stream?ip_stub=127.0.0&lab=default&scan_wait=0.2&scan_http_port=80"
+        )
+        cancel = client.post("/config/scan/cancel?scan_id=missing")
+
+    assert response.status_code == 200
+    assert '"kind": "init"' in response.text
+    assert '"kind": "checked"' in response.text
+    assert '"source": "http(80)"' in response.text
+    assert observed == {
+        "ip_stub": "127.0.0",
+        "lab": "default",
+        "scan_http_port": 80,
+        "scan_wait": 0.2,
+    }
+    assert cancel.status_code == 200
+    assert cancel.json()["status"] == "cancelling"
 
 
 def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch):

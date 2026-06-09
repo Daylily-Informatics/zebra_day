@@ -258,6 +258,10 @@ def test_build_zpl_render_preview_and_discover(monkeypatch, tmp_path):
     assert progress[0]["kind"] == "checking"
     assert any(event["kind"] == "found" and event["ip"] == "192.168.50.10" for event in progress)
     assert any(event["kind"] == "found" and event["ip"] == "192.168.50.20" for event in progress)
+    assert any(
+        event["kind"] == "checked" and event["ip"] == "192.168.50.20" and event["open"]
+        for event in progress
+    )
     assert progress[-1] == {"kind": "done", "checked": 254, "total": 254}
 
     with pytest.raises(ValueError, match="must not end with a trailing dot"):

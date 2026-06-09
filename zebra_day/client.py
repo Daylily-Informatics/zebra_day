@@ -912,14 +912,20 @@ class ZebraDayClient:
         ip_stub: str,
         lab: str,
         scan_http_port: int | None = None,
+        scan_wait: float | None = None,
         progress_callback=None,
     ) -> list[PrinterRecord]:
         if lab not in self.list_labs():
             raise KeyError(f"Lab '{lab}' not found. Create the lab before scanning printers.")
+        resolved_scan_wait = (
+            float(scan_wait)
+            if scan_wait is not None
+            else self.settings.default_scan_wait_seconds
+        )
         found: list[PrinterRecord] = []
         for payload in discover_printers(
             ip_stub=ip_stub,
-            scan_wait=self.settings.default_scan_wait_seconds,
+            scan_wait=resolved_scan_wait,
             scan_http_port=scan_http_port,
             progress_callback=progress_callback,
         ):
