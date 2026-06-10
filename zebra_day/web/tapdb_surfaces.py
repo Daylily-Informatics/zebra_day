@@ -10,7 +10,7 @@ from daylily_tapdb.web import (
     TapdbHostNavLink,
     build_dag_capability_advertisement,
     create_tapdb_dag_router,
-    create_tapdb_web_app,
+    create_tapdb_gui_app,
 )
 from fastapi import Depends, FastAPI, HTTPException, Request
 
@@ -120,7 +120,7 @@ def mount_tapdb_surfaces(app: FastAPI, settings: ZebraDaySettings) -> bool:
     bridge = build_tapdb_host_bridge(settings)
     app.mount(
         "/tapdb",
-        create_tapdb_web_app(
+        create_tapdb_gui_app(
             config_path=config_path,
             host_bridge=bridge,
         ),

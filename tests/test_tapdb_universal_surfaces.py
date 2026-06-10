@@ -77,7 +77,7 @@ def _configured_app(monkeypatch, tmp_path):
     settings = ZebraDaySettings.from_context()
     _write_tapdb_config(settings)
     monkeypatch.setattr(
-        "zebra_day.web.tapdb_surfaces.create_tapdb_web_app",
+        "zebra_day.web.tapdb_surfaces.create_tapdb_gui_app",
         lambda **_kwargs: _dummy_tapdb_app(),
     )
     monkeypatch.setattr(

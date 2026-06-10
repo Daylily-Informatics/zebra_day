@@ -115,6 +115,8 @@ def test_simulated_printer_serves_zpl_http_and_status_queries():
             "model": "",
             "serial": "",
             "source": f"http({http_port})",
+            "http_verified": True,
+            "http_status": 200,
         }
     finally:
         printer.stop()
@@ -268,8 +270,10 @@ def test_build_zpl_render_preview_and_discover(monkeypatch, tmp_path):
         printer_protocol.discover_printers(ip_stub="192.168.50.", scan_wait=0.01)
 
 
-def test_http_probe_rejects_non_zebra_pages(monkeypatch):
+def test_http_probe_reports_requested_http_open_pages(monkeypatch):
     class _Response:
+        status = 200
+
         def read(self, size: int = -1) -> bytes:
             return b"<html>ordinary printer</html>"
 
@@ -290,4 +294,44 @@ def test_http_probe_rejects_non_zebra_pages(monkeypatch):
             return None
 
     monkeypatch.setattr(printer_protocol.http.client, "HTTPConnection", _Connection)
-    assert printer_protocol._http_probe("192.168.1.5", 80, 0.1) is None
+    assert printer_protocol._http_probe("192.168.1.5", 80, 0.1) == {
+        "printer_name": "HTTP printer endpoint",
+        "model": "HTTP endpoint",
+        "serial": "",
+        "source": "http(80)",
+        "http_verified": False,
+        "http_status": 200,
+    }
+
+
+def test_discover_printers_respects_minimum_wait_per_ip(monkeypatch):
+    timeline = [100.0]
+    sleeps: list[float] = []
+
+    def fake_monotonic() -> float:
+        return timeline[0]
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        timeline[0] += seconds
+
+    class _FakePrinter:
+        def __init__(self, ip_address: str, port: int = 9100) -> None:
+            self.ip_address = ip_address
+            self.port = port
+
+        def get_host_identification(self, timeout: float = 0.0):
+            return {}
+
+        def get_serial_number(self, timeout: float = 0.0):
+            return None
+
+    monkeypatch.setattr(printer_protocol, "monotonic", fake_monotonic)
+    monkeypatch.setattr(printer_protocol, "sleep", fake_sleep)
+    monkeypatch.setattr(printer_protocol, "ZebraPrinter", _FakePrinter)
+    monkeypatch.setattr(printer_protocol, "_http_probe", lambda ip_address, port, timeout: None)
+
+    printer_protocol.discover_printers(ip_stub="192.168.60", scan_wait=0.2)
+
+    assert len(sleeps) == 254
+    assert sleeps[:3] == [pytest.approx(0.2), pytest.approx(0.2), pytest.approx(0.2)]

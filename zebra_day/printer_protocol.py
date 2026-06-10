@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import http.client
 import socket
+from time import monotonic, sleep
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -68,13 +69,17 @@ def _http_probe(ip_address: str, port: int, timeout: float) -> dict[str, Any] | 
         return None
 
     haystack = body.lower()
-    if "zebra" not in haystack and "zpl" not in haystack:
+    status = int(getattr(response, "status", 0) or 0)
+    if status >= 500:
         return None
+    verified = "zebra" in haystack or "zpl" in haystack
     return {
-        "printer_name": "",
-        "model": "",
+        "printer_name": "HTTP printer endpoint" if not verified else "",
+        "model": "" if verified else "HTTP endpoint",
         "serial": "",
         "source": f"http({port})",
+        "http_verified": verified,
+        "http_status": status,
     }
 
 
@@ -94,6 +99,7 @@ def discover_printers(
     results: list[dict[str, Any]] = []
     total = 254
     for offset in range(1, 255):
+        started_at = monotonic()
         ip_address = f"{ip_stub}.{offset}"
         if progress_callback is not None:
             progress_callback(
@@ -151,8 +157,12 @@ def discover_printers(
                     "ip": ip_address,
                     "open": bool(source),
                     "source": source or "",
+                    "elapsed_ms": int((monotonic() - started_at) * 1000),
                 }
             )
+        remaining_wait = scan_wait - (monotonic() - started_at)
+        if remaining_wait > 0:
+            sleep(remaining_wait)
 
     if progress_callback is not None:
         progress_callback({"kind": "done", "checked": total, "total": total})

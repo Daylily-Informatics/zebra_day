@@ -165,8 +165,8 @@ class PrintRateLimiter:
 
     def __init__(
         self,
-        max_requests: int = 10,
-        window_seconds: float = 60.0,
+        max_requests: int = 3,
+        window_seconds: float = 1.0,
         max_concurrent: int = 3,
     ):
         """
