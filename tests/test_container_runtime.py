@@ -26,6 +26,7 @@ def test_docker_runtime_files_use_foreground_uv_and_no_legacy_runtime() -> None:
         "ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ZEBRA_DAY=${SETUPTOOLS_SCM_PRETEND_VERSION}"
         in dockerfile
     )
+    assert dockerfile.count("unset SETUPTOOLS_SCM_PRETEND_VERSION && uv sync") == 2
     assert "tmux" not in entrypoint
     assert "background" not in entrypoint
     assert "${ZEBRA_DAY_CONFIG_PATH:?ZEBRA_DAY_CONFIG_PATH is required}" in entrypoint

@@ -15,11 +15,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN unset SETUPTOOLS_SCM_PRETEND_VERSION && uv sync --frozen --no-dev --no-install-project
 
 COPY config ./config
 COPY zebra_day ./zebra_day
-RUN uv sync --frozen --no-dev
+RUN unset SETUPTOOLS_SCM_PRETEND_VERSION && uv sync --frozen --no-dev
 
 FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
