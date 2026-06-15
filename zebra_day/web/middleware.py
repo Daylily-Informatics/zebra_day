@@ -16,6 +16,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _access_log = logging.getLogger("lsmc.access")
 
 
+def _normalize_route_template(*, path: str, route_template: str) -> str:
+    """Return the externally visible route template for mounted API routers."""
+    if path.startswith("/api/v1/") and route_template.startswith("/") and not route_template.startswith(
+        "/api/v1/"
+    ):
+        return f"/api/v1{route_template}"
+    return route_template or path
+
+
 def _common_access_log_payload(
     *,
     request: Request,
@@ -82,7 +91,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
         route = request.scope.get("route")
-        path_template = getattr(route, "path", path)
+        path_template = _normalize_route_template(
+            path=path,
+            route_template=getattr(route, "path", path),
+        )
         request.state.path_template = path_template
         str(request.query_params) if request.query_params else ""
 
@@ -111,7 +123,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             raise
 
         route = request.scope.get("route")
-        path_template = getattr(route, "path", path)
+        path_template = _normalize_route_template(
+            path=path,
+            route_template=getattr(route, "path", path),
+        )
         request.state.path_template = path_template
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 

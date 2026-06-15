@@ -1,10 +1,25 @@
 import asyncio
+import threading
 
 from zebra_day.web.middleware import PrintRateLimiter, print_rate_limiter
 
 
 def _run(coro):
-    return asyncio.run(coro)
+    result: list[object] = []
+    errors: list[BaseException] = []
+
+    def _target() -> None:
+        try:
+            result.append(asyncio.run(coro))
+        except BaseException as exc:  # pragma: no cover - propagated below
+            errors.append(exc)
+
+    thread = threading.Thread(target=_target)
+    thread.start()
+    thread.join()
+    if errors:
+        raise errors[0]
+    return result[0] if result else None
 
 
 def test_default_print_rate_limiter_allows_three_labels_per_second() -> None:

@@ -15,7 +15,7 @@ from zebra_day import paths as xdg
 from zebra_day.client import PrinterRecord
 
 router = APIRouter()
-THEME_NAMES = {"original", "lsmc", "dark", "light", "tacky"}
+THEME_NAMES = {"original", "light", "dark", "cbf"}
 
 
 def _broker_preferences_contract(email: str) -> tuple[str, dict[str, str]]:

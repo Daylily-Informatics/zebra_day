@@ -38,8 +38,6 @@ h3 {
     margin-bottom: auto;
 }
     
-@import url('https://fonts.googleapis.com/css2?family=DejaVu+Sans+Mono&display=swap');
-
 .spinner-hidden {
     display: none;
     position: fixed;
@@ -180,4 +178,3 @@ hr {
 }
 
 /* If you implement dark mode, you'll need styles for it here */
-

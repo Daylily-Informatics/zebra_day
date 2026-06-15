@@ -26,6 +26,9 @@ def get_deployment_code() -> str:
     explicit_deployment = os.environ.get("ZEBRA_DAY_DEPLOYMENT_CODE", "").strip()
     if explicit_deployment:
         return sanitize_deployment_code(explicit_deployment)
+    conda_env = os.environ.get("CONDA_DEFAULT_ENV", "").strip()
+    if conda_env.startswith("ZEBRA_DAY-"):
+        return sanitize_deployment_code(conda_env.removeprefix("ZEBRA_DAY-"))
     return sanitize_deployment_code(
         os.environ.get("DEPLOYMENT_CODE") or os.environ.get("LSMC_DEPLOYMENT_CODE")
     )

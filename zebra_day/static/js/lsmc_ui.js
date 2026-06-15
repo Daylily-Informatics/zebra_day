@@ -1,5 +1,6 @@
 (function () {
-  const themes = ["original", "lsmc", "dark", "light", "tacky"];
+  const themes = ["original", "light", "dark", "cbf"];
+  const themeLabels = { cbf: "CBF" };
   const storageKey = "lsmc.ui.theme";
 
   function currentTheme() {
@@ -47,7 +48,7 @@
     wrap.className = "lsmc-theme-control";
     wrap.innerHTML = '<label>Theme <select></select></label>';
     const select = wrap.querySelector("select");
-    for (const theme of themes) select.appendChild(new Option(theme, theme));
+    for (const theme of themes) select.appendChild(new Option(themeLabels[theme] || theme, theme));
     select.value = currentTheme();
     select.addEventListener("change", () => {
       applyTheme(select.value);

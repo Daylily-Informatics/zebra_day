@@ -110,6 +110,17 @@ def _runtime_inventory(app) -> tuple[set[tuple[str, str]], set[str]]:
     routes: set[tuple[str, str]] = set()
     mounts: set[str] = set()
     for route in app.routes:
+        effective_contexts = getattr(route, "effective_route_contexts", None)
+        if effective_contexts:
+            for context in effective_contexts():
+                path = str(getattr(context, "path", "") or "").strip()
+                if not path:
+                    continue
+                route_methods = {
+                    method for method in getattr(context, "methods", set()) if method in methods
+                }
+                routes.update((method, path) for method in route_methods)
+            continue
         path = str(getattr(route, "path", "") or "").strip()
         if not path:
             continue

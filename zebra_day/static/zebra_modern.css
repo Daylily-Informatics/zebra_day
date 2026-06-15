@@ -1058,3 +1058,782 @@ html[data-theme="tacky"] body {
 html[data-theme="tacky"] .lsmc-action-help-button {
   background: #ff00b8;
 }
+
+/* LSMC skin-system primitives. CBF is color-blind-friendly, not privacy masking. */
+html[data-theme="cbf"] {
+  color-scheme: light;
+  --ui-bg: #f7f7f2;
+  --ui-surface: #ffffff;
+  --ui-surface-2: #f1f5f9;
+  --ui-surface-3: #e2e8f0;
+  --ui-text: #111827;
+  --ui-muted: #334155;
+  --ui-border: #111827;
+  --ui-accent: #1f4e79;
+  --ui-accent-2: #6b4c9a;
+  --ui-info: #1f4e79;
+  --ui-ok: #2f6f4e;
+  --ui-warn: #946200;
+  --ui-danger: #8f2d28;
+  --ui-decision: #5c3d99;
+  --ui-radius-xs: 3px;
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-density-card-pad: 0.85rem;
+  --ui-density-table-y: 0.45rem;
+  --ui-density-table-x: 0.65rem;
+  --ui-font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ui-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+html[data-theme="cbf"] body {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+html[data-theme="cbf"] a {
+  color: var(--ui-accent);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+.lsmc-status,
+.authority-chip,
+.euid-pill,
+.xid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1.5px solid var(--ui-border, currentColor);
+  border-radius: var(--ui-radius-sm, 4px);
+  padding: 0.12rem 0.45rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.lsmc-status::before {
+  content: "i";
+  font-weight: 900;
+}
+
+.lsmc-status[data-criticality="warning"] {
+  border-style: dashed;
+}
+
+.lsmc-status[data-criticality="warning"]::before {
+  content: "▲";
+}
+
+.lsmc-status[data-criticality="stop"] {
+  border-width: 3px;
+}
+
+.lsmc-status[data-criticality="stop"]::before {
+  content: "■";
+}
+
+.lsmc-status[data-criticality="decision"] {
+  text-decoration: underline;
+}
+
+.lsmc-status[data-criticality="decision"]::before,
+.lsmc-status[data-authority="r2"]::before {
+  content: "◆";
+}
+
+.relationship-row,
+.evidence-card,
+.raw-payload-drawer {
+  border: 1px solid var(--ui-border, currentColor);
+  border-radius: var(--ui-radius-md, 6px);
+}
+
+html[data-theme="cbf"] [class*="status-"],
+html[data-theme="cbf"] [class*="badge"] {
+  border: 2px solid currentColor;
+  font-weight: 750;
+}
+
+html[data-theme="cbf"] [class*="status-"]::before,
+html[data-theme="cbf"] [class*="badge"]::before {
+  content: "● ";
+}
+
+html[data-theme="cbf"] [class*="warn"]::before,
+html[data-theme="cbf"] [class*="hold"]::before {
+  content: "▲ ";
+}
+
+html[data-theme="cbf"] [class*="danger"]::before,
+html[data-theme="cbf"] [class*="error"]::before,
+html[data-theme="cbf"] [class*="fail"]::before,
+html[data-theme="cbf"] [class*="stop"]::before {
+  content: "■ ";
+}
+
+/* Four-theme dashboard legibility repair. Color-only overrides. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --lsmc-dashboard-bg: #f6f8fb;
+  --lsmc-dashboard-surface: #ffffff;
+  --lsmc-dashboard-surface-2: #eef3f8;
+  --lsmc-dashboard-text: #111827;
+  --lsmc-dashboard-muted: #374151;
+  --lsmc-dashboard-border: #8fa1b5;
+  --lsmc-dashboard-link: #0f4c81;
+  --lsmc-dashboard-link-hover: #073a63;
+  --lsmc-dashboard-button-bg: #174ea6;
+  --lsmc-dashboard-button-text: #ffffff;
+  --lsmc-dashboard-badge-bg: #e8f1ff;
+  --lsmc-dashboard-badge-text: #0f2544;
+  --lsmc-dashboard-ok-bg: #dff5e8;
+  --lsmc-dashboard-ok-text: #064b2f;
+  --lsmc-dashboard-warn-bg: #fff2cc;
+  --lsmc-dashboard-warn-text: #5c3b00;
+  --lsmc-dashboard-danger-bg: #ffe1df;
+  --lsmc-dashboard-danger-text: #7f1d1d;
+  --lsmc-dashboard-info-bg: #e0f2fe;
+  --lsmc-dashboard-info-text: #0b4168;
+  --color-primary: #f8fafc;
+  --color-secondary: #ffffff;
+  --color-accent: #dbeafe;
+  --color-highlight: #174ea6;
+  --color-success: #087a4b;
+  --color-warning: #8a5800;
+  --color-error: #b42318;
+  --color-info: #0f4c81;
+  --color-gray-900: #f6f8fb;
+  --color-gray-800: #ffffff;
+  --color-gray-700: #eef3f8;
+  --color-gray-600: #8fa1b5;
+  --color-gray-500: #64748b;
+  --color-gray-400: #374151;
+  --color-gray-300: #1f2937;
+  --color-gray-200: #111827;
+  --color-white: #111827;
+  --bg-primary: #f6f8fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eef3f8;
+  --bg-elevated: #ffffff;
+  --bg-hover: #e6edf5;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #4b5563;
+  --border-color: #8fa1b5;
+  --border-light: #b7c3d0;
+  --tapdb-bg: #f6f8fb;
+  --tapdb-panel: #ffffff;
+  --tapdb-text: #111827;
+  --tapdb-muted: #374151;
+  --tapdb-border: #8fa1b5;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --lsmc-dashboard-bg: #0b1220;
+  --lsmc-dashboard-surface: #111827;
+  --lsmc-dashboard-surface-2: #1f2937;
+  --lsmc-dashboard-text: #f8fafc;
+  --lsmc-dashboard-muted: #cbd5e1;
+  --lsmc-dashboard-border: #64748b;
+  --lsmc-dashboard-link: #93c5fd;
+  --lsmc-dashboard-link-hover: #bfdbfe;
+  --lsmc-dashboard-button-bg: #1d4ed8;
+  --lsmc-dashboard-button-text: #ffffff;
+  --lsmc-dashboard-badge-bg: #1e3a8a;
+  --lsmc-dashboard-badge-text: #f8fafc;
+  --lsmc-dashboard-ok-bg: #064e3b;
+  --lsmc-dashboard-ok-text: #d1fae5;
+  --lsmc-dashboard-warn-bg: #713f12;
+  --lsmc-dashboard-warn-text: #fef3c7;
+  --lsmc-dashboard-danger-bg: #7f1d1d;
+  --lsmc-dashboard-danger-text: #fee2e2;
+  --lsmc-dashboard-info-bg: #075985;
+  --lsmc-dashboard-info-text: #e0f2fe;
+  --color-primary: #0b1220;
+  --color-secondary: #111827;
+  --color-accent: #1f2937;
+  --color-highlight: #93c5fd;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #38bdf8;
+  --color-gray-900: #0b1220;
+  --color-gray-800: #111827;
+  --color-gray-700: #1f2937;
+  --color-gray-600: #64748b;
+  --color-gray-500: #94a3b8;
+  --color-gray-400: #cbd5e1;
+  --color-gray-300: #e2e8f0;
+  --color-gray-200: #f8fafc;
+  --color-white: #f8fafc;
+  --bg-primary: #0b1220;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1f2937;
+  --bg-elevated: #1e293b;
+  --bg-hover: #273449;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #b6c2d2;
+  --border-color: #64748b;
+  --border-light: #94a3b8;
+  --tapdb-bg: #0b1220;
+  --tapdb-panel: #111827;
+  --tapdb-text: #f8fafc;
+  --tapdb-muted: #cbd5e1;
+  --tapdb-border: #64748b;
+}
+
+html[data-theme="cbf"] {
+  color-scheme: light;
+  --lsmc-dashboard-bg: #f8f3df;
+  --lsmc-dashboard-surface: #fffdf2;
+  --lsmc-dashboard-surface-2: #f0e5bc;
+  --lsmc-dashboard-text: #111111;
+  --lsmc-dashboard-muted: #2f3137;
+  --lsmc-dashboard-border: #111111;
+  --lsmc-dashboard-link: #004b8d;
+  --lsmc-dashboard-link-hover: #002f5f;
+  --lsmc-dashboard-button-bg: #004b8d;
+  --lsmc-dashboard-button-text: #ffffff;
+  --lsmc-dashboard-badge-bg: #fffdf2;
+  --lsmc-dashboard-badge-text: #111111;
+  --lsmc-dashboard-ok-bg: #d7f0ff;
+  --lsmc-dashboard-ok-text: #00365f;
+  --lsmc-dashboard-warn-bg: #ffe7a3;
+  --lsmc-dashboard-warn-text: #422800;
+  --lsmc-dashboard-danger-bg: #f7d4f4;
+  --lsmc-dashboard-danger-text: #4b1248;
+  --lsmc-dashboard-info-bg: #d8e7ff;
+  --lsmc-dashboard-info-text: #002f5f;
+  --color-primary: #f8f3df;
+  --color-secondary: #fffdf2;
+  --color-accent: #f0e5bc;
+  --color-highlight: #004b8d;
+  --color-success: #00365f;
+  --color-warning: #6b4e00;
+  --color-error: #8f2d56;
+  --color-info: #004b8d;
+  --color-gray-900: #f8f3df;
+  --color-gray-800: #fffdf2;
+  --color-gray-700: #f0e5bc;
+  --color-gray-600: #111111;
+  --color-gray-500: #2f3137;
+  --color-gray-400: #2f3137;
+  --color-gray-300: #111111;
+  --color-gray-200: #111111;
+  --color-white: #111111;
+  --bg-primary: #f8f3df;
+  --bg-secondary: #fffdf2;
+  --bg-tertiary: #f0e5bc;
+  --bg-elevated: #fffdf2;
+  --bg-hover: #eadca6;
+  --text-primary: #111111;
+  --text-secondary: #2f3137;
+  --text-muted: #2f3137;
+  --border-color: #111111;
+  --border-light: #111111;
+  --tapdb-bg: #f8f3df;
+  --tapdb-panel: #fffdf2;
+  --tapdb-text: #111111;
+  --tapdb-muted: #2f3137;
+  --tapdb-border: #111111;
+}
+
+html[data-theme="light"] body,
+html[data-theme="dark"] body,
+html[data-theme="cbf"] body {
+  background: var(--lsmc-dashboard-bg);
+  color: var(--lsmc-dashboard-text);
+}
+
+html[data-theme="light"] .header,
+html[data-theme="light"] .topbar,
+html[data-theme="light"] .top-bar,
+html[data-theme="light"] .secondary-nav,
+html[data-theme="light"] .navbar,
+html[data-theme="light"] header,
+html[data-theme="light"] nav,
+html[data-theme="dark"] .header,
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .top-bar,
+html[data-theme="dark"] .secondary-nav,
+html[data-theme="dark"] .navbar,
+html[data-theme="dark"] header,
+html[data-theme="dark"] nav,
+html[data-theme="cbf"] .header,
+html[data-theme="cbf"] .topbar,
+html[data-theme="cbf"] .top-bar,
+html[data-theme="cbf"] .secondary-nav,
+html[data-theme="cbf"] .navbar,
+html[data-theme="cbf"] header,
+html[data-theme="cbf"] nav {
+  background: var(--lsmc-dashboard-surface);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+  box-shadow: 0 1px 0 var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .card,
+html[data-theme="light"] .stat-card,
+html[data-theme="light"] .metric-card,
+html[data-theme="light"] .panel,
+html[data-theme="light"] .table-container,
+html[data-theme="light"] .details-panel,
+html[data-theme="light"] .action-card,
+html[data-theme="light"] .dashboard-service-card,
+html[data-theme="light"] .directory-card,
+html[data-theme="light"] .environment-card,
+html[data-theme="light"] .binding-card,
+html[data-theme="light"] .summary-chip,
+html[data-theme="light"] .seqnas-card,
+html[data-theme="light"] .seqnas-board-card,
+html[data-theme="light"] .seqnas-run-card,
+html[data-theme="light"] .tapdb-card,
+html[data-theme="light"] .tapdb-panel,
+html[data-theme="light"] .auth-card,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .metric-card,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .table-container,
+html[data-theme="dark"] .details-panel,
+html[data-theme="dark"] .action-card,
+html[data-theme="dark"] .dashboard-service-card,
+html[data-theme="dark"] .directory-card,
+html[data-theme="dark"] .environment-card,
+html[data-theme="dark"] .binding-card,
+html[data-theme="dark"] .summary-chip,
+html[data-theme="dark"] .seqnas-card,
+html[data-theme="dark"] .seqnas-board-card,
+html[data-theme="dark"] .seqnas-run-card,
+html[data-theme="dark"] .tapdb-card,
+html[data-theme="dark"] .tapdb-panel,
+html[data-theme="dark"] .auth-card,
+html[data-theme="cbf"] .card,
+html[data-theme="cbf"] .stat-card,
+html[data-theme="cbf"] .metric-card,
+html[data-theme="cbf"] .panel,
+html[data-theme="cbf"] .table-container,
+html[data-theme="cbf"] .details-panel,
+html[data-theme="cbf"] .action-card,
+html[data-theme="cbf"] .dashboard-service-card,
+html[data-theme="cbf"] .directory-card,
+html[data-theme="cbf"] .environment-card,
+html[data-theme="cbf"] .binding-card,
+html[data-theme="cbf"] .summary-chip,
+html[data-theme="cbf"] .seqnas-card,
+html[data-theme="cbf"] .seqnas-board-card,
+html[data-theme="cbf"] .seqnas-run-card,
+html[data-theme="cbf"] .tapdb-card,
+html[data-theme="cbf"] .tapdb-panel,
+html[data-theme="cbf"] .auth-card {
+  background: var(--lsmc-dashboard-surface);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--lsmc-dashboard-text) 10%, transparent);
+}
+
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] h4,
+html[data-theme="light"] .page-title,
+html[data-theme="light"] .card-title,
+html[data-theme="light"] .stat-value,
+html[data-theme="light"] .metric-value,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] .page-title,
+html[data-theme="dark"] .card-title,
+html[data-theme="dark"] .stat-value,
+html[data-theme="dark"] .metric-value,
+html[data-theme="cbf"] h1,
+html[data-theme="cbf"] h2,
+html[data-theme="cbf"] h3,
+html[data-theme="cbf"] h4,
+html[data-theme="cbf"] .page-title,
+html[data-theme="cbf"] .card-title,
+html[data-theme="cbf"] .stat-value,
+html[data-theme="cbf"] .metric-value {
+  color: var(--lsmc-dashboard-text);
+}
+
+html[data-theme="light"] .text-muted,
+html[data-theme="light"] .text-secondary,
+html[data-theme="light"] .stat-label,
+html[data-theme="light"] .stat-subtext,
+html[data-theme="light"] .metric-label,
+html[data-theme="light"] .metric-caption,
+html[data-theme="light"] .page-subtitle,
+html[data-theme="light"] .subtitle,
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .help-text,
+html[data-theme="light"] .small,
+html[data-theme="light"] th,
+html[data-theme="dark"] .text-muted,
+html[data-theme="dark"] .text-secondary,
+html[data-theme="dark"] .stat-label,
+html[data-theme="dark"] .stat-subtext,
+html[data-theme="dark"] .metric-label,
+html[data-theme="dark"] .metric-caption,
+html[data-theme="dark"] .page-subtitle,
+html[data-theme="dark"] .subtitle,
+html[data-theme="dark"] .eyebrow,
+html[data-theme="dark"] .help-text,
+html[data-theme="dark"] .small,
+html[data-theme="dark"] th,
+html[data-theme="cbf"] .text-muted,
+html[data-theme="cbf"] .text-secondary,
+html[data-theme="cbf"] .stat-label,
+html[data-theme="cbf"] .stat-subtext,
+html[data-theme="cbf"] .metric-label,
+html[data-theme="cbf"] .metric-caption,
+html[data-theme="cbf"] .page-subtitle,
+html[data-theme="cbf"] .subtitle,
+html[data-theme="cbf"] .eyebrow,
+html[data-theme="cbf"] .help-text,
+html[data-theme="cbf"] .small,
+html[data-theme="cbf"] th {
+  color: var(--lsmc-dashboard-muted);
+}
+
+html[data-theme="light"] a,
+html[data-theme="dark"] a,
+html[data-theme="cbf"] a {
+  color: var(--lsmc-dashboard-link);
+}
+
+html[data-theme="light"] a:hover,
+html[data-theme="dark"] a:hover,
+html[data-theme="cbf"] a:hover {
+  color: var(--lsmc-dashboard-link-hover);
+}
+
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] table,
+html[data-theme="light"] pre,
+html[data-theme="light"] code,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] table,
+html[data-theme="dark"] pre,
+html[data-theme="dark"] code,
+html[data-theme="cbf"] input,
+html[data-theme="cbf"] select,
+html[data-theme="cbf"] textarea,
+html[data-theme="cbf"] table,
+html[data-theme="cbf"] pre,
+html[data-theme="cbf"] code {
+  background: var(--lsmc-dashboard-surface-2);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .button,
+html[data-theme="light"] .btn,
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] button,
+html[data-theme="dark"] .button,
+html[data-theme="dark"] .btn,
+html[data-theme="dark"] .btn-primary,
+html[data-theme="dark"] button,
+html[data-theme="cbf"] .button,
+html[data-theme="cbf"] .btn,
+html[data-theme="cbf"] .btn-primary,
+html[data-theme="cbf"] button {
+  background: var(--lsmc-dashboard-button-bg);
+  color: var(--lsmc-dashboard-button-text);
+  border-color: var(--lsmc-dashboard-button-bg);
+}
+
+html[data-theme="light"] [class*="badge"],
+html[data-theme="light"] [class*="status-"],
+html[data-theme="light"] .pill,
+html[data-theme="light"] .status-pill,
+html[data-theme="dark"] [class*="badge"],
+html[data-theme="dark"] [class*="status-"],
+html[data-theme="dark"] .pill,
+html[data-theme="dark"] .status-pill,
+html[data-theme="cbf"] [class*="badge"],
+html[data-theme="cbf"] [class*="status-"],
+html[data-theme="cbf"] .pill,
+html[data-theme="cbf"] .status-pill {
+  background: var(--lsmc-dashboard-badge-bg);
+  color: var(--lsmc-dashboard-badge-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] [class*="success"],
+html[data-theme="light"] [class*="ok"],
+html[data-theme="light"] [class*="active"],
+html[data-theme="light"] [class*="completed"],
+html[data-theme="dark"] [class*="success"],
+html[data-theme="dark"] [class*="ok"],
+html[data-theme="dark"] [class*="active"],
+html[data-theme="dark"] [class*="completed"],
+html[data-theme="cbf"] [class*="success"],
+html[data-theme="cbf"] [class*="ok"],
+html[data-theme="cbf"] [class*="active"],
+html[data-theme="cbf"] [class*="completed"] {
+  background: var(--lsmc-dashboard-ok-bg);
+  color: var(--lsmc-dashboard-ok-text);
+}
+
+html[data-theme="light"] [class*="warn"],
+html[data-theme="light"] [class*="hold"],
+html[data-theme="light"] [class*="pending"],
+html[data-theme="dark"] [class*="warn"],
+html[data-theme="dark"] [class*="hold"],
+html[data-theme="dark"] [class*="pending"],
+html[data-theme="cbf"] [class*="warn"],
+html[data-theme="cbf"] [class*="hold"],
+html[data-theme="cbf"] [class*="pending"] {
+  background: var(--lsmc-dashboard-warn-bg);
+  color: var(--lsmc-dashboard-warn-text);
+}
+
+html[data-theme="light"] [class*="danger"],
+html[data-theme="light"] [class*="error"],
+html[data-theme="light"] [class*="fail"],
+html[data-theme="light"] [class*="canceled"],
+html[data-theme="light"] [class*="rejected"],
+html[data-theme="dark"] [class*="danger"],
+html[data-theme="dark"] [class*="error"],
+html[data-theme="dark"] [class*="fail"],
+html[data-theme="dark"] [class*="canceled"],
+html[data-theme="dark"] [class*="rejected"],
+html[data-theme="cbf"] [class*="danger"],
+html[data-theme="cbf"] [class*="error"],
+html[data-theme="cbf"] [class*="fail"],
+html[data-theme="cbf"] [class*="canceled"],
+html[data-theme="cbf"] [class*="rejected"] {
+  background: var(--lsmc-dashboard-danger-bg);
+  color: var(--lsmc-dashboard-danger-text);
+}
+
+html[data-theme="light"] [class*="info"],
+html[data-theme="dark"] [class*="info"],
+html[data-theme="cbf"] [class*="info"] {
+  background: var(--lsmc-dashboard-info-bg);
+  color: var(--lsmc-dashboard-info-text);
+}
+
+/* Four-theme dashboard legibility repair pass 2. Color-only targeted surfaces. */
+html[data-theme="light"] .lsmc-theme-control,
+html[data-theme="light"] .lsmc-action-help-panel,
+html[data-theme="dark"] .lsmc-theme-control,
+html[data-theme="dark"] .lsmc-action-help-panel,
+html[data-theme="cbf"] .lsmc-theme-control,
+html[data-theme="cbf"] .lsmc-action-help-panel {
+  background: var(--lsmc-dashboard-surface);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .navlink,
+html[data-theme="light"] .nav-link,
+html[data-theme="light"] .secondary-link,
+html[data-theme="light"] .role-indicator,
+html[data-theme="light"] .secondary-title,
+html[data-theme="light"] .topbar-account-email,
+html[data-theme="light"] .topbar-account-roles,
+html[data-theme="light"] .user,
+html[data-theme="light"] .session-strip,
+html[data-theme="dark"] .navlink,
+html[data-theme="dark"] .nav-link,
+html[data-theme="dark"] .secondary-link,
+html[data-theme="dark"] .role-indicator,
+html[data-theme="dark"] .secondary-title,
+html[data-theme="dark"] .topbar-account-email,
+html[data-theme="dark"] .topbar-account-roles,
+html[data-theme="dark"] .user,
+html[data-theme="dark"] .session-strip,
+html[data-theme="cbf"] .navlink,
+html[data-theme="cbf"] .nav-link,
+html[data-theme="cbf"] .secondary-link,
+html[data-theme="cbf"] .role-indicator,
+html[data-theme="cbf"] .secondary-title,
+html[data-theme="cbf"] .topbar-account-email,
+html[data-theme="cbf"] .topbar-account-roles,
+html[data-theme="cbf"] .user,
+html[data-theme="cbf"] .session-strip {
+  background: var(--lsmc-dashboard-surface-2);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .user-avatar,
+html[data-theme="dark"] .user-avatar,
+html[data-theme="cbf"] .user-avatar {
+  background: var(--lsmc-dashboard-button-bg);
+  color: var(--lsmc-dashboard-button-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .footer,
+html[data-theme="light"] .page-footer,
+html[data-theme="light"] .app-footer,
+html[data-theme="light"] footer,
+html[data-theme="dark"] .footer,
+html[data-theme="dark"] .page-footer,
+html[data-theme="dark"] .app-footer,
+html[data-theme="dark"] footer,
+html[data-theme="cbf"] .footer,
+html[data-theme="cbf"] .page-footer,
+html[data-theme="cbf"] .app-footer,
+html[data-theme="cbf"] footer {
+  background: var(--lsmc-dashboard-surface);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .footer-label,
+html[data-theme="light"] .footer-meta,
+html[data-theme="light"] .footer-brand p,
+html[data-theme="light"] .app-footer span,
+html[data-theme="light"] footer p,
+html[data-theme="light"] footer span,
+html[data-theme="dark"] .footer-label,
+html[data-theme="dark"] .footer-meta,
+html[data-theme="dark"] .footer-brand p,
+html[data-theme="dark"] .app-footer span,
+html[data-theme="dark"] footer p,
+html[data-theme="dark"] footer span,
+html[data-theme="cbf"] .footer-label,
+html[data-theme="cbf"] .footer-meta,
+html[data-theme="cbf"] .footer-brand p,
+html[data-theme="cbf"] .app-footer span,
+html[data-theme="cbf"] footer p,
+html[data-theme="cbf"] footer span {
+  color: var(--lsmc-dashboard-muted);
+}
+
+html[data-theme="light"] .glass,
+html[data-theme="light"] .dashboard-hero,
+html[data-theme="light"] .hero,
+html[data-theme="dark"] .glass,
+html[data-theme="dark"] .dashboard-hero,
+html[data-theme="dark"] .hero,
+html[data-theme="cbf"] .glass,
+html[data-theme="cbf"] .dashboard-hero,
+html[data-theme="cbf"] .hero {
+  background: var(--lsmc-dashboard-surface);
+  color: var(--lsmc-dashboard-text);
+  border-color: var(--lsmc-dashboard-border);
+}
+
+html[data-theme="light"] .stat-card strong,
+html[data-theme="light"] .panel strong,
+html[data-theme="light"] .hero h1,
+html[data-theme="dark"] .stat-card strong,
+html[data-theme="dark"] .panel strong,
+html[data-theme="dark"] .hero h1,
+html[data-theme="cbf"] .stat-card strong,
+html[data-theme="cbf"] .panel strong,
+html[data-theme="cbf"] .hero h1 {
+  color: var(--lsmc-dashboard-text);
+}
+
+html[data-theme="light"] .environment-banner,
+html[data-theme="light"] .environment-bar,
+html[data-theme="light"] .deployment-banner,
+html[data-theme="light"] .bloom-deployment-bar,
+html[data-theme="dark"] .environment-banner,
+html[data-theme="dark"] .environment-bar,
+html[data-theme="dark"] .deployment-banner,
+html[data-theme="dark"] .bloom-deployment-bar,
+html[data-theme="cbf"] .environment-banner,
+html[data-theme="cbf"] .environment-bar,
+html[data-theme="cbf"] .deployment-banner,
+html[data-theme="cbf"] .bloom-deployment-bar {
+  color: var(--lsmc-dashboard-text);
+}
+
+/* Four-theme dashboard legibility repair pass 3. Color-only muted text and deployment bars. */
+html[data-theme="light"] .environment-banner,
+html[data-theme="light"] .environment-bar,
+html[data-theme="light"] .environment-bar-deployment,
+html[data-theme="light"] .deployment-banner,
+html[data-theme="light"] .bloom-deployment-bar,
+html[data-theme="dark"] .environment-banner,
+html[data-theme="dark"] .environment-bar,
+html[data-theme="dark"] .environment-bar-deployment,
+html[data-theme="dark"] .deployment-banner,
+html[data-theme="dark"] .bloom-deployment-bar,
+html[data-theme="cbf"] .environment-banner,
+html[data-theme="cbf"] .environment-bar,
+html[data-theme="cbf"] .environment-bar-deployment,
+html[data-theme="cbf"] .deployment-banner,
+html[data-theme="cbf"] .bloom-deployment-bar {
+  background: var(--lsmc-dashboard-button-bg);
+  color: var(--lsmc-dashboard-button-text);
+}
+
+html[data-theme="light"] .note,
+html[data-theme="light"] .panel-copy,
+html[data-theme="light"] .empty-state,
+html[data-theme="light"] .card-note,
+html[data-theme="light"] .panel-kicker,
+html[data-theme="light"] .brand-kicker,
+html[data-theme="light"] .lede,
+html[data-theme="light"] .page-heading p,
+html[data-theme="light"] .stat-card span,
+html[data-theme="light"] .kv-list dt,
+html[data-theme="light"] dt,
+html[data-theme="light"] label,
+html[data-theme="dark"] .note,
+html[data-theme="dark"] .panel-copy,
+html[data-theme="dark"] .empty-state,
+html[data-theme="dark"] .card-note,
+html[data-theme="dark"] .panel-kicker,
+html[data-theme="dark"] .brand-kicker,
+html[data-theme="dark"] .lede,
+html[data-theme="dark"] .page-heading p,
+html[data-theme="dark"] .stat-card span,
+html[data-theme="dark"] .kv-list dt,
+html[data-theme="dark"] dt,
+html[data-theme="dark"] label,
+html[data-theme="cbf"] .note,
+html[data-theme="cbf"] .panel-copy,
+html[data-theme="cbf"] .empty-state,
+html[data-theme="cbf"] .card-note,
+html[data-theme="cbf"] .panel-kicker,
+html[data-theme="cbf"] .brand-kicker,
+html[data-theme="cbf"] .lede,
+html[data-theme="cbf"] .page-heading p,
+html[data-theme="cbf"] .stat-card span,
+html[data-theme="cbf"] .kv-list dt,
+html[data-theme="cbf"] dt,
+html[data-theme="cbf"] label {
+  color: var(--lsmc-dashboard-muted);
+}
+
+/* Four-theme dashboard legibility repair pass 4. Color-only final dashboard labels. */
+html[data-theme="light"] .muted,
+html[data-theme="light"] .cyto-instructions,
+html[data-theme="light"] .label,
+html[data-theme="light"] .dashboard-notes li,
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .cyto-instructions,
+html[data-theme="dark"] .label,
+html[data-theme="dark"] .dashboard-notes li,
+html[data-theme="cbf"] .muted,
+html[data-theme="cbf"] .cyto-instructions,
+html[data-theme="cbf"] .label,
+html[data-theme="cbf"] .dashboard-notes li {
+  color: var(--lsmc-dashboard-muted);
+}
+
+html[data-theme="light"] body > div[style*="height: 18px"][style*="background"],
+html[data-theme="dark"] body > div[style*="height: 18px"][style*="background"],
+html[data-theme="cbf"] body > div[style*="height: 18px"][style*="background"] {
+  background: var(--lsmc-dashboard-button-bg) !important;
+  color: var(--lsmc-dashboard-button-text) !important;
+}

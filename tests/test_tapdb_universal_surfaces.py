@@ -72,6 +72,23 @@ def _dummy_dag_router() -> APIRouter:
     return router
 
 
+def _route_paths(app) -> set[str]:
+    paths: set[str] = set()
+    for route in app.routes:
+        effective_contexts = getattr(route, "effective_route_contexts", None)
+        if effective_contexts:
+            paths.update(
+                str(getattr(context, "path", "") or "").strip()
+                for context in effective_contexts()
+                if str(getattr(context, "path", "") or "").strip()
+            )
+            continue
+        path = str(getattr(route, "path", "") or "").strip()
+        if path:
+            paths.add(path)
+    return paths
+
+
 def _configured_app(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
     settings = ZebraDaySettings.from_context()
@@ -94,7 +111,7 @@ def _configured_app(monkeypatch, tmp_path):
 def test_configured_app_mounts_tapdb_web_and_root_dag(monkeypatch, tmp_path) -> None:
     app = _configured_app(monkeypatch, tmp_path)
     mounts = {str(getattr(route, "path", "")) for route in app.routes if getattr(route, "app", None)}
-    paths = {str(getattr(route, "path", "")) for route in app.routes}
+    paths = _route_paths(app)
 
     assert "/tapdb" in mounts
     assert "/api/dag/search" in paths

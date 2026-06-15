@@ -4,8 +4,6 @@
  * Based on lsmc.com design system
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 :root {
     /* LSMC-inspired color palette */
     --lsmc-black: #0a0a0a;
@@ -351,4 +349,3 @@ pre {
     ) 1;
     padding-left: 16px;
 }
-
