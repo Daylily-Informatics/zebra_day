@@ -83,7 +83,7 @@ def test_pyproject_owns_python_dependencies_and_console_scripts() -> None:
     assert "cli-core-yo==2.1.1" in dependencies
     assert "daylily-auth-cognito==2.1.5" in dependencies
     assert (
-        "daylily-tapdb @ git+https://github.com/Daylily-Informatics/daylily-tapdb.git@9.0.2"
+        "daylily-tapdb @ git+https://github.com/Daylily-Informatics/daylily-tapdb.git@9.0.3"
         in dependencies
     )
     assert "boto3>=1.26.0" in dependencies
