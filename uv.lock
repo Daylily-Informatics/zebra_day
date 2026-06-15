@@ -518,8 +518,8 @@ wheels = [
 
 [[package]]
 name = "daylily-tapdb"
-version = "9.0.1"
-source = { git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.1#286ef9b39439319cc7919e2fb85c89ec1e98ebc4" }
+version = "9.0.2"
+source = { git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.2#9a9b11fc8bad3db06c76ef91a8bcbbe849624bae" }
 dependencies = [
     { name = "cli-core-yo" },
     { name = "jsonschema" },
@@ -2452,7 +2452,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.26.0" },
     { name = "cli-core-yo", specifier = "==2.1.1" },
     { name = "daylily-auth-cognito", specifier = "==2.1.5" },
-    { name = "daylily-tapdb", git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.1" },
+    { name = "daylily-tapdb", git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.2" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "httpx" },
     { name = "ipython", specifier = ">=8.16.0" },
