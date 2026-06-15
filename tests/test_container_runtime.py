@@ -21,6 +21,11 @@ def test_docker_runtime_files_use_foreground_uv_and_no_legacy_runtime() -> None:
     assert "python\", \"-m\", \"zebra_day.container_entry" in dockerfile
     assert ":latest" not in dockerfile
     assert "conda" not in dockerfile.lower()
+    assert "ENV SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}" not in dockerfile
+    assert (
+        "ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_ZEBRA_DAY=${SETUPTOOLS_SCM_PRETEND_VERSION}"
+        in dockerfile
+    )
     assert "tmux" not in entrypoint
     assert "background" not in entrypoint
     assert "${ZEBRA_DAY_CONFIG_PATH:?ZEBRA_DAY_CONFIG_PATH is required}" in entrypoint
