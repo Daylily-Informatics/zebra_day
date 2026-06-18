@@ -1,4 +1,13 @@
-# zebra_day
+<p align="center">
+  <strong>Zebra Day</strong><br>
+  Internal printer, label-template, print-job, and lab-code service for Dayhoff.
+</p>
+
+<p align="center">
+  <a href="docs/README.md">Docs</a> ·
+  <a href="docs/major_refactor.md">Refactor notes</a> ·
+  <a href="docs/tapdb_hard_migration_plan.md">TapDB migration</a>
+</p>
 
 ## Overview
 
@@ -7,6 +16,20 @@ Zebra Day is the LSMC internal Zebra printer fleet service. It manages labs, pri
 Current Dayhoff pin: `8.0.8`. Current TapDB dependency: `daylily-tapdb @ ...@9.0.5`.
 
 Zebra Day is LSMC-internal only in Dayhoff exposure policy.
+
+## What It Does
+
+| Capability | Current surface |
+|---|---|
+| Lab and printer fleet state | GUI/API/CLI surfaces and TapDB-backed records |
+| Discovery and scan progress | Lab printer pages, scan progress UI, and simulator tests |
+| Label templates and jobs | Template rendering, print jobs, and observation records |
+| Barcode/EUID printing | Service APIs used by Bloom and operators where configured |
+| TapDB object views | Mounted `/tapdb` surfaces for generic object inspection |
+
+## How It Works
+
+Zebra Day keeps printer and label state in TapDB-backed records and exposes the same fleet/template/job concepts through GUI, API, and CLI where implemented. Real hardware output is treated as an explicit live side effect; tests use simulator or mocked print paths.
 
 ## Quickstart
 
