@@ -1837,3 +1837,382 @@ html[data-theme="cbf"] body > div[style*="height: 18px"][style*="background"] {
   background: var(--lsmc-dashboard-button-bg) !important;
   color: var(--lsmc-dashboard-button-text) !important;
 }
+
+/* LSMC S.SF and Viridis skin additions. Color-only overrides; original remains unchanged. */
+html[data-theme="ssf"] {
+  color-scheme: light;
+  --lsmc-dashboard-bg: #f8ead2;
+  --lsmc-dashboard-surface: #fffaf0;
+  --lsmc-dashboard-surface-2: #ffe8bd;
+  --lsmc-dashboard-text: #172126;
+  --lsmc-dashboard-muted: #4a2c21;
+  --lsmc-dashboard-border: #1c2e35;
+  --lsmc-dashboard-link: #9f341f;
+  --lsmc-dashboard-link-hover: #6f2116;
+  --lsmc-dashboard-button-bg: #007f7a;
+  --lsmc-dashboard-button-text: #fffaf0;
+  --lsmc-status-success-bg: #dff2d6;
+  --lsmc-status-success-text: #123d28;
+  --lsmc-status-success-border: #2c7a54;
+  --lsmc-status-warning-bg: #fff1a8;
+  --lsmc-status-warning-text: #352500;
+  --lsmc-status-warning-border: #9a6d00;
+  --lsmc-status-danger-bg: #ffe0d6;
+  --lsmc-status-danger-text: #5b160f;
+  --lsmc-status-danger-border: #b83a2e;
+  --lsmc-status-info-bg: #d7f4ef;
+  --lsmc-status-info-text: #073d3a;
+  --lsmc-status-info-border: #007f7a;
+}
+
+html[data-theme="viridis"] {
+  color-scheme: light;
+  --lsmc-dashboard-bg: #f7fbf0;
+  --lsmc-dashboard-surface: #ffffff;
+  --lsmc-dashboard-surface-2: #e9f5d4;
+  --lsmc-dashboard-text: #162016;
+  --lsmc-dashboard-muted: #35513d;
+  --lsmc-dashboard-border: #84a98c;
+  --lsmc-dashboard-link: #2a788e;
+  --lsmc-dashboard-link-hover: #1f5f74;
+  --lsmc-dashboard-button-bg: #31688e;
+  --lsmc-dashboard-button-text: #ffffff;
+  --lsmc-status-success-bg: #e3f8c9;
+  --lsmc-status-success-text: #173b1d;
+  --lsmc-status-success-border: #35b779;
+  --lsmc-status-warning-bg: #fff6a6;
+  --lsmc-status-warning-text: #302800;
+  --lsmc-status-warning-border: #b79f00;
+  --lsmc-status-danger-bg: #efe2f4;
+  --lsmc-status-danger-text: #2f063c;
+  --lsmc-status-danger-border: #440154;
+  --lsmc-status-info-bg: #dff2f0;
+  --lsmc-status-info-text: #123d3b;
+  --lsmc-status-info-border: #21918c;
+}
+
+html[data-theme="viridis-dark"] {
+  color-scheme: dark;
+  --lsmc-dashboard-bg: #0d1128;
+  --lsmc-dashboard-surface: #171d3a;
+  --lsmc-dashboard-surface-2: #24315f;
+  --lsmc-dashboard-text: #f7fce5;
+  --lsmc-dashboard-muted: #c2d6b4;
+  --lsmc-dashboard-border: #3b528b;
+  --lsmc-dashboard-link: #7ad151;
+  --lsmc-dashboard-link-hover: #aadc32;
+  --lsmc-dashboard-button-bg: #21918c;
+  --lsmc-dashboard-button-text: #ffffff;
+  --lsmc-status-success-bg: #183820;
+  --lsmc-status-success-text: #dff7c2;
+  --lsmc-status-success-border: #7ad151;
+  --lsmc-status-warning-bg: #4a4200;
+  --lsmc-status-warning-text: #fff6a6;
+  --lsmc-status-warning-border: #fde725;
+  --lsmc-status-danger-bg: #32104a;
+  --lsmc-status-danger-text: #f2def7;
+  --lsmc-status-danger-border: #b765d1;
+  --lsmc-status-info-bg: #163d45;
+  --lsmc-status-info-text: #d7fff6;
+  --lsmc-status-info-border: #22a884;
+}
+
+html[data-theme="ssf"] body,
+html[data-theme="viridis"] body,
+html[data-theme="viridis-dark"] body {
+  background: var(--lsmc-dashboard-bg) !important;
+  color: var(--lsmc-dashboard-text) !important;
+}
+
+html[data-theme="ssf"] .header,
+html[data-theme="ssf"] .topbar,
+html[data-theme="ssf"] .top-bar,
+html[data-theme="ssf"] .secondary-nav,
+html[data-theme="ssf"] .navbar,
+html[data-theme="ssf"] header,
+html[data-theme="ssf"] nav,
+html[data-theme="viridis"] .header,
+html[data-theme="viridis"] .topbar,
+html[data-theme="viridis"] .top-bar,
+html[data-theme="viridis"] .secondary-nav,
+html[data-theme="viridis"] .navbar,
+html[data-theme="viridis"] header,
+html[data-theme="viridis"] nav,
+html[data-theme="viridis-dark"] .header,
+html[data-theme="viridis-dark"] .topbar,
+html[data-theme="viridis-dark"] .top-bar,
+html[data-theme="viridis-dark"] .secondary-nav,
+html[data-theme="viridis-dark"] .navbar,
+html[data-theme="viridis-dark"] header,
+html[data-theme="viridis-dark"] nav {
+  background: var(--lsmc-dashboard-surface) !important;
+  color: var(--lsmc-dashboard-text) !important;
+  border-color: var(--lsmc-dashboard-border) !important;
+}
+
+html[data-theme="ssf"] .card,
+html[data-theme="ssf"] .stat-card,
+html[data-theme="ssf"] .metric-card,
+html[data-theme="ssf"] .panel,
+html[data-theme="ssf"] .table-container,
+html[data-theme="ssf"] .details-panel,
+html[data-theme="ssf"] .action-card,
+html[data-theme="ssf"] .dashboard-service-card,
+html[data-theme="ssf"] .directory-card,
+html[data-theme="ssf"] .environment-card,
+html[data-theme="ssf"] .binding-card,
+html[data-theme="ssf"] .summary-chip,
+html[data-theme="ssf"] .seqnas-card,
+html[data-theme="ssf"] .seqnas-board-card,
+html[data-theme="ssf"] .seqnas-run-card,
+html[data-theme="ssf"] .tapdb-card,
+html[data-theme="ssf"] .tapdb-panel,
+html[data-theme="ssf"] .auth-card,
+html[data-theme="viridis"] .card,
+html[data-theme="viridis"] .stat-card,
+html[data-theme="viridis"] .metric-card,
+html[data-theme="viridis"] .panel,
+html[data-theme="viridis"] .table-container,
+html[data-theme="viridis"] .details-panel,
+html[data-theme="viridis"] .action-card,
+html[data-theme="viridis"] .dashboard-service-card,
+html[data-theme="viridis"] .directory-card,
+html[data-theme="viridis"] .environment-card,
+html[data-theme="viridis"] .binding-card,
+html[data-theme="viridis"] .summary-chip,
+html[data-theme="viridis"] .seqnas-card,
+html[data-theme="viridis"] .seqnas-board-card,
+html[data-theme="viridis"] .seqnas-run-card,
+html[data-theme="viridis"] .tapdb-card,
+html[data-theme="viridis"] .tapdb-panel,
+html[data-theme="viridis"] .auth-card,
+html[data-theme="viridis-dark"] .card,
+html[data-theme="viridis-dark"] .stat-card,
+html[data-theme="viridis-dark"] .metric-card,
+html[data-theme="viridis-dark"] .panel,
+html[data-theme="viridis-dark"] .table-container,
+html[data-theme="viridis-dark"] .details-panel,
+html[data-theme="viridis-dark"] .action-card,
+html[data-theme="viridis-dark"] .dashboard-service-card,
+html[data-theme="viridis-dark"] .directory-card,
+html[data-theme="viridis-dark"] .environment-card,
+html[data-theme="viridis-dark"] .binding-card,
+html[data-theme="viridis-dark"] .summary-chip,
+html[data-theme="viridis-dark"] .seqnas-card,
+html[data-theme="viridis-dark"] .seqnas-board-card,
+html[data-theme="viridis-dark"] .seqnas-run-card,
+html[data-theme="viridis-dark"] .tapdb-card,
+html[data-theme="viridis-dark"] .tapdb-panel,
+html[data-theme="viridis-dark"] .auth-card {
+  background: var(--lsmc-dashboard-surface) !important;
+  color: var(--lsmc-dashboard-text) !important;
+  border-color: var(--lsmc-dashboard-border) !important;
+}
+
+html[data-theme="ssf"] h1,
+html[data-theme="ssf"] h2,
+html[data-theme="ssf"] h3,
+html[data-theme="ssf"] h4,
+html[data-theme="ssf"] .page-title,
+html[data-theme="ssf"] .card-title,
+html[data-theme="ssf"] .stat-value,
+html[data-theme="ssf"] .metric-value,
+html[data-theme="viridis"] h1,
+html[data-theme="viridis"] h2,
+html[data-theme="viridis"] h3,
+html[data-theme="viridis"] h4,
+html[data-theme="viridis"] .page-title,
+html[data-theme="viridis"] .card-title,
+html[data-theme="viridis"] .stat-value,
+html[data-theme="viridis"] .metric-value,
+html[data-theme="viridis-dark"] h1,
+html[data-theme="viridis-dark"] h2,
+html[data-theme="viridis-dark"] h3,
+html[data-theme="viridis-dark"] h4,
+html[data-theme="viridis-dark"] .page-title,
+html[data-theme="viridis-dark"] .card-title,
+html[data-theme="viridis-dark"] .stat-value,
+html[data-theme="viridis-dark"] .metric-value {
+  color: var(--lsmc-dashboard-text) !important;
+}
+
+html[data-theme="ssf"] .text-muted,
+html[data-theme="ssf"] .text-secondary,
+html[data-theme="ssf"] .stat-label,
+html[data-theme="ssf"] .stat-subtext,
+html[data-theme="ssf"] .metric-label,
+html[data-theme="ssf"] .metric-caption,
+html[data-theme="ssf"] .page-subtitle,
+html[data-theme="ssf"] .subtitle,
+html[data-theme="ssf"] .eyebrow,
+html[data-theme="ssf"] .help-text,
+html[data-theme="ssf"] .small,
+html[data-theme="ssf"] th,
+html[data-theme="viridis"] .text-muted,
+html[data-theme="viridis"] .text-secondary,
+html[data-theme="viridis"] .stat-label,
+html[data-theme="viridis"] .stat-subtext,
+html[data-theme="viridis"] .metric-label,
+html[data-theme="viridis"] .metric-caption,
+html[data-theme="viridis"] .page-subtitle,
+html[data-theme="viridis"] .subtitle,
+html[data-theme="viridis"] .eyebrow,
+html[data-theme="viridis"] .help-text,
+html[data-theme="viridis"] .small,
+html[data-theme="viridis"] th,
+html[data-theme="viridis-dark"] .text-muted,
+html[data-theme="viridis-dark"] .text-secondary,
+html[data-theme="viridis-dark"] .stat-label,
+html[data-theme="viridis-dark"] .stat-subtext,
+html[data-theme="viridis-dark"] .metric-label,
+html[data-theme="viridis-dark"] .metric-caption,
+html[data-theme="viridis-dark"] .page-subtitle,
+html[data-theme="viridis-dark"] .subtitle,
+html[data-theme="viridis-dark"] .eyebrow,
+html[data-theme="viridis-dark"] .help-text,
+html[data-theme="viridis-dark"] .small,
+html[data-theme="viridis-dark"] th {
+  color: var(--lsmc-dashboard-muted) !important;
+}
+
+html[data-theme="ssf"] a,
+html[data-theme="viridis"] a,
+html[data-theme="viridis-dark"] a {
+  color: var(--lsmc-dashboard-link) !important;
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+
+html[data-theme="ssf"] a:hover,
+html[data-theme="viridis"] a:hover,
+html[data-theme="viridis-dark"] a:hover {
+  color: var(--lsmc-dashboard-link-hover) !important;
+}
+
+html[data-theme="ssf"] input,
+html[data-theme="ssf"] select,
+html[data-theme="ssf"] textarea,
+html[data-theme="ssf"] table,
+html[data-theme="ssf"] pre,
+html[data-theme="ssf"] code,
+html[data-theme="viridis"] input,
+html[data-theme="viridis"] select,
+html[data-theme="viridis"] textarea,
+html[data-theme="viridis"] table,
+html[data-theme="viridis"] pre,
+html[data-theme="viridis"] code,
+html[data-theme="viridis-dark"] input,
+html[data-theme="viridis-dark"] select,
+html[data-theme="viridis-dark"] textarea,
+html[data-theme="viridis-dark"] table,
+html[data-theme="viridis-dark"] pre,
+html[data-theme="viridis-dark"] code {
+  background: var(--lsmc-dashboard-surface-2) !important;
+  color: var(--lsmc-dashboard-text) !important;
+  border-color: var(--lsmc-dashboard-border) !important;
+}
+
+html[data-theme="ssf"] .button,
+html[data-theme="ssf"] .btn,
+html[data-theme="ssf"] .btn-primary,
+html[data-theme="ssf"] button,
+html[data-theme="viridis"] .button,
+html[data-theme="viridis"] .btn,
+html[data-theme="viridis"] .btn-primary,
+html[data-theme="viridis"] button,
+html[data-theme="viridis-dark"] .button,
+html[data-theme="viridis-dark"] .btn,
+html[data-theme="viridis-dark"] .btn-primary,
+html[data-theme="viridis-dark"] button {
+  background: var(--lsmc-dashboard-button-bg) !important;
+  color: var(--lsmc-dashboard-button-text) !important;
+  border-color: var(--lsmc-dashboard-button-bg) !important;
+}
+
+html[data-theme="ssf"] [class*="badge"],
+html[data-theme="ssf"] [class*="status-"],
+html[data-theme="ssf"] .pill,
+html[data-theme="ssf"] .status-pill,
+html[data-theme="viridis"] [class*="badge"],
+html[data-theme="viridis"] [class*="status-"],
+html[data-theme="viridis"] .pill,
+html[data-theme="viridis"] .status-pill,
+html[data-theme="viridis-dark"] [class*="badge"],
+html[data-theme="viridis-dark"] [class*="status-"],
+html[data-theme="viridis-dark"] .pill,
+html[data-theme="viridis-dark"] .status-pill {
+  background: var(--lsmc-status-info-bg) !important;
+  color: var(--lsmc-status-info-text) !important;
+  border-color: var(--lsmc-status-info-border) !important;
+  border-style: solid;
+}
+
+html[data-theme="ssf"] [class*="success"],
+html[data-theme="ssf"] [class*="ok"],
+html[data-theme="ssf"] [class*="active"],
+html[data-theme="ssf"] [class*="completed"],
+html[data-theme="viridis"] [class*="success"],
+html[data-theme="viridis"] [class*="ok"],
+html[data-theme="viridis"] [class*="active"],
+html[data-theme="viridis"] [class*="completed"],
+html[data-theme="viridis-dark"] [class*="success"],
+html[data-theme="viridis-dark"] [class*="ok"],
+html[data-theme="viridis-dark"] [class*="active"],
+html[data-theme="viridis-dark"] [class*="completed"] {
+  background: var(--lsmc-status-success-bg) !important;
+  color: var(--lsmc-status-success-text) !important;
+  border-color: var(--lsmc-status-success-border) !important;
+}
+
+html[data-theme="ssf"] [class*="warn"],
+html[data-theme="ssf"] [class*="hold"],
+html[data-theme="ssf"] [class*="pending"],
+html[data-theme="viridis"] [class*="warn"],
+html[data-theme="viridis"] [class*="hold"],
+html[data-theme="viridis"] [class*="pending"],
+html[data-theme="viridis-dark"] [class*="warn"],
+html[data-theme="viridis-dark"] [class*="hold"],
+html[data-theme="viridis-dark"] [class*="pending"] {
+  background: var(--lsmc-status-warning-bg) !important;
+  color: var(--lsmc-status-warning-text) !important;
+  border-color: var(--lsmc-status-warning-border) !important;
+}
+
+html[data-theme="ssf"] [class*="danger"],
+html[data-theme="ssf"] [class*="error"],
+html[data-theme="ssf"] [class*="fail"],
+html[data-theme="ssf"] [class*="canceled"],
+html[data-theme="ssf"] [class*="rejected"],
+html[data-theme="viridis"] [class*="danger"],
+html[data-theme="viridis"] [class*="error"],
+html[data-theme="viridis"] [class*="fail"],
+html[data-theme="viridis"] [class*="canceled"],
+html[data-theme="viridis"] [class*="rejected"],
+html[data-theme="viridis-dark"] [class*="danger"],
+html[data-theme="viridis-dark"] [class*="error"],
+html[data-theme="viridis-dark"] [class*="fail"],
+html[data-theme="viridis-dark"] [class*="canceled"],
+html[data-theme="viridis-dark"] [class*="rejected"] {
+  background: var(--lsmc-status-danger-bg) !important;
+  color: var(--lsmc-status-danger-text) !important;
+  border-color: var(--lsmc-status-danger-border) !important;
+}
+
+.lsmc-theme-global {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+}
+
+html[data-theme="ssf"] .lsmc-theme-control,
+html[data-theme="ssf"] .lsmc-action-help-panel,
+html[data-theme="viridis"] .lsmc-theme-control,
+html[data-theme="viridis"] .lsmc-action-help-panel,
+html[data-theme="viridis-dark"] .lsmc-theme-control,
+html[data-theme="viridis-dark"] .lsmc-action-help-panel {
+  background: var(--lsmc-dashboard-surface) !important;
+  color: var(--lsmc-dashboard-text) !important;
+  border-color: var(--lsmc-dashboard-border) !important;
+}

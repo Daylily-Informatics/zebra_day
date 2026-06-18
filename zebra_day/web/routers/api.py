@@ -15,7 +15,7 @@ from zebra_day import paths as xdg
 from zebra_day.client import PrinterRecord
 
 router = APIRouter()
-THEME_NAMES = {"original", "light", "dark", "cbf"}
+THEME_NAMES = {"original", "light", "dark", "ssf", "viridis", "viridis-dark"}
 
 
 def _broker_preferences_contract(email: str) -> tuple[str, dict[str, str]]:
@@ -94,9 +94,21 @@ async def update_current_user_preferences(request: Request) -> dict[str, Any]:
     theme = str(payload.get("theme") or "").strip()
     if theme and theme not in THEME_NAMES:
         raise HTTPException(status_code=400, detail="Unknown theme")
+    service_themes = payload.get("service_themes")
+    if service_themes is not None:
+        if not isinstance(service_themes, dict):
+            raise HTTPException(status_code=400, detail="service_themes must be an object")
+        for service_theme in service_themes.values():
+            if service_theme is not None and str(service_theme).strip() not in THEME_NAMES:
+                raise HTTPException(status_code=400, detail="Unknown theme")
+    forward_payload = {}
+    if "theme" in payload:
+        forward_payload["theme"] = theme or None
+    if service_themes is not None:
+        forward_payload["service_themes"] = service_themes
     url, headers = _broker_preferences_contract(_authenticated_email(request))
     async with httpx.AsyncClient(timeout=5.0) as client:
-        response = await client.put(url, headers=headers, json={"theme": theme or None})
+        response = await client.put(url, headers=headers, json=forward_payload)
         if response.status_code < 400:
             response = await client.get(url, headers=headers)
     if response.status_code >= 400:
