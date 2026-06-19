@@ -25,14 +25,23 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-ZEBRA_DAY_TEMPLATE_CATEGORY = "ZGX"
-LAB_TEMPLATE_CODE = "ZGX/fleet/lab/1.0/"
-PRINTER_TEMPLATE_CODE = "ZGX/fleet/printer/1.0/"
-LABEL_PROFILE_TEMPLATE_CODE = "ZGX/labels/profile/1.0/"
-LABEL_TEMPLATE_TEMPLATE_CODE = "ZGX/labels/template/1.0/"
-OBSERVATION_TEMPLATE_CODE = "ZGX/fleet/printer-observation/1.0/"
-DRIFT_TEMPLATE_CODE = "ZGX/fleet/metadata-drift/1.0/"
-PRINT_JOB_TEMPLATE_CODE = "ZGX/printing/print-job/1.0/"
+ZEBRA_DAY_TEMPLATE_EUID_PREFIX = "ZGX"
+LAB_TEMPLATE_CODE = "fleet/lab/generic/1.0/"
+PRINTER_TEMPLATE_CODE = "fleet/printer/generic/1.0/"
+LABEL_PROFILE_TEMPLATE_CODE = "labels/profile/generic/1.0/"
+LABEL_TEMPLATE_TEMPLATE_CODE = "labels/template/generic/1.0/"
+OBSERVATION_TEMPLATE_CODE = "fleet/printer-observation/generic/1.0/"
+DRIFT_TEMPLATE_CODE = "fleet/metadata-drift/generic/1.0/"
+PRINT_JOB_TEMPLATE_CODE = "printing/print-job/generic/1.0/"
+ZEBRA_DAY_TYPE_CATEGORIES = {
+    "lab": "fleet",
+    "printer": "fleet",
+    "printer-observation": "fleet",
+    "metadata-drift": "fleet",
+    "profile": "labels",
+    "template": "labels",
+    "print-job": "printing",
+}
 PACKAGE_TEMPLATE_PACK = (
     Path(__file__).resolve().parents[1]
     / "config"
@@ -384,7 +393,7 @@ class TapDBFleetRepository:
                 entity="generic_template",
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
+                prefix=ZEBRA_DAY_TEMPLATE_EUID_PREFIX,
             )
             _ensure_identity_prefix_config(
                 session,
@@ -432,12 +441,14 @@ class TapDBFleetRepository:
             raise RuntimeError(f"TapDB template not seeded: {code}")
         return template
 
-    def _query_instances(self, session, subtype: str):
+    def _query_instances(self, session, type_name: str):
+        category = ZEBRA_DAY_TYPE_CATEGORIES[type_name]
         return (
             session.query(self._generic_instance)
             .filter(
-                self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                self._generic_instance.subtype == subtype,
+                self._generic_instance.category == category,
+                self._generic_instance.type == type_name,
+                self._generic_instance.subtype == "generic",
                 self._generic_instance.is_deleted.is_(False),
             )
             .all()
@@ -456,8 +467,9 @@ class TapDBFleetRepository:
             existing = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == subtype,
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES[subtype],
+                    self._generic_instance.type == subtype,
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == name,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -537,8 +549,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "printer",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["printer"],
+                    self._generic_instance.type == "printer",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == _stable_name(lab, printer_id),
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -556,8 +569,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "printer",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["printer"],
+                    self._generic_instance.type == "printer",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.euid == printer_euid,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -599,8 +613,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "template",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["template"],
+                    self._generic_instance.type == "template",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == template_name,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -655,8 +670,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "profile",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["profile"],
+                    self._generic_instance.type == "profile",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == profile_name,
                     self._generic_instance.is_deleted.is_(False),
                 )

@@ -419,11 +419,11 @@ def test_template_lookup_uses_explicit_domain_code(monkeypatch, tmp_path):
     repo._template_manager = _TemplateManager()
 
     sentinel_session = object()
-    result = repo._template_for_code(sentinel_session, "ZGX/labels/template/1.0/")
+    result = repo._template_for_code(sentinel_session, "labels/template/generic/1.0/")
 
     assert result is not None
     assert captured["session"] is sentinel_session
-    assert captured["template_code"] == "ZGX/labels/template/1.0/"
+    assert captured["template_code"] == "labels/template/generic/1.0/"
     assert captured["domain_code"] == "Z"
 
 
