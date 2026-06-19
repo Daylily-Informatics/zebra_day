@@ -13,7 +13,7 @@
 
 Zebra Day is the LSMC internal Zebra printer fleet service. It manages labs, printer discovery/status, label templates, rendered labels, print jobs, observations, and shared fleet state in TapDB.
 
-Current Dayhoff pin: `8.0.10`. Current TapDB dependency: `daylily-tapdb @ ...@9.0.6`.
+Current Dayhoff pin: `8.0.11`. Current TapDB dependency: `daylily-tapdb @ ...@9.0.9`.
 
 Zebra Day is LSMC-internal only in Dayhoff exposure policy.
 
