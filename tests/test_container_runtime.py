@@ -18,7 +18,7 @@ def test_docker_runtime_files_use_foreground_uv_and_no_legacy_runtime() -> None:
     assert "COPY config ./config" in dockerfile
     assert "uv sync --frozen --no-dev" in dockerfile
     assert "USER lsmc" in dockerfile
-    assert "python\", \"-m\", \"zebra_day.container_entry" in dockerfile
+    assert 'python", "-m", "zebra_day.container_entry' in dockerfile
     assert ":latest" not in dockerfile
     assert "conda" not in dockerfile.lower()
     assert "ENV SETUPTOOLS_SCM_PRETEND_VERSION=${SETUPTOOLS_SCM_PRETEND_VERSION}" not in dockerfile

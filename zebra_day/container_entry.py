@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal, cast
 
 from zebra_day.web.app import run_server
+
+AuthMode = Literal["none", "cognito", "external_broker"]
 
 
 def _required_env(name: str) -> str:
@@ -33,7 +36,7 @@ def main() -> None:
         host=_required_env("HOST"),
         port=int(_required_env("PORT")),
         reload=False,
-        auth=auth_mode,
+        auth=cast(AuthMode, auth_mode),
         ssl_enabled=False,
     )
 

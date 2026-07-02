@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import http.client
 import socket
-from time import monotonic, sleep
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from time import monotonic, sleep
 from typing import Any
 
 from zebra_day.cmd_mgr import ZebraPrinter

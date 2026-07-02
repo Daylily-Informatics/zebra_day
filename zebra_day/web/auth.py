@@ -39,15 +39,15 @@ from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
 from zebra_day.rbac import parse_groups, roles_from_groups
-from zebra_day.web.ai_agent_access import (
-    AgentTokenError,
-    is_ai_agent_token,
-    validate_ai_agent_request,
-)
 from zebra_day.settings import (
     DEFAULT_ALLOWED_EMAIL_DOMAINS,
     ZebraDaySettings,
     _validate_cognito_domain,
+)
+from zebra_day.web.ai_agent_access import (
+    AgentTokenError,
+    is_ai_agent_token,
+    validate_ai_agent_request,
 )
 
 _log = get_logger(__name__)
@@ -832,9 +832,9 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 claims = self.cognito_auth.auth.verify_token(token)
                 request.state.user = build_user_identity(dict(claims), self.settings)
                 request.state.auth_mode = "cognito"
-                request.state.authorized_by_email = request.state.user.get("email") or request.state.user.get(
-                    "user_id"
-                )
+                request.state.authorized_by_email = request.state.user.get(
+                    "email"
+                ) or request.state.user.get("user_id")
                 return await call_next(request)  # type: ignore[no-any-return]
             except Exception as exc:
                 _log.warning("Bearer token rejected: %s", exc)

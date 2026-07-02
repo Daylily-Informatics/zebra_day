@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from daylily_tapdb.web import (
     TapdbHostBridge,
@@ -141,7 +141,10 @@ def mount_tapdb_surfaces(app: FastAPI, settings: ZebraDaySettings) -> bool:
 def zebra_day_tapdb_obs_services_fragment() -> dict[str, Any]:
     """Return Zebra Day's common TapDB DAG observability fragment."""
 
-    return build_dag_capability_advertisement(
-        base_path="/api/dag",
-        auth="operator_or_service_token",
+    return cast(
+        dict[str, Any],
+        build_dag_capability_advertisement(
+            base_path="/api/dag",
+            auth="operator_or_service_token",
+        ),
     )

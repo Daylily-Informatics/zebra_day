@@ -934,9 +934,7 @@ class ZebraDayClient:
         if lab not in self.list_labs():
             raise KeyError(f"Lab '{lab}' not found. Create the lab before scanning printers.")
         resolved_scan_wait = (
-            float(scan_wait)
-            if scan_wait is not None
-            else self.settings.default_scan_wait_seconds
+            float(scan_wait) if scan_wait is not None else self.settings.default_scan_wait_seconds
         )
         found: list[PrinterRecord] = []
         for payload in discover_printers(

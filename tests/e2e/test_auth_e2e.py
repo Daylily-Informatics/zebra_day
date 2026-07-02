@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 from tests.e2e.auth_helpers import (
     assert_auth_error_page,
-    expect_cognito_login_page,
     perform_login,
     perform_logout,
 )

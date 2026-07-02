@@ -21,11 +21,7 @@ def test_request_logging_middleware_uses_common_access_logger(caplog) -> None:
         response = TestClient(app).get("/ping")
 
     assert response.status_code == 200
-    records = [
-        record
-        for record in caplog.records
-        if record.name == "lsmc.access"
-    ]
+    records = [record for record in caplog.records if record.name == "lsmc.access"]
     assert records
     latest = json.loads(records[-1].getMessage())
     assert latest["event"] == "request_completed"

@@ -18,8 +18,10 @@ _access_log = logging.getLogger("lsmc.access")
 
 def _normalize_route_template(*, path: str, route_template: str) -> str:
     """Return the externally visible route template for mounted API routers."""
-    if path.startswith("/api/v1/") and route_template.startswith("/") and not route_template.startswith(
-        "/api/v1/"
+    if (
+        path.startswith("/api/v1/")
+        and route_template.startswith("/")
+        and not route_template.startswith("/api/v1/")
     ):
         return f"/api/v1{route_template}"
     return route_template or path

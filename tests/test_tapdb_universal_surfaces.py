@@ -110,7 +110,9 @@ def _configured_app(monkeypatch, tmp_path):
 
 def test_configured_app_mounts_tapdb_web_and_root_dag(monkeypatch, tmp_path) -> None:
     app = _configured_app(monkeypatch, tmp_path)
-    mounts = {str(getattr(route, "path", "")) for route in app.routes if getattr(route, "app", None)}
+    mounts = {
+        str(getattr(route, "path", "")) for route in app.routes if getattr(route, "app", None)
+    }
     paths = _route_paths(app)
 
     assert "/tapdb" in mounts

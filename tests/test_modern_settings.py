@@ -329,4 +329,4 @@ def test_repo_ships_single_zebra_day_template_prefix():
     prefixes = {template["instance_prefix"] for template in template_pack["templates"]}
     categories = {template["category"] for template in template_pack["templates"]}
     assert prefixes == {"ZGX"}
-    assert categories == {"ZGX"}
+    assert categories == {"fleet", "labels", "printing"}

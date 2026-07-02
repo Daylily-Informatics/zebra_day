@@ -487,7 +487,9 @@ def test_printer_scan_stream_reports_progress_and_uses_wait(monkeypatch, tmp_pat
     monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
     observed: dict[str, object] = {}
 
-    def fake_discover(self, *, ip_stub, lab, scan_http_port=None, scan_wait=None, progress_callback=None):
+    def fake_discover(
+        self, *, ip_stub, lab, scan_http_port=None, scan_wait=None, progress_callback=None
+    ):
         del self
         observed.update(
             {

@@ -262,9 +262,7 @@ def create_app(
                         existing.append(item)
                 if existing:
                     payload[key] = existing
-            payload["tapdb_dag_contract_version"] = str(
-                fragment.get("contract_version") or ""
-            )
+            payload["tapdb_dag_contract_version"] = str(fragment.get("contract_version") or "")
         return app.state.observability.with_projection(
             request,
             name="obs_services",
@@ -529,7 +527,7 @@ def run_server(
     host: str = "0.0.0.0",
     port: int = 8118,
     reload: bool = False,
-    auth: Literal["none", "cognito"] = "cognito",
+    auth: Literal["none", "cognito", "external_broker"] = "cognito",
     ssl_enabled: bool = True,
     ssl_certfile: str | None = None,
     ssl_keyfile: str | None = None,

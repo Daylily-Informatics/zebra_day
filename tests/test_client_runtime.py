@@ -147,16 +147,18 @@ def test_tapdb_fleet_repository_uses_explicit_compose_target(monkeypatch, tmp_pa
             return _TapdbModule
         if module_name == "daylily_tapdb.cli.db_config":
             return SimpleNamespace(
-                get_db_config=lambda **kwargs: get_db_calls.append(kwargs)
-                or {
-                    "engine_type": "compose",
-                    "host": "postgres",
-                    "port": "5432",
-                    "user": "dayhoff",
-                    "password": "pw",
-                    "database": "dayhoff_compose",
-                    "schema_name": "tapdb_zebra_day_compose",
-                }
+                get_db_config=lambda **kwargs: (
+                    get_db_calls.append(kwargs)
+                    or {
+                        "engine_type": "compose",
+                        "host": "postgres",
+                        "port": "5432",
+                        "user": "dayhoff",
+                        "password": "pw",
+                        "database": "dayhoff_compose",
+                        "schema_name": "tapdb_zebra_day_compose",
+                    }
+                )
             )
         raise AssertionError(f"unexpected import request: {module_name}")
 
@@ -179,9 +181,7 @@ def test_tapdb_fleet_repository_uses_explicit_compose_target(monkeypatch, tmp_pa
     ]
 
 
-def test_tapdb_fleet_repository_passes_explicit_aurora_auth_fields(
-    monkeypatch, tmp_path
-):
+def test_tapdb_fleet_repository_passes_explicit_aurora_auth_fields(monkeypatch, tmp_path):
     _set_xdg(monkeypatch, tmp_path)
     config_path = Path(tmp_path / "config" / "zebra-day-config-local.yaml")
     tapdb_config_path = tmp_path / "tapdb" / "tapdb-config.yaml"

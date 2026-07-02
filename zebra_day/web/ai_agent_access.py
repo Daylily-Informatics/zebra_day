@@ -122,7 +122,9 @@ def validate_ai_agent_request(request: Request, token: str) -> ValidatedAgentAcc
             raise AgentTokenError("AI-agent token has expired")
         endpoint_ids = [str(item) for item in record.get("endpoint_ids") or []]
         if endpoint_id not in endpoint_ids:
-            raise AgentTokenError("AI-agent token is not authorized for this endpoint", status_code=403)
+            raise AgentTokenError(
+                "AI-agent token is not authorized for this endpoint", status_code=403
+            )
         validated = ValidatedAgentAccess(
             token_id=str(record.get("token_id") or ""),
             agent_id=str(record.get("agent_id") or ""),

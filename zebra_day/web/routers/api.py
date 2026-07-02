@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 from urllib.parse import quote
 
 import httpx
@@ -85,7 +85,7 @@ async def current_user_preferences(request: Request) -> dict[str, Any]:
         response = await client.get(url, headers=headers)
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
-    return response.json()
+    return cast(dict[str, Any], response.json())
 
 
 @router.put("/me/preferences")
@@ -113,7 +113,7 @@ async def update_current_user_preferences(request: Request) -> dict[str, Any]:
             response = await client.get(url, headers=headers)
     if response.status_code >= 400:
         raise HTTPException(status_code=response.status_code, detail=response.text)
-    return response.json()
+    return cast(dict[str, Any], response.json())
 
 
 class TemplateInfo(BaseModel):
