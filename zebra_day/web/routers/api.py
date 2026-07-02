@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+import os
+from typing import Any, cast
+from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -12,6 +15,36 @@ from zebra_day import paths as xdg
 from zebra_day.client import PrinterRecord
 
 router = APIRouter()
+THEME_NAMES = {"original", "light", "dark", "ssf", "viridis", "viridis-dark"}
+
+
+def _broker_preferences_contract(email: str) -> tuple[str, dict[str, str]]:
+    raw_url = str(os.environ.get("LSMC_AUTH_BROKER_USER_PREFERENCES_URL") or "").strip()
+    token = str(os.environ.get("LSMC_AUTH_BROKER_SERVICE_TOKEN") or "").strip()
+    service_id = str(os.environ.get("LSMC_AUTH_BROKER_SERVICE_ID") or "zebra-day").strip()
+    if not raw_url:
+        raise HTTPException(status_code=503, detail="Broker user preferences URL is not configured")
+    if not token:
+        raise HTTPException(status_code=503, detail="Broker service token is not configured")
+    if "{email}" not in raw_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Broker user preferences URL must include {email}",
+        )
+    return raw_url.replace("{email}", quote(email, safe="")), {
+        "Authorization": f"Bearer {token}",
+        "X-LSMC-Service-ID": service_id,
+    }
+
+
+def _authenticated_email(request: Request) -> str:
+    user = getattr(request.state, "user", None)
+    if not isinstance(user, dict):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    email = str(user.get("email") or "").strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Authenticated user email is required")
+    return email
 
 
 class PrinterInfo(BaseModel):
@@ -31,6 +64,56 @@ class PrinterInfo(BaseModel):
     state: str = "Unknown"
     status: str = "active"
     discovery_source: str = ""
+
+
+class LabInfo(BaseModel):
+    lab: str
+    display_name: str = ""
+    description: str = ""
+
+
+class LabCreateRequest(BaseModel):
+    lab: str
+    display_name: str = ""
+    description: str = ""
+
+
+@router.get("/me/preferences")
+async def current_user_preferences(request: Request) -> dict[str, Any]:
+    url, headers = _broker_preferences_contract(_authenticated_email(request))
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.get(url, headers=headers)
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return cast(dict[str, Any], response.json())
+
+
+@router.put("/me/preferences")
+async def update_current_user_preferences(request: Request) -> dict[str, Any]:
+    payload = await request.json()
+    theme = str(payload.get("theme") or "").strip()
+    if theme and theme not in THEME_NAMES:
+        raise HTTPException(status_code=400, detail="Unknown theme")
+    service_themes = payload.get("service_themes")
+    if service_themes is not None:
+        if not isinstance(service_themes, dict):
+            raise HTTPException(status_code=400, detail="service_themes must be an object")
+        for service_theme in service_themes.values():
+            if service_theme is not None and str(service_theme).strip() not in THEME_NAMES:
+                raise HTTPException(status_code=400, detail="Unknown theme")
+    forward_payload = {}
+    if "theme" in payload:
+        forward_payload["theme"] = theme or None
+    if service_themes is not None:
+        forward_payload["service_themes"] = service_themes
+    url, headers = _broker_preferences_contract(_authenticated_email(request))
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.put(url, headers=headers, json=forward_payload)
+        if response.status_code < 400:
+            response = await client.get(url, headers=headers)
+    if response.status_code >= 400:
+        raise HTTPException(status_code=response.status_code, detail=response.text)
+    return cast(dict[str, Any], response.json())
 
 
 class TemplateInfo(BaseModel):
@@ -101,6 +184,7 @@ class RenderResponse(BaseModel):
 class DiscoverRequest(BaseModel):
     ip_stub: str
     scan_http_port: int | None = None
+    scan_wait: float | None = Field(None, gt=0, le=30)
 
 
 class TemplateSaveRequest(BaseModel):
@@ -124,10 +208,33 @@ async def list_labs(request: Request) -> list[str]:
     return list(_client(request).list_labs())
 
 
+@router.post("/labs", response_model=LabInfo, status_code=201)
+async def create_lab(request: Request, payload: LabCreateRequest) -> LabInfo:
+    lab = payload.lab.strip()
+    if not lab:
+        raise HTTPException(status_code=400, detail="lab is required")
+    try:
+        stored = _client(request).create_lab(
+            lab,
+            display_name=payload.display_name,
+            description=payload.description,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return LabInfo(
+        lab=lab,
+        display_name=str(stored.get("display_name") or lab.replace("-", " ").title()),
+        description=str(stored.get("description") or ""),
+    )
+
+
 @router.get("/labs/{lab}/printers", response_model=list[PrinterInfo])
 async def list_printers(request: Request, lab: str) -> list[PrinterInfo]:
     if lab not in _client(request).list_labs():
-        raise HTTPException(status_code=404, detail=f"Lab '{lab}' not found")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Lab '{lab}' not found. Create the lab before managing printers.",
+        )
     return [_printer_info(item) for item in _client(request).list_printers(lab)]
 
 
@@ -164,11 +271,17 @@ async def discover_lab_printers(
     lab: str,
     payload: DiscoverRequest,
 ) -> list[PrinterInfo]:
-    rows = _client(request).discover_printers(
-        ip_stub=payload.ip_stub,
-        lab=lab,
-        scan_http_port=payload.scan_http_port,
-    )
+    try:
+        rows = _client(request).discover_printers(
+            ip_stub=payload.ip_stub,
+            lab=lab,
+            scan_http_port=payload.scan_http_port,
+            scan_wait=payload.scan_wait,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return [_printer_info(item) for item in rows]
 
 

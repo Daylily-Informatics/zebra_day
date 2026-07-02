@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import json
 import os
 import secrets
 from collections.abc import Callable
@@ -42,6 +43,11 @@ from zebra_day.settings import (
     DEFAULT_ALLOWED_EMAIL_DOMAINS,
     ZebraDaySettings,
     _validate_cognito_domain,
+)
+from zebra_day.web.ai_agent_access import (
+    AgentTokenError,
+    is_ai_agent_token,
+    validate_ai_agent_request,
 )
 
 _log = get_logger(__name__)
@@ -776,6 +782,10 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         session_user = _session_user(request)
         if session_user is not None:
             request.state.user = session_user
+            request.state.auth_mode = str(session_user.get("auth_mode") or "session")
+            request.state.authorized_by_email = session_user.get("email") or session_user.get(
+                "user_id"
+            )
             return await call_next(request)  # type: ignore[no-any-return]
 
         auth_reason = _clean(getattr(request.state, "cognito_auth_reason", ""))
@@ -784,14 +794,47 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
 
         if _has_internal_api_key(request):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
+            request.state.auth_mode = "service_token"
             return await call_next(request)  # type: ignore[no-any-return]
 
         auth_header = _clean(request.headers.get("authorization"))
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+            if is_ai_agent_token(token):
+                try:
+                    grant = validate_ai_agent_request(request, token)
+                except AgentTokenError as exc:
+                    return Response(
+                        content=json.dumps({"detail": exc.detail}),
+                        media_type="application/json",
+                        status_code=exc.status_code,
+                        headers={"WWW-Authenticate": "Bearer"}
+                        if exc.status_code == status.HTTP_401_UNAUTHORIZED
+                        else None,
+                    )
+                request.state.user = {
+                    "service_principal": False,
+                    "auth_mode": "ai_agent_token",
+                    "user_id": f"ai-agent:{grant.agent_id}",
+                    "email": grant.issued_by_email,
+                    "roles": ["viewer"],
+                    "groups": ["ai-agent"],
+                    "agent_id": grant.agent_id,
+                    "agent_token_id": grant.token_id,
+                    "agent_endpoint_id": grant.endpoint_id,
+                }
+                request.state.auth_mode = "ai_agent_token"
+                request.state.authorized_by_email = grant.issued_by_email
+                return await call_next(request)  # type: ignore[no-any-return]
         if self.cognito_auth and auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1].strip()
             try:
                 claims = self.cognito_auth.auth.verify_token(token)
                 request.state.user = build_user_identity(dict(claims), self.settings)
+                request.state.auth_mode = "cognito"
+                request.state.authorized_by_email = request.state.user.get(
+                    "email"
+                ) or request.state.user.get("user_id")
                 return await call_next(request)  # type: ignore[no-any-return]
             except Exception as exc:
                 _log.warning("Bearer token rejected: %s", exc)
@@ -807,4 +850,4 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         target = request.url.path
         if request.url.query:
             target = f"{target}?{request.url.query}"
-        return RedirectResponse(url=f"/auth/login?next={quote(target)}", status_code=302)
+        return RedirectResponse(url=f"/login?next={quote(target, safe='/')}", status_code=302)

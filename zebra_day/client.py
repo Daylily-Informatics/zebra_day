@@ -25,13 +25,23 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-ZEBRA_DAY_TEMPLATE_CATEGORY = "ZGX"
-PRINTER_TEMPLATE_CODE = "ZGX/fleet/printer/1.0/"
-LABEL_PROFILE_TEMPLATE_CODE = "ZGX/labels/profile/1.0/"
-LABEL_TEMPLATE_TEMPLATE_CODE = "ZGX/labels/template/1.0/"
-OBSERVATION_TEMPLATE_CODE = "ZGX/fleet/printer-observation/1.0/"
-DRIFT_TEMPLATE_CODE = "ZGX/fleet/metadata-drift/1.0/"
-PRINT_JOB_TEMPLATE_CODE = "ZGX/printing/print-job/1.0/"
+ZEBRA_DAY_TEMPLATE_EUID_PREFIX = "ZGX"
+LAB_TEMPLATE_CODE = "fleet/lab/generic/1.0/"
+PRINTER_TEMPLATE_CODE = "fleet/printer/generic/1.0/"
+LABEL_PROFILE_TEMPLATE_CODE = "labels/profile/generic/1.0/"
+LABEL_TEMPLATE_TEMPLATE_CODE = "labels/template/generic/1.0/"
+OBSERVATION_TEMPLATE_CODE = "fleet/printer-observation/generic/1.0/"
+DRIFT_TEMPLATE_CODE = "fleet/metadata-drift/generic/1.0/"
+PRINT_JOB_TEMPLATE_CODE = "printing/print-job/generic/1.0/"
+ZEBRA_DAY_TYPE_CATEGORIES = {
+    "lab": "fleet",
+    "printer": "fleet",
+    "printer-observation": "fleet",
+    "metadata-drift": "fleet",
+    "profile": "labels",
+    "template": "labels",
+    "print-job": "printing",
+}
 PACKAGE_TEMPLATE_PACK = (
     Path(__file__).resolve().parents[1]
     / "config"
@@ -292,6 +302,7 @@ class PrinterRecord:
 
 class FleetRepository(Protocol):
     def list_labs(self) -> list[str]: ...
+    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]: ...
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]: ...
     def get_printer(self, lab: str, printer_id: str) -> PrinterRecord | None: ...
     def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None: ...
@@ -332,15 +343,29 @@ class TapDBFleetRepository:
             database_name=self.settings.tapdb_database_name,
         )
         db_hostname = f"{cfg['host']}:{cfg['port']}"
+        connection_engine_type = str(cfg["engine_type"])
+        region = str(cfg.get("region") or "").strip()
+        if connection_engine_type == "aurora" and not region:
+            raise RuntimeError("TapDB Aurora config is missing region")
+        iam_auth = str(cfg.get("iam_auth") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         return tapdb_mod.TAPDBConnection(
             app_username=self.settings.tapdb_client_id,
             db_hostname=db_hostname,
+            db_hostaddr=str(cfg.get("hostaddr") or "").strip() or None,
             db_user=cfg["user"],
             db_pass=cfg["password"],
             db_name=cfg["database"],
             schema_name=cfg["schema_name"],
             echo_sql=False,
-            engine_type=str(cfg["engine_type"]),
+            engine_type=connection_engine_type,
+            region=region,
+            iam_auth=iam_auth,
+            secret_arn=str(cfg.get("secret_arn") or "").strip() or None,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
         )
@@ -368,7 +393,7 @@ class TapDBFleetRepository:
                 entity="generic_template",
                 domain_code=self.settings.tapdb_domain_code,
                 owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_CATEGORY,
+                prefix=ZEBRA_DAY_TEMPLATE_EUID_PREFIX,
             )
             _ensure_identity_prefix_config(
                 session,
@@ -416,12 +441,14 @@ class TapDBFleetRepository:
             raise RuntimeError(f"TapDB template not seeded: {code}")
         return template
 
-    def _query_instances(self, session, subtype: str):
+    def _query_instances(self, session, type_name: str):
+        category = ZEBRA_DAY_TYPE_CATEGORIES[type_name]
         return (
             session.query(self._generic_instance)
             .filter(
-                self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                self._generic_instance.subtype == subtype,
+                self._generic_instance.category == category,
+                self._generic_instance.type == type_name,
+                self._generic_instance.subtype == "generic",
                 self._generic_instance.is_deleted.is_(False),
             )
             .all()
@@ -440,8 +467,9 @@ class TapDBFleetRepository:
             existing = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == subtype,
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES[subtype],
+                    self._generic_instance.type == subtype,
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == name,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -479,7 +507,30 @@ class TapDBFleetRepository:
                 _clean((item.json_addl or {}).get("lab"))
                 for item in self._query_instances(session, "printer")
             }
+            labs.update(
+                _clean((item.json_addl or {}).get("lab") or getattr(item, "name", ""))
+                for item in self._query_instances(session, "lab")
+            )
             return sorted(lab for lab in labs if lab)
+
+    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        normalized = _clean(lab)
+        if not normalized:
+            raise ValueError("lab is required")
+        body = {
+            "lab": normalized,
+            "display_name": normalized.replace("-", " ").title(),
+            "description": "",
+            **(payload or {}),
+        }
+        body["lab"] = normalized
+        return self._upsert_instance(
+            template_code=LAB_TEMPLATE_CODE,
+            subtype="lab",
+            name=normalized,
+            payload=body,
+            bstatus="active",
+        )
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         with self._session(commit=False) as session:
@@ -498,8 +549,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "printer",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["printer"],
+                    self._generic_instance.type == "printer",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == _stable_name(lab, printer_id),
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -517,8 +569,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "printer",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["printer"],
+                    self._generic_instance.type == "printer",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.euid == printer_euid,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -560,8 +613,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "template",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["template"],
+                    self._generic_instance.type == "template",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == template_name,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -616,8 +670,9 @@ class TapDBFleetRepository:
             instance = (
                 session.query(self._generic_instance)
                 .filter(
-                    self._generic_instance.category == ZEBRA_DAY_TEMPLATE_CATEGORY,
-                    self._generic_instance.subtype == "profile",
+                    self._generic_instance.category == ZEBRA_DAY_TYPE_CATEGORIES["profile"],
+                    self._generic_instance.type == "profile",
+                    self._generic_instance.subtype == "generic",
                     self._generic_instance.name == profile_name,
                     self._generic_instance.is_deleted.is_(False),
                 )
@@ -684,6 +739,18 @@ class ZebraDayClient:
 
     def list_labs(self) -> list[str]:
         return self.repository.list_labs()
+
+    def create_lab(
+        self, lab: str, *, display_name: str = "", description: str = ""
+    ) -> dict[str, Any]:
+        normalized = _clean(lab)
+        if not normalized:
+            raise ValueError("lab is required")
+        payload = {
+            "display_name": _clean(display_name) or normalized.replace("-", " ").title(),
+            "description": _clean(description),
+        }
+        return self.repository.upsert_lab(normalized, payload)
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         return self.repository.list_printers(lab)
@@ -861,12 +928,18 @@ class ZebraDayClient:
         ip_stub: str,
         lab: str,
         scan_http_port: int | None = None,
+        scan_wait: float | None = None,
         progress_callback=None,
     ) -> list[PrinterRecord]:
+        if lab not in self.list_labs():
+            raise KeyError(f"Lab '{lab}' not found. Create the lab before scanning printers.")
+        resolved_scan_wait = (
+            float(scan_wait) if scan_wait is not None else self.settings.default_scan_wait_seconds
+        )
         found: list[PrinterRecord] = []
         for payload in discover_printers(
             ip_stub=ip_stub,
-            scan_wait=self.settings.default_scan_wait_seconds,
+            scan_wait=resolved_scan_wait,
             scan_http_port=scan_http_port,
             progress_callback=progress_callback,
         ):
@@ -1054,6 +1127,21 @@ class ZebraDayApiClient:
 
     def list_labs(self) -> list[str]:
         return list(self._json("GET", "/api/v1/labs"))
+
+    def create_lab(
+        self, lab: str, *, display_name: str = "", description: str = ""
+    ) -> dict[str, Any]:
+        return dict(
+            self._json(
+                "POST",
+                "/api/v1/labs",
+                json={
+                    "lab": lab,
+                    "display_name": display_name,
+                    "description": description,
+                },
+            )
+        )
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         if lab is None:

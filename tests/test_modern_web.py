@@ -110,6 +110,17 @@ def _runtime_inventory(app) -> tuple[set[tuple[str, str]], set[str]]:
     routes: set[tuple[str, str]] = set()
     mounts: set[str] = set()
     for route in app.routes:
+        effective_contexts = getattr(route, "effective_route_contexts", None)
+        if effective_contexts:
+            for context in effective_contexts():
+                path = str(getattr(context, "path", "") or "").strip()
+                if not path:
+                    continue
+                route_methods = {
+                    method for method in getattr(context, "methods", set()) if method in methods
+                }
+                routes.update((method, path) for method in route_methods)
+            continue
         path = str(getattr(route, "path", "") or "").strip()
         if not path:
             continue
@@ -157,7 +168,10 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/templates"),
         ("GET", "/print"),
         ("GET", "/config"),
+        ("GET", "/api/v1/me/preferences"),
+        ("PUT", "/api/v1/me/preferences"),
         ("GET", "/api/v1/labs"),
+        ("POST", "/api/v1/labs"),
         ("GET", "/api/v1/labs/{lab}/printers"),
         ("GET", "/api/v1/labs/{lab}/printers/{printer_euid}"),
         ("PATCH", "/api/v1/labs/{lab}/printers/{printer_euid}"),
@@ -188,6 +202,8 @@ def test_runtime_route_inventory_covers_top_level_routes_and_mount_boundaries(
         ("GET", "/auth/lsmc/callback"),
         ("GET", "/auth/logout"),
         ("POST", "/auth/logout"),
+        ("GET", "/config/scan/stream"),
+        ("POST", "/config/scan/cancel"),
         ("GET", "/auth/error"),
         ("GET", "/openapi.json"),
         ("GET", "/docs"),
@@ -239,6 +255,10 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
     with TestClient(app) as client:
         labs = client.get("/api/v1/labs")
+        create_lab = client.post(
+            "/api/v1/labs",
+            json={"lab": "ops", "display_name": "Operations"},
+        )
         printers = client.get("/api/v1/labs/default/printers")
         runtime = client.get("/api/v1/config")
         preview = client.post(
@@ -248,7 +268,12 @@ def test_api_routes_use_tapdb_native_shapes(monkeypatch, tmp_path):
             "/api/v1/print",
             json={"lab": "default", "printer_euid": "default-printer-0001", "uid_barcode": "UID-1"},
         )
+        labs_after_create = client.get("/api/v1/labs")
     assert labs.json() == ["default"]
+    assert create_lab.status_code == 201
+    assert create_lab.json()["lab"] == "ops"
+    assert create_lab.json()["display_name"] == "Operations"
+    assert labs_after_create.json() == ["default", "ops"]
     assert printers.json()[0]["printer_euid"] == "default-printer-0001"
     assert "printer_id" not in printers.json()[0]
     assert "euid" not in printers.json()[0]
@@ -302,6 +327,10 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
         )
         discover = client.post(
             "/api/v1/labs/default/discover",
+            json={"ip_stub": "192.168.1", "scan_http_port": 80, "scan_wait": 0.2},
+        )
+        missing_lab_discover = client.post(
+            "/api/v1/labs/SS/discover",
             json={"ip_stub": "192.168.1", "scan_http_port": 80},
         )
         sync = client.post("/api/v1/labs/default/printers/default-printer-0001/sync")
@@ -335,6 +364,8 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert "printer_id" not in discover.json()[0]
     assert "euid" not in discover.json()[0]
     assert discover.json()[0]["discovery_source"] == "zpl+http(80)"
+    assert missing_lab_discover.status_code == 404
+    assert "Create the lab before scanning printers" in missing_lab_discover.json()["detail"]
     assert sync.status_code == 200
     assert sync.json()["printer_euid"] == "default-printer-0001"
     assert "euid" not in sync.json()
@@ -369,6 +400,9 @@ def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
     assert "Effective Config" in config_response.text
     assert "Active Config Path" in config_response.text
     assert "Backend Configuration" not in config_response.text
+    assert "Add Lab Code" in config_response.text
+    assert 'id="config-create-lab-form"' in config_response.text
+    assert "/api/v1/labs" in config_response.text
     assert "Shared Templates" in templates_response.text
     assert "Import Local Templates to DynamoDB" not in templates_response.text
     assert __version__ in config_response.text
@@ -412,6 +446,7 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
     app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
     with TestClient(app) as client:
         printers_by_lab = client.get("/printers/default")
+        missing_lab = client.get("/printers/SS")
         print_page = client.get(
             "/print?lab=default&printer_euid=default-printer-0001&label_zpl_style=tube_2inX1in"
         )
@@ -425,6 +460,11 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
 
     assert printers_by_lab.status_code == 200
     assert "Bench Printer" in printers_by_lab.text
+    assert "Wait Per IP (s)" in printers_by_lab.text
+    assert missing_lab.status_code == 200
+    assert "Create Lab First" in missing_lab.text
+    assert "Lab <strong>SS</strong> is not configured yet" in missing_lab.text
+    assert "create-lab-form" in missing_lab.text
     assert print_page.status_code == 200
     assert "Print Label" in print_page.text
     assert openapi.status_code == 200
@@ -443,6 +483,59 @@ def test_additional_gui_docs_and_auth_routes_have_direct_smokes(monkeypatch, tmp
     assert logout_post.headers["location"] == "/login"
 
 
+def test_printer_scan_stream_reports_progress_and_uses_wait(monkeypatch, tmp_path):
+    monkeypatch.setattr("zebra_day.web.app.get_local_ip", lambda: "192.168.1.10")
+    observed: dict[str, object] = {}
+
+    def fake_discover(
+        self, *, ip_stub, lab, scan_http_port=None, scan_wait=None, progress_callback=None
+    ):
+        del self
+        observed.update(
+            {
+                "ip_stub": ip_stub,
+                "lab": lab,
+                "scan_http_port": scan_http_port,
+                "scan_wait": scan_wait,
+            }
+        )
+        assert progress_callback is not None
+        progress_callback({"kind": "checking", "checked": 0, "total": 254, "ip": "127.0.0.1"})
+        progress_callback(
+            {
+                "kind": "checked",
+                "checked": 1,
+                "total": 254,
+                "ip": "127.0.0.1",
+                "open": True,
+                "source": "http(80)",
+            }
+        )
+        progress_callback({"kind": "done", "checked": 254, "total": 254})
+        return []
+
+    monkeypatch.setattr(ZebraDayClient, "discover_printers", fake_discover)
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    with TestClient(app) as client:
+        response = client.get(
+            "/config/scan/stream?ip_stub=127.0.0&lab=default&scan_wait=0.2&scan_http_port=80"
+        )
+        cancel = client.post("/config/scan/cancel?scan_id=missing")
+
+    assert response.status_code == 200
+    assert '"kind": "init"' in response.text
+    assert '"kind": "checked"' in response.text
+    assert '"source": "http(80)"' in response.text
+    assert observed == {
+        "ip_stub": "127.0.0",
+        "lab": "default",
+        "scan_http_port": 80,
+        "scan_wait": 0.2,
+    }
+    assert cancel.status_code == 200
+    assert cancel.json()["status"] == "cancelling"
+
+
 def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch):
     app = _make_cognito_app(
         tmp_path,
@@ -453,7 +546,7 @@ def test_cognito_mode_redirects_html_when_unauthenticated(tmp_path, monkeypatch)
     with _cognito_client(app) as test_client:
         response = test_client.get("/printers", follow_redirects=False)
     assert response.status_code == 302
-    assert response.headers["location"].startswith("/auth/login?next=/printers")
+    assert response.headers["location"].startswith("/login?next=/printers")
 
 
 def test_login_page_renders_canonical_auth_cta(tmp_path, monkeypatch):

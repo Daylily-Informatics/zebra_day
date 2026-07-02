@@ -1,13 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-lsmc-service="zebra-day" data-theme="original">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Zebra Day{% endblock %}</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="/static/zebra_modern.css?v={{ cache_bust | default('1') }}">
     {% block extra_head %}{% endblock %}
@@ -128,6 +125,7 @@
         };
     </script>
     <script src="/static/js/zebra_modern.js?v={{ cache_bust | default('1') }}"></script>
+    <script src="/static/js/lsmc_ui.js?v={{ cache_bust | default('1') }}"></script>
     {% block extra_scripts %}{% endblock %}
 </body>
 </html>

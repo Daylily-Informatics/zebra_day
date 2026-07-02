@@ -4,9 +4,11 @@ import importlib
 import sys
 from types import ModuleType, SimpleNamespace
 
+import yaml
 from typer.testing import CliRunner
 
 import zebra_day.cli as zebra_cli
+from zebra_day.settings import build_default_config_template
 
 runner = CliRunner()
 
@@ -21,6 +23,31 @@ def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
     monkeypatch.setenv("CONDA_DEFAULT_ENV", f"ZEBRA_DAY-{deployment}")
     monkeypatch.setenv("CONDA_PREFIX", str(tmp_path / "conda" / deployment))
     monkeypatch.delenv("ZEBRA_DAY_CONFIG_PATH", raising=False)
+    config_path = tmp_path / "config" / "zebra_day" / f"zebra-day-config-{deployment}.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(
+        build_default_config_template(deployment).decode("utf-8"),
+        encoding="utf-8",
+    )
+
+
+def _write_config_with_tapdb_paths(
+    *,
+    deployment: str,
+    config_path,
+    tapdb_config_path,
+    domain_registry_path,
+    prefix_registry_path,
+) -> None:
+    payload = yaml.safe_load(build_default_config_template(deployment).decode("utf-8"))
+    payload["tapdb"].update(
+        {
+            "config_path": str(tapdb_config_path),
+            "domain_registry_path": str(domain_registry_path),
+            "prefix_ownership_registry_path": str(prefix_registry_path),
+        }
+    )
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
 
 
 def test_config_path_uses_deployment_scoped_filename(monkeypatch, tmp_path):
@@ -73,14 +100,12 @@ def test_tapdb_passthrough_uses_runtime_namespace(monkeypatch, tmp_path):
     domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
     prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        (
-            "tapdb:\n"
-            f"  config_path: {tapdb_config_path}\n"
-            f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-        ),
-        encoding="utf-8",
+    _write_config_with_tapdb_paths(
+        deployment="dev1",
+        config_path=config_path,
+        tapdb_config_path=tapdb_config_path,
+        domain_registry_path=domain_registry_path,
+        prefix_registry_path=prefix_registry_path,
     )
     monkeypatch.setitem(sys.modules, "daylily_tapdb", ModuleType("daylily_tapdb"))
     recorded: dict[str, object] = {}
@@ -123,14 +148,12 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
     domain_registry_path = tmp_path / "tapdb-registry" / "domain_code_registry.json"
     prefix_registry_path = tmp_path / "tapdb-registry" / "prefix_ownership_registry.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        (
-            "tapdb:\n"
-            f"  config_path: {tapdb_config_path}\n"
-            f"  domain_registry_path: {domain_registry_path}\n"
-            f"  prefix_ownership_registry_path: {prefix_registry_path}\n"
-        ),
-        encoding="utf-8",
+    _write_config_with_tapdb_paths(
+        deployment="dev1",
+        config_path=config_path,
+        tapdb_config_path=tapdb_config_path,
+        domain_registry_path=domain_registry_path,
+        prefix_registry_path=prefix_registry_path,
     )
     monkeypatch.setitem(sys.modules, "daylily_tapdb", ModuleType("daylily_tapdb"))
     commands: list[list[str]] = []
@@ -182,7 +205,7 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "--user",
             "postgres",
             "--database",
-            "zebra-day-dev1",
+            "tapdb_dev1",
         ],
         [
             "tapdb",
@@ -211,7 +234,7 @@ def test_bootstrap_local_initializes_namespace_config_before_bootstrap(monkeypat
             "--ui-port",
             "8118",
             "--database",
-            "zebra-day-dev1",
+            "tapdb_dev1",
             "--schema-name",
             "tapdb_zebra_day_dev1",
         ],

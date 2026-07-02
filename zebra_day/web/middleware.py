@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import time
 import uuid
 from collections import defaultdict
@@ -11,9 +13,64 @@ from collections.abc import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from zebra_day.logging_config import get_logger
+_access_log = logging.getLogger("lsmc.access")
 
-_log = get_logger(__name__)
+
+def _normalize_route_template(*, path: str, route_template: str) -> str:
+    """Return the externally visible route template for mounted API routers."""
+    if (
+        path.startswith("/api/v1/")
+        and route_template.startswith("/")
+        and not route_template.startswith("/api/v1/")
+    ):
+        return f"/api/v1{route_template}"
+    return route_template or path
+
+
+def _common_access_log_payload(
+    *,
+    request: Request,
+    service_id: str,
+    status_code: int,
+    duration_ms: float,
+    route_template: str,
+) -> dict[str, object]:
+    actor = (
+        getattr(request.state, "authorized_by_email", None)
+        or getattr(request.state, "authorizing_human", None)
+        or getattr(request.state, "actor", None)
+    )
+    ai_agent_id = getattr(request.state, "ai_agent_id", None) or getattr(
+        request.state, "agent_id", None
+    )
+    return {
+        "event": "request_completed",
+        "request_id": getattr(request.state, "request_id", ""),
+        "correlation_id": getattr(request.state, "correlation_id", ""),
+        "service_id": service_id,
+        "actor": actor,
+        "ai_agent_id": ai_agent_id,
+        "authorizing_human": getattr(request.state, "authorizing_human", None)
+        or getattr(request.state, "authorized_by_email", None),
+        "ip": request.client.host if request.client else None,
+        "method": request.method,
+        "path": request.url.path,
+        "route": route_template or request.url.path,
+        "route_template": route_template or request.url.path,
+        "status": status_code,
+        "duration_ms": round(duration_ms, 2),
+        "denial_reason": getattr(request.state, "denial_reason", None)
+        or (f"http_{status_code}" if status_code in {401, 403} else None),
+        "auth_mode": getattr(request.state, "auth_mode", None),
+    }
+
+
+def _emit_access_log(payload: dict[str, object], *, level: int = logging.INFO) -> None:
+    _access_log.log(
+        level,
+        json.dumps(payload, sort_keys=True, separators=(",", ":")),
+        extra=payload,
+    )
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -36,7 +93,10 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
         route = request.scope.get("route")
-        path_template = getattr(route, "path", path)
+        path_template = _normalize_route_template(
+            path=path,
+            route_template=getattr(route, "path", path),
+        )
         request.state.path_template = path_template
         str(request.query_params) if request.query_params else ""
 
@@ -52,31 +112,37 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as exc:
             status_code = 500
             outcome = "exception"
-            _log.exception(
-                "Request failed",
-                extra={
-                    "client_ip": client_ip,
-                    "method": method,
-                    "path": path,
-                    "error": str(exc),
-                },
+            payload = _common_access_log_payload(
+                request=request,
+                service_id="zebra-day",
+                status_code=status_code,
+                duration_ms=(time.perf_counter() - start_time) * 1000,
+                route_template=path_template or path,
             )
+            payload["outcome"] = outcome
+            payload["error"] = str(exc)
+            _emit_access_log(payload, level=logging.ERROR)
             raise
 
         route = request.scope.get("route")
-        path_template = getattr(route, "path", path)
+        path_template = _normalize_route_template(
+            path=path,
+            route_template=getattr(route, "path", path),
+        )
         request.state.path_template = path_template
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
-        # Build log context
-        log_context = {
-            "client_ip": client_ip,
-            "method": method,
-            "path": path,
-            "status_code": status_code,
-            "elapsed_ms": round(elapsed_ms, 2),
-            "outcome": outcome,
-        }
+        log_context = _common_access_log_payload(
+            request=request,
+            service_id="zebra-day",
+            status_code=status_code,
+            duration_ms=elapsed_ms,
+            route_template=path_template or path,
+        )
+        log_context["client_ip"] = client_ip
+        log_context["status_code"] = status_code
+        log_context["elapsed_ms"] = round(elapsed_ms, 2)
+        log_context["outcome"] = outcome
 
         # Add print-specific context if relevant
         if lab:
@@ -88,11 +154,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # Log at appropriate level
         if status_code >= 500:
-            _log.error("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.ERROR)
         elif status_code >= 400:
-            _log.warning("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.WARNING)
         else:
-            _log.info("Request completed", extra=log_context)
+            _emit_access_log(log_context, level=logging.INFO)
 
         observability = getattr(request.app.state, "observability", None)
         if observability is not None:
@@ -116,8 +182,8 @@ class PrintRateLimiter:
 
     def __init__(
         self,
-        max_requests: int = 10,
-        window_seconds: float = 60.0,
+        max_requests: int = 3,
+        window_seconds: float = 1.0,
         max_concurrent: int = 3,
     ):
         """

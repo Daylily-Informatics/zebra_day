@@ -1,91 +1,76 @@
-# zebra_day
+<p align="center">
+  <strong>Zebra Day</strong><br>
+  Internal printer, label-template, print-job, and lab-code service for Dayhoff.
+</p>
 
-`zebra_day` is a Python library, CLI, simulator, and FastAPI web service for managing Zebra printer fleets and serving ZPL print workflows. Shared fleet state, templates, label profiles, observations, and print jobs now live in `daylily-tapdb` only.
+<p align="center">
+  <a href="docs/README.md">Docs</a> ·
+  <a href="docs/major_refactor.md">Refactor notes</a> ·
+  <a href="docs/tapdb_hard_migration_plan.md">TapDB migration</a>
+</p>
 
-## What Changed
+## Overview
 
-- TapDB is the only supported shared datastore.
-- `source ./activate <deploy-name>` is the only supported repo activation path.
-- The service/admin runtime uses direct TapDB access through `ZebraDayClient`.
-- Downstream Python applications should use `ZebraDayApiClient` against a running zebra_day API.
-- Cognito is the default auth mode. `--no-auth` remains the explicit runtime override.
+Zebra Day is the LSMC internal Zebra printer fleet service. It manages labs, printer discovery/status, label templates, rendered labels, print jobs, observations, and shared fleet state in TapDB.
 
-Removed in this major cut:
+Current Dayhoff pin: `8.0.11`. Current TapDB dependency: `daylily-tapdb @ ...@9.0.9`.
 
-- local fleet/config files as runtime state
-- DynamoDB and S3 runtime support
-- `print_mgr.zpl()` and package-root helper shims
-- `zday_start`, `zday_quickstart`, and `zday dynamo`
+Zebra Day is LSMC-internal only in Dayhoff exposure policy.
+
+## What It Does
+
+| Capability | Current surface |
+|---|---|
+| Lab and printer fleet state | GUI/API/CLI surfaces and TapDB-backed records |
+| Discovery and scan progress | Lab printer pages, scan progress UI, and simulator tests |
+| Label templates and jobs | Template rendering, print jobs, and observation records |
+| Barcode/EUID printing | Service APIs used by Bloom and operators where configured |
+| TapDB object views | Mounted `/tapdb` surfaces for generic object inspection |
+
+## How It Works
+
+Zebra Day keeps printer and label state in TapDB-backed records and exposes the same fleet/template/job concepts through GUI, API, and CLI where implemented. Real hardware output is treated as an explicit live side effect; tests use simulator or mocked print paths.
 
 ## Quickstart
 
 ```bash
-source ./activate local
-zday config init
-zday config status
-zday gui start
+cd /Users/jmajor/projects/mega_dayhoff/repos_work/zebra_day
+source ./activate <deploy-name>
+zday --help
+zday server start --port 8118
 ```
 
-The default GUI port is `8118`. HTTPS is enabled automatically when local certs are available.
+Use Dayhoff-generated service config and explicit TapDB config. Shared fleet state is TapDB-backed.
 
-## Runtime Model
+## CLI Interface
 
-```mermaid
-flowchart LR
-    CLI["zday CLI"] --> Service["zebra_day service/runtime"]
-    GUI["FastAPI + Jinja UI"] --> Service
-    APIClient["ZebraDayApiClient"] --> API["zebra_day HTTP API"]
-    API --> Service
-    Service --> TapDB["daylily-tapdb namespace"]
-    Service --> Printers["Zebra printers over TCP 9100"]
-    Simulator["simulator"] --> Printers
-```
+The primary CLI is `zday`. It uses `cli-core-yo`, global `--json`, and shared output helpers. CLI commands cover config/runtime, printer discovery, labels, templates, print jobs, and simulator/testing helpers.
 
-## Python Usage
+Common command families:
 
-Direct service/admin usage:
+| Family | Purpose |
+|---|---|
+| `zday config ...` | Create or inspect explicit deployment config. |
+| `zday server ...` | Start the FastAPI GUI/API service. |
+| `zday printers ...` | Scan, inspect, and test printers where exposed by CLI. |
+| `zday templates/labels/jobs ...` | Manage label templates, render labels, and inspect print jobs where exposed by CLI. |
+| simulator helpers | Run test printer behavior without real hardware. |
 
-```python
-from zebra_day import ZebraDayClient, ZebraDaySettings
+The CLI, API, and GUI should expose the same printer/fleet/template/label capabilities where those surfaces exist.
 
-settings = ZebraDaySettings.from_context("local")
-client = ZebraDayClient(settings)
-printers = client.list_printers("default")
-```
+## GUI
 
-Downstream app usage:
+Zebra Day exposes a FastAPI/Jinja GUI for labs, printers, scan progress, printer details, templates, jobs, and TapDB-backed object views. The mounted TapDB GUI at `/tapdb` is the generic object/EUID surface when configured.
 
-```python
-from zebra_day import ZebraDayApiClient
+Printer scanning should show progress and respect configured wait/rate limits. Discovery can use ZPL port `9100` and optional HTTP probes where configured.
 
-with ZebraDayApiClient("https://localhost:8118", api_key="internal-token") as client:
-    printers = client.list_printers("default")
-    client.submit_print_job(
-        lab="default",
-        printer="printer-1",
-        label_zpl_style="tube_2inX1in",
-        uid_barcode="SAMPLE-001",
-    )
-```
+## API
 
-## CLI Surface
+JSON API routes live under `zebra_day/web/routers/api.py`. HTML routes live under `zebra_day/web/routers/ui.py`. Health, readiness, auth, and observability routes are wired by the service runtime.
 
-- `zday gui ...`: start, stop, restart, and inspect the GUI server
-- `zday printer ...`: list, scan, and sync printers
-- `zday template ...`: list, show, save, preview, and delete templates
-- `zday tapdb ...`: pass through to TapDB lifecycle commands
-- `zday cognito ...`: inspect or validate the daycog-backed auth contract
-- `zday users ...`: manage Cognito group membership for operator/admin roles
-- `zday logs ...`: inspect zebra_day GUI logs
+## Testing Info
 
-## Docs
-
-- [docs/README.md](docs/README.md)
-- [zebra_day/docs/programatic_guide.md](zebra_day/docs/programatic_guide.md)
-- [zebra_day/docs/zebra_day_ui_guide.md](zebra_day/docs/zebra_day_ui_guide.md)
-- [docs/tapdb_hard_migration_plan.md](docs/tapdb_hard_migration_plan.md)
-
-## Development Checks
+Focused checks:
 
 ```bash
 ruff check zebra_day tests
@@ -93,5 +78,12 @@ ruff format --check zebra_day tests
 mypy zebra_day --ignore-missing-imports
 pytest tests/ -v --tb=short
 ```
- 
- 
+
+Deployed evidence should target `https://zebra-day.<deploy>.dev.lsmc.bio` and include login redirect, lab page, printer scan UI, printer detail, TapDB mount, and label rendering where safe.
+
+## Technical Details, History, And Linkouts
+
+- [`docs/README.md`](docs/README.md): current docs index.
+- [`docs/major_refactor.md`](docs/major_refactor.md): refactor background.
+- [`docs/tapdb_hard_migration_plan.md`](docs/tapdb_hard_migration_plan.md): TapDB migration notes.
+- [`docs/plans/`](docs/plans/): active ledgers.

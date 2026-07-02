@@ -88,33 +88,52 @@ function hideTooltip(e) {
 function showToast(type, title, message, duration = 5000) {
     const container = document.getElementById('toast-container');
     if (!container) return;
-    
+
     const icons = {
         success: 'fa-check-circle',
         error: 'fa-exclamation-circle',
         warning: 'fa-exclamation-triangle',
         info: 'fa-info-circle'
     };
-    
+
+    const toastType = Object.prototype.hasOwnProperty.call(icons, type) ? type : 'info';
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <div class="toast-icon">
-            <i class="fas ${icons[type] || icons.info}"></i>
-        </div>
-        <div class="toast-content">
-            <div class="toast-title">${title}</div>
-            <div class="toast-message">${message}</div>
-        </div>
-        <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
+    toast.className = `toast toast-${toastType}`;
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'toast-icon';
+    const icon = document.createElement('i');
+    icon.className = `fas ${icons[toastType]}`;
+    iconWrap.appendChild(icon);
+
+    const content = document.createElement('div');
+    content.className = 'toast-content';
+    const titleEl = document.createElement('div');
+    titleEl.className = 'toast-title';
+    titleEl.textContent = title;
+    const messageEl = document.createElement('div');
+    messageEl.className = 'toast-message';
+    messageEl.textContent = message;
+    content.appendChild(titleEl);
+    content.appendChild(messageEl);
+
+    const close = document.createElement('button');
+    close.className = 'toast-close';
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close notification');
+    close.textContent = 'x';
+    close.addEventListener('click', () => toast.remove());
+
+    toast.appendChild(iconWrap);
+    toast.appendChild(content);
+    toast.appendChild(close);
+
     container.appendChild(toast);
-    
+
     if (duration > 0) {
         setTimeout(() => toast.remove(), duration);
     }
-    
+
     return toast;
 }
 
@@ -191,7 +210,7 @@ function startNetworkScan(event, formEl) {
     return false;
 }
 
-function startNetworkScanWithParams(ipStub, scanWait, lab) {
+function startNetworkScanWithParams(ipStub, scanWait, lab, scanHttpPort) {
     // Close any existing scan stream
     if (window.__zdayNetworkScan.source) {
         try { window.__zdayNetworkScan.source.close(); } catch (_) {}
@@ -227,6 +246,9 @@ function startNetworkScanWithParams(ipStub, scanWait, lab) {
         scan_wait: scanWait,
         lab: lab,
     });
+    if (scanHttpPort) {
+        params.set('scan_http_port', scanHttpPort);
+    }
 
     const source = new EventSource(`/config/scan/stream?${params.toString()}`);
     window.__zdayNetworkScan.source = source;
@@ -263,7 +285,7 @@ function startNetworkScanWithParams(ipStub, scanWait, lab) {
             if (els.list) {
                 const row = document.createElement('div');
                 row.className = 'scan-ip-row';
-                const meta = msg.open ? 'open:9100' : 'closed';
+                const meta = msg.open ? `open:${msg.source || 'printer'}` : 'closed';
                 row.innerHTML = `<span class="scan-ip">${msg.ip}</span><span class="scan-ip-meta">${meta}</span>`;
                 els.list.appendChild(row);
                 els.list.scrollTop = els.list.scrollHeight;
@@ -341,4 +363,3 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
-

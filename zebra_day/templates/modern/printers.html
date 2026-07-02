@@ -27,6 +27,33 @@
 </div>
 {% endif %}
 
+{% if missing_lab %}
+<div class="card mb-lg">
+    <div class="card-header">
+        <h3 class="card-title">Create Lab First</h3>
+    </div>
+    <div class="empty-state">
+        <i class="fas fa-building"></i>
+        <p>Lab <strong>{{ lab }}</strong> is not configured yet. Create the lab before scanning or managing printers.</p>
+    </div>
+    <form id="create-lab-form" class="grid grid-3 mt-md">
+        <div class="form-group mb-0">
+            <label class="form-label">Lab Code</label>
+            <input id="create-lab-code" class="form-control" value="{{ lab }}" required>
+        </div>
+        <div class="form-group mb-0">
+            <label class="form-label">Display Name</label>
+            <input id="create-lab-display-name" class="form-control" value="{{ lab_display_name | default(lab) }}">
+        </div>
+        <div class="form-group mb-0" style="display:flex;align-items:flex-end;">
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create Lab
+            </button>
+        </div>
+    </form>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">{% if lab %}{{ lab }} printers{% else %}All printers{% endif %}</h3>
@@ -96,6 +123,10 @@
             <input id="scan-ip-stub" class="form-control" value="{{ ip_root | default('192.168.1') }}" required>
         </div>
         <div class="form-group mb-0">
+            <label class="form-label">Wait Per IP (s)</label>
+            <input id="scan-wait" class="form-control" type="number" min="0.05" max="30" step="0.05" value="{{ scan_wait }}" required>
+        </div>
+        <div class="form-group mb-0">
             <label class="form-label">HTTP Port</label>
             <input id="scan-http-port" class="form-control" type="number" min="1" max="65535" placeholder="optional">
         </div>
@@ -111,37 +142,52 @@
 
 {% block extra_scripts %}
 <script>
+const knownLabs = new Set({{ labs_json | default('[]') | safe }});
+
+document.getElementById('create-lab-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const lab = document.getElementById('create-lab-code').value.trim();
+    const displayName = document.getElementById('create-lab-display-name').value.trim();
+    if (!lab) {
+        showToast('error', 'Missing values', 'Lab code is required.');
+        return;
+    }
+    showLoading('Creating lab...');
+    try {
+        const response = await fetch('/api/v1/labs', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({lab: lab, display_name: displayName}),
+        });
+        const payload = await response.json();
+        hideLoading();
+        if (!response.ok) {
+            showToast('error', 'Create lab failed', payload.detail || 'Unknown error');
+            return;
+        }
+        showToast('success', 'Lab created', `${payload.lab} is ready for printer discovery.`);
+        window.location.href = `/printers/${encodeURIComponent(payload.lab)}`;
+    } catch (error) {
+        hideLoading();
+        showToast('error', 'Create lab failed', error.message || 'Unknown error');
+    }
+});
+
 document.getElementById('scan-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const lab = document.getElementById('scan-lab').value.trim();
     const ipStub = document.getElementById('scan-ip-stub').value.trim();
+    const scanWait = document.getElementById('scan-wait').value.trim();
     const httpPortRaw = document.getElementById('scan-http-port').value.trim();
     if (!lab || !ipStub) {
         showToast('error', 'Missing values', 'Lab and IP stub are required.');
         return;
     }
-    showLoading('Scanning network...');
-    try {
-        const response = await fetch(`/api/v1/labs/${encodeURIComponent(lab)}/discover`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                ip_stub: ipStub,
-                scan_http_port: httpPortRaw ? Number(httpPortRaw) : null,
-            }),
-        });
-        const payload = await response.json();
-        hideLoading();
-        if (!response.ok) {
-            showToast('error', 'Scan failed', payload.detail || 'Unknown error');
-            return;
-        }
-        showToast('success', 'Scan complete', `Discovered ${payload.length} printer(s).`);
-        window.location.href = `/printers/${encodeURIComponent(lab)}`;
-    } catch (error) {
-        hideLoading();
-        showToast('error', 'Scan failed', error.message || 'Unknown error');
+    if (!knownLabs.has(lab)) {
+        showToast('error', 'Create lab first', `Lab ${lab} is not configured yet.`);
+        return;
     }
+    startNetworkScanWithParams(ipStub, scanWait || '{{ scan_wait }}', lab, httpPortRaw || null);
 });
 </script>
 {% endblock %}
