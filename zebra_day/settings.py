@@ -115,6 +115,8 @@ def build_default_config_template(deployment: str | None = None) -> bytes:
         "authentication": {
             "mode": DEFAULT_AUTH_MODE,
             "internal_api_key_env": "INTERNAL_API_KEY",
+            "dag_read_service_token_env": "ZEBRA_DAY_DAG_READ_SERVICE_TOKEN",
+            "dag_read_actor": "",
             "session_cookie_name": "zebra_day_session",
             "session_secret_key": _default_session_secret_key(),
             "callback_path": "/auth/callback",
@@ -277,6 +279,8 @@ class ZebraDaySettings:
     css_theme: str
     auth_mode: str
     internal_api_key: str
+    dag_read_service_token: str
+    dag_read_actor: str
     session_secret_key: str
     session_cookie_name: str
     allowed_email_domains: list[str]
@@ -314,6 +318,21 @@ class ZebraDaySettings:
         ca_bundle = str(self.external_broker_ca_bundle or "").strip()
         if ca_bundle and not Path(ca_bundle).is_file():
             raise ValueError("authentication.external_broker.ca_bundle does not exist")
+        if bool(self.dag_read_service_token) != bool(self.dag_read_actor):
+            raise ValueError("DAG read service token and actor must be configured together")
+        if self.deployment_is_production and not self.dag_read_service_token:
+            raise ValueError("Production Zebra Day requires a dedicated DAG read service identity")
+        if self.dag_read_service_token:
+            if (
+                len(self.dag_read_service_token) < 32
+                or self.dag_read_service_token == self.internal_api_key
+            ):
+                raise ValueError("DAG read service token must be strong and distinct")
+            if (
+                self.dag_read_actor != self.dag_read_actor.strip()
+                or any(ch.isspace() for ch in self.dag_read_actor)
+            ):
+                raise ValueError("DAG read actor must be one exact token")
 
     @property
     def deployment(self) -> dict[str, object]:
@@ -414,6 +433,12 @@ class ZebraDaySettings:
             internal_api_key=str(
                 os.environ.get(str(auth.get("internal_api_key_env") or "INTERNAL_API_KEY")) or ""
             ).strip(),
+            dag_read_service_token=str(
+                os.environ.get(
+                    str(auth.get("dag_read_service_token_env") or "ZEBRA_DAY_DAG_READ_SERVICE_TOKEN")
+                ) or ""
+            ),
+            dag_read_actor=str(auth.get("dag_read_actor") or ""),
             session_secret_key=str(auth.get("session_secret_key") or "").strip(),
             session_cookie_name=str(auth.get("session_cookie_name") or "zebra_day_session"),
             allowed_email_domains=_normalize_string_list(

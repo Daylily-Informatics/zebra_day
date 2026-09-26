@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from daylily_tapdb.web import (
+    DagV2Limits,
     TapdbHostBridge,
     TapdbHostNavLink,
-    build_dag_capability_advertisement,
-    create_tapdb_dag_router,
     create_tapdb_gui_app,
+    mount_tapdb_dag_surfaces,
 )
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 
 from zebra_day.rbac import ADMIN_ALLOWED_ROLES, has_any_role
 from zebra_day.settings import ZebraDaySettings
@@ -61,15 +61,26 @@ def _host_user(request: Request) -> dict[str, Any] | None:
 
 
 async def require_zebra_day_user(request: Request) -> dict[str, Any]:
-    """Require the same browser/session/service-token auth already enforced by Zebra Day."""
+    """Require an operator or authenticated service actor for native DAG reads."""
 
     settings = request.app.state.settings
     if settings.auth_mode == "none":
-        return {"auth_mode": "none", "service_principal": False}
+        return {"username": "zebra-day-local-admin"}
     user = getattr(request.state, "user", None)
     if not isinstance(user, dict):
         raise HTTPException(status_code=401, detail="Authentication required")
-    return user
+    if user.get("dag_read_principal"):
+        return {"username": settings.dag_read_actor}
+    if user.get("service_principal"):
+        raise HTTPException(status_code=403, detail="Dedicated DAG read identity required")
+    if request.headers.get("Authorization"):
+        raise HTTPException(status_code=403, detail="Dedicated DAG read identity required")
+    if not has_any_role(list(user.get("roles") or []), ADMIN_ALLOWED_ROLES):
+        raise HTTPException(status_code=403, detail="Operator role required")
+    actor = str(user.get("email") or user.get("sub") or "").strip()
+    if not actor:
+        raise HTTPException(status_code=401, detail="Authenticated actor required")
+    return {"username": actor}
 
 
 def resolve_tapdb_config_path(settings: ZebraDaySettings) -> str:
@@ -112,10 +123,8 @@ def mount_tapdb_surfaces(app: FastAPI, settings: ZebraDaySettings) -> bool:
     """Mount the common TapDB GUI and root DAG API when explicit config is present."""
 
     config_path = resolve_tapdb_config_path(settings)
-    if not Path(config_path).exists():
-        app.state.tapdb_universal_configured = False
-        app.state.tapdb_universal_config_error = f"TapDB config file is required: {config_path}"
-        return False
+    if not Path(config_path).is_file():
+        raise FileNotFoundError(f"TapDB config file is required: {config_path}")
 
     bridge = build_tapdb_host_bridge(settings)
     app.mount(
@@ -125,26 +134,19 @@ def mount_tapdb_surfaces(app: FastAPI, settings: ZebraDaySettings) -> bool:
             host_bridge=bridge,
         ),
     )
-    app.include_router(
-        create_tapdb_dag_router(
-            config_path=config_path,
-            service_name="zebra-day",
-        ),
-        dependencies=[Depends(require_zebra_day_user)],
+    dag_mount = mount_tapdb_dag_surfaces(
+        app,
+        config_path=config_path,
+        service_id="zebra-day",
+        display_name="Zebra Day",
+        auth_dependency=require_zebra_day_user,
+        limits=DagV2Limits(max_depth=4, max_nodes=250, max_search_page_size=50),
     )
+    if not dag_mount.mounted:
+        raise RuntimeError(
+            f"Zebra Day TapDB DAG v2 mount failed: {dag_mount.reason}: {dag_mount.diagnostic}"
+        )
     app.state.tapdb_universal_configured = True
     app.state.tapdb_universal_config_path = config_path
     app.state.tapdb_host_bridge = bridge
     return True
-
-
-def zebra_day_tapdb_obs_services_fragment() -> dict[str, Any]:
-    """Return Zebra Day's common TapDB DAG observability fragment."""
-
-    return cast(
-        dict[str, Any],
-        build_dag_capability_advertisement(
-            base_path="/api/dag",
-            auth="operator_or_service_token",
-        ),
-    )

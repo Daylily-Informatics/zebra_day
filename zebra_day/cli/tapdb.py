@@ -204,6 +204,16 @@ def db_passthrough(
     _run_tapdb(ZebraDaySettings.from_context(), ["db", *resolved_args])
 
 
+@tapdb_app.command("prepare-templates")
+def prepare_templates() -> None:
+    """Seed core and Zebra Day templates through TapDB's operator connection."""
+    settings = ZebraDaySettings.from_context()
+    pack = Path(__file__).resolve().parents[2] / "config" / "tapdb_templates"
+    if not (pack / "zebra_day" / "templates.json").is_file():
+        raise FileNotFoundError(f"Zebra Day TapDB template pack is missing: {pack}")
+    _run_tapdb(settings, ["db", "data", "seed", "--config", str(pack), "--include-workflow"])
+
+
 @tapdb_app.command("pg")
 def pg_passthrough(
     args: list[str] = _PASSTHROUGH_ARGS,
@@ -244,6 +254,13 @@ def register(registry: CommandRegistry, spec: CliSpec) -> None:
         "db",
         db_passthrough,
         help_text="Pass through to `tapdb db ...`.",
+        policy=REQUIRED_MUTATING,
+    )
+    registry.add_command(
+        "tapdb",
+        "prepare-templates",
+        prepare_templates,
+        help_text="Seed Zebra Day templates with TapDB operator credentials.",
         policy=REQUIRED_MUTATING,
     )
     registry.add_command(

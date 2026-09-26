@@ -518,8 +518,8 @@ wheels = [
 
 [[package]]
 name = "daylily-tapdb"
-version = "9.0.9"
-source = { git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.9#52d5f498dc4751b7e42d346bee2811a14080e5a5" }
+version = "10.1.7"
+source = { git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=10.1.7#5ab19eb08ce6195c8e108199f911326e0b200042" }
 dependencies = [
     { name = "cli-core-yo" },
     { name = "jsonschema" },
@@ -1064,11 +1064,11 @@ wheels = [
 
 [[package]]
 name = "meridian-euid"
-version = "0.4.7"
+version = "0.4.8"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7c/ea/eff4b7b442f20fa5aa968735ee17f43f9d8e9621da89230426a43203ef5b/meridian_euid-0.4.7.tar.gz", hash = "sha256:27b65eba282a904a876c7df16b48a8329900190cf5830a5fd61776f89d98a62a", size = 19238, upload-time = "2026-06-04T09:47:05.716Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/33/599f4ce7a6d018ac307cadc604cdb32f02c5b4678fb9503b7216fd8a8d91/meridian_euid-0.4.8.tar.gz", hash = "sha256:54a67bf831088f52c395119d2cacac9354a60c3a1b084817d9b1d90f718a4b3d", size = 19365, upload-time = "2026-09-01T11:01:03.802Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/53/8c9b0dd4f9ec901b0289e6f7fc20163d588d20019edd6f437233cf834c91/meridian_euid-0.4.7-py3-none-any.whl", hash = "sha256:a369a21b4bc7835848ea424bc0a9b1f8273afb13e7ab0c9e83bdd9111a7dd1c8", size = 15316, upload-time = "2026-06-04T09:47:04.808Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/67/c6a33b4af287d8b9951f1d69ce7d62bf73cc83541272f7728c2118c14dfc/meridian_euid-0.4.8-py3-none-any.whl", hash = "sha256:c36e96b36c78da427b200bda7f76c23bd7db74dbe32b54a473134e2f1f61b946", size = 15352, upload-time = "2026-09-01T11:01:02.79Z" },
 ]
 
 [[package]]
@@ -2452,7 +2452,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.26.0" },
     { name = "cli-core-yo", specifier = "==2.1.1" },
     { name = "daylily-auth-cognito", specifier = "==2.1.5" },
-    { name = "daylily-tapdb", git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=9.0.9" },
+    { name = "daylily-tapdb", git = "https://github.com/Daylily-Informatics/daylily-tapdb.git?rev=10.1.7" },
     { name = "fastapi", specifier = ">=0.109.0" },
     { name = "httpx" },
     { name = "ipython", specifier = ">=8.16.0" },

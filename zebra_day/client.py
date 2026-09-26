@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import json
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -11,7 +10,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
-from sqlalchemy import text
+import yaml
 
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
@@ -25,7 +24,6 @@ from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
 
-ZEBRA_DAY_TEMPLATE_EUID_PREFIX = "ZGX"
 LAB_TEMPLATE_CODE = "fleet/lab/generic/1.0/"
 PRINTER_TEMPLATE_CODE = "fleet/printer/generic/1.0/"
 LABEL_PROFILE_TEMPLATE_CODE = "labels/profile/generic/1.0/"
@@ -42,13 +40,6 @@ ZEBRA_DAY_TYPE_CATEGORIES = {
     "template": "labels",
     "print-job": "printing",
 }
-PACKAGE_TEMPLATE_PACK = (
-    Path(__file__).resolve().parents[1]
-    / "config"
-    / "tapdb_templates"
-    / "zebra_day"
-    / "templates.json"
-)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -88,132 +79,6 @@ def _tapdb_import(module_name: str):
         raise ImportError(
             f"daylily-tapdb=={_DAYLILY_TAPDB_VERSION} is required for this zebra_day installation"
         ) from exc
-
-
-def _ensure_prefix_ownership_registry(
-    *,
-    owner_repo_name: str,
-    domain_code: str,
-    prefixes: list[str],
-    registry_path: Path,
-) -> Path:
-    resolved_path = Path(registry_path).expanduser().resolve()
-    if not resolved_path.exists():
-        raise RuntimeError(f"Prefix registry not found: {resolved_path}")
-
-    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"Prefix registry must be a JSON object: {resolved_path}")
-
-    ownership = payload.get("ownership")
-    if not isinstance(ownership, dict):
-        raise RuntimeError(f"Prefix registry must define an ownership object: {resolved_path}")
-
-    domain_claims = ownership.get(domain_code)
-    if domain_claims is None:
-        domain_claims = {}
-        ownership[domain_code] = domain_claims
-    if not isinstance(domain_claims, dict):
-        raise RuntimeError(
-            f"Prefix registry claims for domain {domain_code!r} must be an object: {resolved_path}"
-        )
-
-    changed = False
-    for prefix in sorted(
-        {str(prefix).strip().upper() for prefix in prefixes if str(prefix).strip()}
-    ):
-        existing = domain_claims.get(prefix)
-        if existing is None:
-            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
-            changed = True
-            continue
-        if not isinstance(existing, dict):
-            raise RuntimeError(
-                f"Prefix {prefix!r} claim for domain {domain_code!r} must be an object: "
-                f"{resolved_path}"
-            )
-        current_owner = str(
-            existing.get("issuer_app_code")
-            or existing.get("owner_repo_name")
-            or existing.get("repo_name")
-            or ""
-        ).strip()
-        if current_owner and current_owner != owner_repo_name:
-            raise RuntimeError(
-                f"Prefix {prefix!r} for domain {domain_code!r} is claimed by "
-                f"{current_owner!r}, not {owner_repo_name!r}"
-            )
-        if current_owner != owner_repo_name or existing.get("issuer_app_code") != owner_repo_name:
-            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
-            changed = True
-
-    if changed:
-        resolved_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-
-    return resolved_path
-
-
-def _ensure_identity_prefix_config(
-    session,
-    *,
-    entity: str,
-    domain_code: str,
-    owner_repo_name: str,
-    prefix: str,
-) -> None:
-    normalized_entity = _clean(entity)
-    normalized_domain = _clean(domain_code).upper()
-    normalized_owner = _clean(owner_repo_name)
-    normalized_prefix = _clean(prefix).upper()
-    if not normalized_entity:
-        raise RuntimeError("Zebra Day identity entity is required")
-    if not normalized_prefix:
-        raise RuntimeError(
-            f"Zebra Day identity prefix is required for entity {normalized_entity!r}"
-        )
-
-    params = {
-        "entity": normalized_entity,
-        "domain_code": normalized_domain,
-        "owner_repo_name": normalized_owner,
-        "prefix": normalized_prefix,
-    }
-    existing = session.execute(
-        text(
-            """
-            SELECT prefix
-            FROM tapdb_identity_prefix_config
-            WHERE entity = :entity
-              AND domain_code = :domain_code
-              AND issuer_app_code = :owner_repo_name
-            """
-        ),
-        params,
-    ).scalar_one_or_none()
-    if existing is not None:
-        existing_prefix = _clean(existing).upper()
-        if existing_prefix != normalized_prefix:
-            raise RuntimeError(
-                f"Zebra Day identity prefix config for entity {normalized_entity!r} in "
-                f"domain {normalized_domain!r} is already seeded with prefix "
-                f"{existing_prefix!r}, not {normalized_prefix!r}"
-            )
-        return
-
-    session.execute(
-        text(
-            """
-            INSERT INTO tapdb_identity_prefix_config(
-              entity, domain_code, issuer_app_code, prefix
-            )
-            VALUES (:entity, :domain_code, :owner_repo_name, :prefix)
-            """
-        ),
-        params,
-    )
 
 
 def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
@@ -331,8 +196,6 @@ class TapDBFleetRepository:
         self._tapdb = _tapdb_import("daylily_tapdb")
         self._template_manager = self._tapdb.TemplateManager()
         self._generic_instance = _tapdb_import("daylily_tapdb.models.instance").generic_instance
-        self._seed_templates()
-        self._seed_package_templates()
 
     def _build_connection(self):
         tapdb_mod = _tapdb_import("daylily_tapdb")
@@ -342,6 +205,18 @@ class TapDBFleetRepository:
             client_id=self.settings.tapdb_client_id,
             database_name=self.settings.tapdb_database_name,
         )
+        root = yaml.safe_load(self.settings.tapdb_config_path.read_text(encoding="utf-8"))
+        target = root.get("target") if isinstance(root, dict) else None
+        required_policy = ("tenant_id", "additional_tenant_ids", "allow_global_claims")
+        if not isinstance(target, dict) or any(key not in target for key in required_policy):
+            raise RuntimeError(
+                "Zebra Day TapDB target must explicitly declare tenant_id, "
+                "additional_tenant_ids, and allow_global_claims"
+            )
+        if cfg["domain_code"] != self.settings.tapdb_domain_code:
+            raise RuntimeError("Zebra Day TapDB target domain does not match service settings")
+        if cfg["owner_repo_name"] != self.settings.tapdb_owner_repo_name:
+            raise RuntimeError("Zebra Day TapDB target owner does not match service settings")
         db_hostname = f"{cfg['host']}:{cfg['port']}"
         connection_engine_type = str(cfg["engine_type"])
         region = str(cfg.get("region") or "").strip()
@@ -368,68 +243,14 @@ class TapDBFleetRepository:
             secret_arn=str(cfg.get("secret_arn") or "").strip() or None,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
+            config_identity=str(cfg["config_path"]),
+            tenant_id=str(cfg["tenant_id"] or "") or None,
+            additional_tenant_ids=tuple(cfg["additional_tenant_ids"]),
+            allow_global_rows=cfg["allow_global_claims"],
         )
 
     def _session(self, *, commit: bool):
         return self._connection.session_scope(commit=commit)
-
-    def _seed_templates(self) -> None:
-        if not PACKAGE_TEMPLATE_PACK.exists():
-            raise FileNotFoundError(f"TapDB template pack not found: {PACKAGE_TEMPLATE_PACK}")
-        loader = _tapdb_import("daylily_tapdb.templates.loader")
-        euid_mod = _tapdb_import("daylily_tapdb.euid")
-        with self._session(commit=True) as session:
-            templates = (
-                json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
-            )
-            prefix_registry_path = _ensure_prefix_ownership_registry(
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                domain_code=self.settings.tapdb_domain_code,
-                prefixes=[str(template.get("instance_prefix") or "") for template in templates],
-                registry_path=self.settings.tapdb_prefix_ownership_registry_path,
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="generic_template",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_EUID_PREFIX,
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="generic_instance_lineage",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=str(euid_mod.GENERIC_INSTANCE_LINEAGE_PREFIX),
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="audit_log",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=str(euid_mod.AUDIT_LOG_PREFIX),
-            )
-            loader.seed_templates(
-                session,
-                templates,
-                overwrite=False,
-                core_config_dir=loader.find_tapdb_core_config_dir(),
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                domain_registry_path=str(self.settings.tapdb_domain_registry_path),
-                prefix_registry_path=str(prefix_registry_path),
-            )
-
-    def _seed_package_templates(self) -> None:
-        package_dir = Path(__file__).resolve().parent / "etc" / "label_styles"
-        if not package_dir.exists():
-            return
-        for path in sorted(package_dir.glob("*.zpl")):
-            self.upsert_template(path.stem, path.read_text(encoding="utf-8"), source="package")
-            self.upsert_label_profile(
-                path.stem,
-                {"profile_name": path.stem, "template_name": path.stem, "managed_by": "zebra-day"},
-            )
 
     def _template_for_code(self, session, code: str):
         template = self._template_manager.get_template(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import ipaddress
 import json
 import os
@@ -791,6 +792,19 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         auth_reason = _clean(getattr(request.state, "cognito_auth_reason", ""))
         if auth_reason == "session_expired" and not _requires_json_response(request):
             return RedirectResponse(url="/auth/error?reason=session_expired", status_code=302)
+
+        dag_path = request.url.path == "/api/dag/manifest" or request.url.path.startswith(
+            "/api/dag/v2/"
+        )
+        if dag_path:
+            auth_header = request.headers.get("authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+                expected = str(self.settings.dag_read_service_token or "")
+                if expected and hmac.compare_digest(token, expected):
+                    request.state.user = {"dag_read_principal": True, "auth_mode": "dag_read"}
+                    request.state.auth_mode = "dag_read"
+                    return await call_next(request)  # type: ignore[no-any-return]
 
         if _has_internal_api_key(request):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
