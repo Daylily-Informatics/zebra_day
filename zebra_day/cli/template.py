@@ -15,7 +15,7 @@ from zebra_day.cli._registry_v2 import (
     REQUIRED_MUTATING_INTERACTIVE,
     register_group_commands,
 )
-from zebra_day.client import ZebraDayClient
+from zebra_day.client import ZebraDayClient, cli_attribution_scope
 
 if TYPE_CHECKING:
     from cli_core_yo.registry import CommandRegistry
@@ -64,6 +64,9 @@ def show(template_name: str = typer.Argument(..., help="Template name")) -> None
 def save(
     filename: str = typer.Argument(..., help="Template name or filename"),
     content: str = typer.Option(..., "--content", "-c", help="Raw ZPL or path to a .zpl file"),
+    expected_revision: int | None = typer.Option(
+        None, "--expected-revision", help="Revision returned by template show --json when replacing."
+    ),
 ) -> None:
     """Create or replace a stored ZPL template."""
     client = ZebraDayClient.from_context()
@@ -71,7 +74,11 @@ def save(
     if not stem.strip():
         ccyo_out.error("filename is required")
         raise typer.Exit(1)
-    client.save_template(stem, _read_template_source(content), source="user")
+    with cli_attribution_scope():
+        client.save_template(
+            stem, _read_template_source(content), source="user",
+            expected_revision=expected_revision,
+        )
     ccyo_out.success(f"Saved template: {stem}")
 
 
@@ -79,12 +86,16 @@ def save(
 def delete(
     template_name: str = typer.Argument(..., help="Template name"),
     force: bool = typer.Option(False, "--force", help="Skip confirmation"),
+    expected_revision: int | None = typer.Option(
+        None, "--expected-revision", help="Revision returned by template show --json."
+    ),
 ) -> None:
     """Delete a stored ZPL template."""
     if not force and not typer.confirm(f"Delete template '{template_name}' from TapDB?"):
         raise typer.Abort()
     client = ZebraDayClient.from_context()
-    client.delete_template(template_name)
+    with cli_attribution_scope():
+        client.delete_template(template_name, expected_revision=expected_revision)
     ccyo_out.success(f"Deleted template: {template_name}")
 
 

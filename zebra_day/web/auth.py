@@ -17,6 +17,7 @@ from threading import Thread
 from types import SimpleNamespace
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
+from uuid import uuid4
 
 import httpx
 import yaml
@@ -34,11 +35,17 @@ from daylily_auth_cognito.browser.session import (
 )
 from daylily_auth_cognito.runtime import jwks
 from daylily_auth_cognito.runtime.verifier import CognitoTokenVerifier
+from daylily_tapdb.security_context import (
+    Attribution,
+    reset_invocation_attribution,
+    set_invocation_attribution,
+)
 from fastapi import Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
 from zebra_day.logging_config import get_logger
+from zebra_day.client import attribution_scope
 from zebra_day.rbac import parse_groups, roles_from_groups
 from zebra_day.settings import (
     DEFAULT_ALLOWED_EMAIL_DOMAINS,
@@ -153,7 +160,7 @@ def build_user_identity(claims: dict[str, Any], settings: ZebraDaySettings) -> d
     merged_claims["cognito_groups"] = groups
     merged_claims["roles"] = roles
     return {
-        "sub": _clean(merged_claims.get("sub") or merged_claims.get("username")),
+        "sub": _clean(merged_claims.get("sub")),
         "email": email,
         "name": _clean(
             merged_claims.get("name")
@@ -212,8 +219,15 @@ def build_external_broker_identity(
             status_code=status.HTTP_403_FORBIDDEN,
             redirect_to_error=True,
         )
+    if not _clean(user.get("canonical_user_id") or user.get("sub")):
+        raise CognitoWebAuthError(
+            "auth_error",
+            "External broker handoff omitted stable subject",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            redirect_to_error=True,
+        )
     return {
-        "sub": _clean(user.get("canonical_user_id") or user.get("sub") or email),
+        "sub": _clean(user.get("canonical_user_id") or user.get("sub")),
         "email": email,
         "name": _clean(user.get("display_name") or user.get("name") or email),
         "roles": sorted(roles),
@@ -773,6 +787,55 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
         self.cognito_auth = cognito_auth
         self.settings = settings
 
+    async def _continue_authenticated(self, request: Request, call_next: Callable) -> Response:
+        user = request.state.user
+        mode = str(user.get("auth_mode") or "")
+        if mode in {"cognito", "cognito_session"}:
+            issuer = (
+                f"https://cognito-idp.{self.settings.cognito_region}.amazonaws.com/"
+                f"{self.settings.cognito_user_pool_id}"
+            )
+            subject = _clean(user.get("sub"))
+            kind = "human"
+        elif mode == "external_broker":
+            issuer = _clean(self.settings.external_broker_login_url)
+            subject = _clean(user.get("sub"))
+            kind = "human"
+        elif mode == "ai_agent_token":
+            issuer = "zebra-day:ai-agent-token"
+            subject = _clean(user.get("agent_id"))
+            kind = "service"
+        elif mode in {"service_token", "dag_read"}:
+            issuer = "zebra-day"
+            subject = mode
+            kind = "service"
+        else:
+            return Response(
+                content='{"detail":"Unsupported actor identity"}',
+                media_type="application/json",
+                status_code=401,
+            )
+        if not issuer or not subject:
+            return Response(
+                content='{"detail":"Stable actor identity required"}',
+                media_type="application/json",
+                status_code=401,
+            )
+        actor = Attribution(
+            actor_kind=kind,
+            actor_issuer=issuer,
+            actor_subject=subject,
+            service_identity="zebra-day",
+            request_id=str(uuid4()),
+            operation_id=str(uuid4()),
+        )
+        token = set_invocation_attribution(actor)
+        try:
+            with attribution_scope(actor):
+                return await call_next(request)  # type: ignore[no-any-return]
+        finally:
+            reset_invocation_attribution(token)
+
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if self.settings.auth_mode == "none" or _is_public(request):
             return await call_next(request)  # type: ignore[no-any-return]
@@ -787,7 +850,7 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
             request.state.authorized_by_email = session_user.get("email") or session_user.get(
                 "user_id"
             )
-            return await call_next(request)  # type: ignore[no-any-return]
+            return await self._continue_authenticated(request, call_next)
 
         auth_reason = _clean(getattr(request.state, "cognito_auth_reason", ""))
         if auth_reason == "session_expired" and not _requires_json_response(request):
@@ -804,12 +867,12 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 if expected and hmac.compare_digest(token, expected):
                     request.state.user = {"dag_read_principal": True, "auth_mode": "dag_read"}
                     request.state.auth_mode = "dag_read"
-                    return await call_next(request)  # type: ignore[no-any-return]
+                    return await self._continue_authenticated(request, call_next)
 
         if _has_internal_api_key(request):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
             request.state.auth_mode = "service_token"
-            return await call_next(request)  # type: ignore[no-any-return]
+            return await self._continue_authenticated(request, call_next)
 
         auth_header = _clean(request.headers.get("authorization"))
         if auth_header.lower().startswith("bearer "):
@@ -839,19 +902,20 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                 }
                 request.state.auth_mode = "ai_agent_token"
                 request.state.authorized_by_email = grant.issued_by_email
-                return await call_next(request)  # type: ignore[no-any-return]
+                return await self._continue_authenticated(request, call_next)
         if self.cognito_auth and auth_header.lower().startswith("bearer "):
             token = auth_header.split(" ", 1)[1].strip()
             try:
                 claims = self.cognito_auth.auth.verify_token(token)
+            except Exception as exc:
+                _log.warning("Bearer token rejected: %s", exc)
+            else:
                 request.state.user = build_user_identity(dict(claims), self.settings)
                 request.state.auth_mode = "cognito"
                 request.state.authorized_by_email = request.state.user.get(
                     "email"
                 ) or request.state.user.get("user_id")
-                return await call_next(request)  # type: ignore[no-any-return]
-            except Exception as exc:
-                _log.warning("Bearer token rejected: %s", exc)
+                return await self._continue_authenticated(request, call_next)
 
         if _requires_json_response(request):
             return Response(

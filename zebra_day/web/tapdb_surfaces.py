@@ -33,24 +33,34 @@ def _login_href(request: Request) -> str:
 def _host_user(request: Request) -> dict[str, Any] | None:
     settings = request.app.state.settings
     if settings.auth_mode == "none":
-        return {
-            "uid": "zebra-day-local-admin",
-            "username": "zebra-day-local-admin@localhost",
-            "email": "zebra-day-local-admin@localhost",
-            "display_name": "Zebra Day Local Admin",
-            "role": "admin",
-            "is_active": True,
-            "require_password_change": False,
-        }
+        # The embedded write GUI requires a verified human. Anonymous mode has none.
+        return None
 
     user = getattr(request.state, "user", None)
     if not isinstance(user, dict) or user.get("service_principal"):
         return None
     email = str(user.get("email") or "").strip().lower()
-    subject = str(user.get("sub") or email).strip() or email
+    subject = str(user.get("sub") or "").strip()
+    if not subject:
+        return None
+    mode = str(user.get("auth_mode") or "")
+    if mode in {"cognito", "cognito_session"}:
+        issuer = (
+            f"https://cognito-idp.{settings.cognito_region}.amazonaws.com/"
+            f"{settings.cognito_user_pool_id}"
+        )
+    elif mode == "external_broker":
+        issuer = str(settings.external_broker_login_url or "").strip()
+    else:
+        return None
+    if not issuer:
+        return None
     role = "admin" if has_any_role(list(user.get("roles") or []), ADMIN_ALLOWED_ROLES) else "user"
     return {
         "uid": subject,
+        "actor_kind": "human",
+        "actor_issuer": issuer,
+        "actor_subject": subject,
         "username": email or subject,
         "email": email or subject,
         "display_name": str(user.get("name") or email or subject).strip(),

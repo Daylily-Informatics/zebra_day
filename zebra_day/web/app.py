@@ -9,6 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
+from daylily_tapdb.revisions import RevisionConflict
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
@@ -154,6 +155,10 @@ def create_app(
     app.state.observability = ZebraDayObservability(resolved_settings)
     app.state.chrome_context = chrome_context
     app.state.git_metadata = git_metadata
+
+    @app.exception_handler(RevisionConflict)
+    async def _stale_tapdb_write(_request: Request, exc: RevisionConflict) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     cognito_binding = None
     if resolved_settings.auth_mode == "cognito":

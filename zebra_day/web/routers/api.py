@@ -7,7 +7,8 @@ from typing import Any, cast
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from daylily_tapdb.revisions import RevisionConflict
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -64,18 +65,21 @@ class PrinterInfo(BaseModel):
     state: str = "Unknown"
     status: str = "active"
     discovery_source: str = ""
+    record_revision: int | None = None
 
 
 class LabInfo(BaseModel):
     lab: str
     display_name: str = ""
     description: str = ""
+    record_revision: int | None = None
 
 
 class LabCreateRequest(BaseModel):
     lab: str
     display_name: str = ""
     description: str = ""
+    expected_revision: int | None = Field(None, ge=0)
 
 
 @router.get("/me/preferences")
@@ -121,6 +125,7 @@ class TemplateInfo(BaseModel):
     zpl_content: str
     source: str = "user"
     euid: str = ""
+    record_revision: int | None = None
 
 
 class LabelProfileInfo(BaseModel):
@@ -128,6 +133,7 @@ class LabelProfileInfo(BaseModel):
     template_name: str = ""
     managed_by: str = ""
     euid: str = ""
+    record_revision: int | None = None
 
 
 class PrintRequest(BaseModel):
@@ -190,6 +196,7 @@ class DiscoverRequest(BaseModel):
 class TemplateSaveRequest(BaseModel):
     filename: str
     zpl_content: str
+    expected_revision: int | None = Field(None, ge=0)
 
 
 def _client(request: Request):
@@ -218,13 +225,17 @@ async def create_lab(request: Request, payload: LabCreateRequest) -> LabInfo:
             lab,
             display_name=payload.display_name,
             description=payload.description,
+            expected_revision=payload.expected_revision,
         )
+    except RevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return LabInfo(
         lab=lab,
         display_name=str(stored.get("display_name") or lab.replace("-", " ").title()),
         description=str(stored.get("description") or ""),
+        record_revision=stored.get("record_revision"),
     )
 
 
@@ -258,8 +269,20 @@ async def patch_printer(
             status_code=400,
             detail="printer_euid belongs in the URL path; do not send euid fields in the body",
         )
+    expected_revision = payload.pop("expected_revision", None)
+    if (
+        isinstance(expected_revision, bool)
+        or not isinstance(expected_revision, int)
+        or expected_revision < 0
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="printer metadata PATCH requires an observed expected_revision",
+        )
     try:
-        updated = _client(request).update_printer_metadata(lab, printer_euid, **payload)
+        updated = _client(request).update_printer_metadata(
+            lab, printer_euid, expected_revision=expected_revision, **payload
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return _printer_info(updated)
@@ -280,6 +303,8 @@ async def discover_lab_printers(
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc).strip("'")) from exc
+    except RevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return [_printer_info(item) for item in rows]
@@ -315,16 +340,20 @@ async def save_template(request: Request, payload: TemplateSaveRequest) -> Templ
     if "/" in raw_name or "\\" in raw_name:
         raise HTTPException(status_code=400, detail="filename must be a simple filename")
     stem = raw_name[:-4] if raw_name.endswith(".zpl") else raw_name
-    _client(request).save_template(stem, payload.zpl_content, source="user")
+    _client(request).save_template(
+        stem, payload.zpl_content, source="user", expected_revision=payload.expected_revision
+    )
     template = _client(request).get_template(stem)
     assert template is not None
     return TemplateInfo(**template)
 
 
 @router.delete("/templates/{template_name}")
-async def delete_template(request: Request, template_name: str) -> dict[str, Any]:
+async def delete_template(
+    request: Request, template_name: str, expected_revision: int | None = Query(None, ge=0)
+) -> dict[str, Any]:
     try:
-        _client(request).delete_template(template_name)
+        _client(request).delete_template(template_name, expected_revision=expected_revision)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"success": True, "message": "Template deleted"}
@@ -405,6 +434,8 @@ async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePri
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return ResolvePrintResponse(
@@ -447,6 +478,8 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:

@@ -323,7 +323,11 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
         printer_detail = client.get("/api/v1/labs/default/printers/default-printer-0001")
         printer_patch = client.patch(
             "/api/v1/labs/default/printers/default-printer-0001",
-            json={"printer_name": "Renamed Printer", "lab_location": "Bench 2"},
+            json={
+                "printer_name": "Renamed Printer",
+                "lab_location": "Bench 2",
+                "expected_revision": printer_detail.json()["record_revision"],
+            },
         )
         discover = client.post(
             "/api/v1/labs/default/discover",
@@ -340,7 +344,10 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
             "/api/v1/templates",
             json={"filename": "custom.zpl", "zpl_content": "^XA^XZ"},
         )
-        template_delete = client.delete("/api/v1/templates/custom")
+        template_delete = client.delete(
+            "/api/v1/templates/custom",
+            params={"expected_revision": template_save.json()["record_revision"]},
+        )
         profile_list = client.get("/api/v1/label-profiles")
         profile_detail = client.get("/api/v1/label-profiles/tube_2inX1in")
         render_png = client.post(
@@ -354,11 +361,13 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
 
     assert printer_detail.status_code == 200
     assert printer_detail.json()["printer_euid"] == "default-printer-0001"
+    assert printer_detail.json()["record_revision"] == 0
     assert "printer_id" not in printer_detail.json()
     assert "euid" not in printer_detail.json()
     assert printer_patch.status_code == 200
     assert printer_patch.json()["printer_name"] == "Renamed Printer"
     assert printer_patch.json()["lab_location"] == "Bench 2"
+    assert printer_patch.json()["record_revision"] == 1
     assert discover.status_code == 200
     assert discover.json()[0]["printer_euid"]
     assert "printer_id" not in discover.json()[0]
@@ -389,6 +398,30 @@ def test_additional_api_routes_have_direct_smokes(monkeypatch, tmp_path):
     assert "printer_id" not in resolve.json()
     assert "euid" not in resolve.json()
     assert resolve.json()["copies"] == 1
+
+
+def test_printer_patch_requires_the_revision_from_original_get(monkeypatch, tmp_path):
+    app = create_app(auth="none", client=_seed_client(tmp_path, monkeypatch))
+    path = "/api/v1/labs/default/printers/default-printer-0001"
+    with TestClient(app) as client:
+        original = client.get(path)
+        revision = original.json()["record_revision"]
+        missing = client.patch(path, json={"notes": "unversioned proposal"})
+        accepted = client.patch(
+            path, json={"notes": "first proposal", "expected_revision": revision}
+        )
+        stale = client.patch(
+            path, json={"notes": "stale proposal", "expected_revision": revision}
+        )
+        current = client.get(path)
+
+    assert original.status_code == 200
+    assert isinstance(revision, int)
+    assert missing.status_code == 409
+    assert accepted.status_code == 200
+    assert stale.status_code == 409
+    assert current.json()["notes"] == "first proposal"
+    assert current.json()["record_revision"] == revision + 1
 
 
 def test_config_and_templates_pages_are_tapdb_only(monkeypatch, tmp_path):
