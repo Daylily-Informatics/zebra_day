@@ -13,6 +13,16 @@
 It speaks ZPL over TCP (port 9100), provides a FastAPI web UI, and stores shared fleet state,
 templates, label profiles, observations, and print jobs in `daylily-tapdb`.
 
+## Production Exercise Records
+
+- Production exercises use normal deployed record types, APIs, authorization,
+  persistence, lineage, and behavior.
+- Use "demo" or "user testing" only in descriptions. These descriptions must
+  not select a separate record type, bypass, execution path, or lifecycle.
+- Let the owning deployed service persist records and allocate their real IDs.
+  Do not create replacement identifiers or rewrite historical records merely
+  to change terminology.
+
 ## Architecture Quick Reference
 
 | Layer | Key Files | Notes |
