@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import ipaddress
 import json
 import os
+import re
 import secrets
 from collections.abc import Callable
 from concurrent.futures import Future
@@ -805,6 +807,10 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
             issuer = "zebra-day:ai-agent-token"
             subject = _clean(user.get("agent_id"))
             kind = "service"
+        elif mode == "bloom_print":
+            issuer = "zebra-day"
+            subject = "bloom"
+            kind = "service"
         elif mode in {"service_token", "dag_read"}:
             issuer = "zebra-day"
             subject = mode
@@ -868,6 +874,24 @@ class CognitoAuthMiddleware(BaseHTTPMiddleware):
                     request.state.user = {"dag_read_principal": True, "auth_mode": "dag_read"}
                     request.state.auth_mode = "dag_read"
                     return await self._continue_authenticated(request, call_next)
+
+        print_hash = os.environ.get("ZEBRA_BLOOM_PRINT_TOKEN_SHA256", "")
+        header = request.headers.get("authorization", "")
+        if print_hash and header.startswith("Bearer ") and hmac.compare_digest(
+            hashlib.sha256(header[7:].encode()).hexdigest(), print_hash
+        ):
+            path, method = request.url.path, request.method
+            allowed = method == "GET" and (
+                path in {"/api/v1/labs", "/api/v1/label-profiles"}
+                or re.fullmatch(r"/api/v1/labs/[^/]+/printers", path)
+                or re.fullmatch(r"/api/v1/print/jobs/[0-9a-f-]{36}", path)
+            ) or method == "POST" and path == "/api/v1/print"
+            if not allowed:
+                return Response(content='{"detail":"Print credential scope denied"}',
+                                media_type="application/json", status_code=403)
+            request.state.user = {"service_principal": True, "auth_mode": "bloom_print"}
+            request.state.auth_mode = "bloom_print"
+            return await self._continue_authenticated(request, call_next)
 
         if _has_internal_api_key(request):
             request.state.user = {"service_principal": True, "auth_mode": "service_token"}
