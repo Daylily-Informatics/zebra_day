@@ -295,6 +295,7 @@ class TapDBFleetRepository:
             secret_arn=str(cfg.get("secret_arn") or "").strip() or None,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
+            issuance_profile=cfg["issuance_profile"],
             config_identity=str(cfg["config_path"]),
             tenant_id=str(cfg["tenant_id"] or "") or None,
             additional_tenant_ids=tuple(cfg["additional_tenant_ids"]),
