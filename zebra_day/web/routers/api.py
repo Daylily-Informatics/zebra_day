@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, cast
 from urllib.parse import quote
+from uuid import UUID, uuid4
 
 import httpx
 from daylily_tapdb.revisions import RevisionConflict
@@ -137,6 +138,7 @@ class LabelProfileInfo(BaseModel):
 
 
 class PrintRequest(BaseModel):
+    request_id: UUID | None = None
     lab: str
     printer_euid: str
     label_zpl_style: str | None = None
@@ -155,6 +157,10 @@ class PrintResponse(BaseModel):
     success: bool
     message: str
     zpl_content: str = ""
+    job_id: str
+    job_euid: str
+    barcode_euid: str
+    status: str
 
 
 class ResolvePrintResponse(BaseModel):
@@ -450,6 +456,25 @@ async def resolve_print(request: Request, print_req: PrintRequest) -> ResolvePri
     )
 
 
+def print_response(job, *, include_content=True) -> PrintResponse:
+    submitted = job["status"] == "submitted"
+    return PrintResponse(
+        success=submitted,
+        message="Print request sent successfully" if submitted else "Dispatch outcome requires reconciliation",
+        zpl_content=job.get("rendered_zpl", "") if include_content else "",
+        job_id=job["job_id"], job_euid=job["job_euid"], status=job["status"],
+        barcode_euid=job.get("intent", {}).get("fields", {}).get("uid_barcode", ""),
+    )
+
+
+@router.get("/print/jobs/{request_id}", response_model=PrintResponse)
+def print_job(request: Request, request_id: UUID) -> PrintResponse:
+    job = _client(request).repository.get_print_job(str(request_id))
+    if job is None:
+        raise HTTPException(status_code=404, detail="Print request not found")
+    return print_response(job, include_content=False)
+
+
 @router.post("/print", response_model=PrintResponse)
 async def print_label(request: Request, print_req: PrintRequest) -> PrintResponse:
     rate_limiter = request.app.state.print_rate_limiter
@@ -458,7 +483,8 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
     try:
-        zpl_string = _client(request).submit_print_job(
+        result = _client(request).tracked_print_job(
+            str(print_req.request_id or uuid4()),
             lab=print_req.lab,
             printer_euid=print_req.printer_euid,
             label_zpl_style=print_req.label_zpl_style,
@@ -473,9 +499,7 @@ async def print_label(request: Request, print_req: PrintRequest) -> PrintRespons
             copies=print_req.copies,
             client_ip=client_ip,
         )
-        return PrintResponse(
-            success=True, message="Print request sent successfully", zpl_content=zpl_string
-        )
+        return print_response(result)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RevisionConflict as exc:

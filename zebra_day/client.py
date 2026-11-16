@@ -232,6 +232,9 @@ class FleetRepository(Protocol):
     def record_observation(self, payload: dict[str, Any]) -> None: ...
     def record_drift(self, payload: dict[str, Any]) -> None: ...
     def create_print_job(self, payload: dict[str, Any]) -> None: ...
+    def claim_print_job(self, request_id: str, payload: dict[str, Any]) -> tuple[bool, dict]: ...
+    def get_print_job(self, request_id: str) -> dict | None: ...
+    def finish_print_job(self, request_id: str, payload: dict[str, Any]) -> dict: ...
 
 
 class TapDBFleetRepository:
@@ -638,6 +641,42 @@ class TapDBFleetRepository:
         )
 
 
+    @staticmethod
+    def _job_value(row):
+        return {**dict(row.json_addl or {}), "job_id": row.name, "job_euid": row.euid,
+                "status": (row.json_addl or {}).get("status"), "record_revision": row.record_revision}
+
+    def claim_print_job(self, request_id, payload):
+        from uuid import UUID
+        from daylily_tapdb.factory.instance import IdentityClaimOutcome, IdentityScope
+
+        tenant = self._connection.tenant_id
+        with self._session(commit=True) as session:
+            claim = self._instance_factory.claim_instance_by_identity(
+                session, template_code=PRINT_JOB_TEMPLATE_CODE,
+                identity_key="print-request:" + request_id, name=request_id,
+                scope=IdentityScope.TENANT if tenant else IdentityScope.GLOBAL,
+                tenant_id=UUID(str(tenant)) if tenant else None, properties=payload,
+            )
+            return claim.outcome == IdentityClaimOutcome.CREATED, self._job_value(claim.instance)
+
+    def get_print_job(self, request_id):
+        model = self._generic_instance
+        with self._session(commit=False) as session:
+            row = session.query(model).filter(
+                model.category == "printing", model.type == "print-job", model.subtype == "generic",
+                model.name == request_id, model.is_deleted.is_(False),
+            ).one_or_none()
+            return self._job_value(row) if row is not None else None
+
+    def finish_print_job(self, request_id, payload):
+        return self._upsert_instance(
+            template_code=PRINT_JOB_TEMPLATE_CODE, subtype="print-job", name=request_id,
+            payload={**payload, "status": payload["status"]},
+            bstatus=payload["status"], expected_revision=payload["record_revision"],
+        )
+
+
 class ZebraDayClient:
     """Direct TapDB client used by the zebra_day service and admin tooling."""
 
@@ -850,6 +889,42 @@ class ZebraDayClient:
 
     def submit_print_job(self, **kwargs: Any) -> str:
         return self.print_label(**kwargs)
+
+    def tracked_print_job(self, request_id, *, lab, printer_euid, label_zpl_style,
+                          zpl_content, copies, client_ip, **fields):
+        from daylily_tapdb.revisions import RevisionConflict
+
+        require_write_attribution()
+        intent = {"lab": lab, "printer_euid": printer_euid, "label_zpl_style": label_zpl_style,
+                  "zpl_content": zpl_content, "copies": copies, "fields": fields}
+        retained = self.repository.get_print_job(request_id)
+        if retained is not None:
+            if retained.get("intent") != intent:
+                raise RevisionConflict("Print request ID belongs to a different label")
+            return retained
+        resolved = self.resolve_print_request(
+            lab=lab, printer_euid=printer_euid, label_zpl_style=label_zpl_style,
+            zpl_content=zpl_content, copies=copies, **fields,
+        )
+        created, job = self.repository.claim_print_job(request_id, {
+            "intent": intent, "status": "dispatch_pending", "lab": lab, "printer_euid": printer_euid,
+            "printer_id": resolved.get("printer_id", ""), "template": resolved.get("template_name") or "",
+            "client_ip": client_ip, "copies": copies, "submitted_at": _utcnow(),
+        })
+        if job.get("intent") != intent:
+            raise RevisionConflict("Print request ID belongs to a different label")
+        if not created:
+            return job
+        try:
+            for _ in range(copies):
+                send_zpl_code(resolved["zpl_content"], resolved["printer_ip"])
+        except Exception:
+            job["status"] = "dispatch_unknown"
+        else:
+            job["status"] = "submitted"
+            job["rendered_zpl"] = resolved["zpl_content"]
+        self.repository.finish_print_job(request_id, job)
+        return job
 
     def discover_printers(
         self,
