@@ -62,6 +62,12 @@ The CLI, API, and GUI should expose the same printer/fleet/template/label capabi
 
 Zebra Day exposes a FastAPI/Jinja GUI for labs, printers, scan progress, printer details, templates, jobs, and TapDB-backed object views. The mounted TapDB GUI at `/tapdb` is the generic object/EUID surface when configured.
 
+The embedded TapDB GUI requires an authenticated identity with a stable issuer and subject for write access. In `auth_mode: none`, Zebra Day cannot supply that identity, so embedded TapDB write access is unavailable. The existing unauthenticated DAG read routes remain available according to their configured read scope.
+
+Template edits and deletes require the `record_revision` returned by `GET /api/v1/templates/{template_name}` or `zday template show --json`. Supply it as `expected_revision` in an API save body or delete query, or use CLI `--expected-revision`; creating a new template needs no revision. A stale or missing revision for an existing template returns a conflict.
+
+Printer metadata PATCH requests likewise require the `record_revision` returned by the printer GET/list API or SDK read. Send that original value as `expected_revision` in the PATCH body; stale or missing revisions return HTTP 409. The SDK `update_printer_metadata` method requires the same value explicitly.
+
 Printer scanning should show progress and respect configured wait/rate limits. Discovery can use ZPL port `9100` and optional HTTP probes where configured.
 
 ## API

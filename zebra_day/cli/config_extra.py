@@ -10,7 +10,7 @@ from cli_core_yo import ccyo_out
 from cli_core_yo.runtime import get_context
 
 from zebra_day.cli._registry_v2 import EXEMPT, EXEMPT_JSON, EXEMPT_MUTATING_JSON
-from zebra_day.client import ZebraDayClient
+from zebra_day.client import ZebraDayClient, cli_attribution_scope
 from zebra_day.settings import ZebraDaySettings, build_default_config_template
 from zebra_day.web.app import create_app
 
@@ -150,7 +150,8 @@ def _bootstrap(
     client = ZebraDayClient(settings)
     if not skip_scan:
         resolved_ip_stub = ip_stub or _derive_ip_stub()
-        printers = client.discover_printers(ip_stub=resolved_ip_stub, lab=lab)
+        with cli_attribution_scope():
+            printers = client.discover_printers(ip_stub=resolved_ip_stub, lab=lab)
         result["discovered_printers"] = []
         for printer in printers:
             payload = printer.to_payload()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,10 +11,12 @@ import yaml
 
 from tests.fakes import sample_repository
 from zebra_day.client import (
+    PrinterRecord,
     TapDBFleetRepository,
     ZebraDayApiClient,
     ZebraDayClient,
     _ensure_prefix_ownership_registry,
+    cli_attribution_scope,
 )
 from zebra_day.settings import (
     DEFAULT_MERIDIAN_DOMAIN_CODE,
@@ -21,6 +24,191 @@ from zebra_day.settings import (
     ZebraDaySettings,
     build_default_config_template,
 )
+
+
+def test_printer_stale_read_proposal_keeps_original_revision(monkeypatch):
+    from daylily_tapdb.revisions import RevisionConflict
+
+    loaded = SimpleNamespace(
+        uid="stored-printer", record_revision=4, json_addl={}, euid="stored-euid"
+    )
+
+    class Query:
+        def filter(self, *_conditions):
+            return self
+
+        def first(self):
+            return loaded
+
+    class Session:
+        def query(self, _model):
+            return Query()
+
+    @contextmanager
+    def session_scope():
+        yield Session()
+
+    def update_object(_session, _selector, _changes, *, expected_revision, **_kwargs):
+        assert expected_revision == 3  # Original read, not the fresh repository reload (4).
+        raise RevisionConflict("stale revision: expected 3, current 4")
+
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = SimpleNamespace(tapdb_client_id="zebra-day")
+    repository._session = lambda *, commit: session_scope()
+    repository._generic_instance = SimpleNamespace(
+        category="category",
+        type="type",
+        subtype="subtype",
+        name="name",
+        is_deleted=SimpleNamespace(is_=lambda _value: None),
+    )
+    monkeypatch.setattr(
+        "zebra_day.client._tapdb_import",
+        lambda _module: SimpleNamespace(
+            ObjectSelector=lambda **kwargs: kwargs,
+            update_object=update_object,
+        ),
+    )
+    proposal = PrinterRecord(
+        printer_id="printer",
+        lab="lab",
+        ip_address="192.0.2.10",
+        euid="stored-euid",
+        record_revision=3,
+    )
+    with pytest.raises(RevisionConflict, match="stale revision"):
+        repository.upsert_printer(proposal)
+
+
+def test_existing_template_requires_its_original_observed_revision(monkeypatch):
+    from daylily_tapdb.revisions import RevisionConflict
+
+    loaded = SimpleNamespace(uid="template-uid", record_revision=4, json_addl={}, euid="template-euid")
+
+    class Query:
+        def filter(self, *_conditions):
+            return self
+
+        def first(self):
+            return loaded
+
+    @contextmanager
+    def session_scope():
+        yield SimpleNamespace(query=lambda _model: Query())
+
+    observed = []
+
+    def update_object(_session, _selector, _changes, *, expected_revision, **_kwargs):
+        observed.append(expected_revision)
+        raise RevisionConflict("stale revision: expected 3, current 4")
+
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = SimpleNamespace(tapdb_client_id="zebra-day")
+    repository._session = lambda *, commit: session_scope()
+    repository._generic_instance = SimpleNamespace(
+        category="category", type="type", subtype="subtype", name="name",
+        is_deleted=SimpleNamespace(is_=lambda _value: None),
+    )
+    monkeypatch.setattr(
+        "zebra_day.client._tapdb_import",
+        lambda _module: SimpleNamespace(
+            ObjectSelector=lambda **kwargs: kwargs, update_object=update_object,
+        ),
+    )
+
+    with pytest.raises(RevisionConflict, match="observed record_revision"):
+        repository.upsert_template("tube", "new content")
+    with pytest.raises(RevisionConflict, match="stale revision"):
+        repository.upsert_template("tube", "stale content", expected_revision=3)
+    assert observed == [3]
+
+
+def test_repository_write_requires_explicit_scope_and_refreshes_operation_id():
+    from daylily_tapdb.security_context import Attribution
+    from daylily_tapdb.security_context import invocation_attribution
+    from zebra_day.client import attribution_scope
+
+    observed = []
+
+    @contextmanager
+    def session_scope(*, commit):
+        observed.append((commit, invocation_attribution()))
+        yield object()
+
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = SimpleNamespace(tapdb_client_id="zebra-day")
+    repository._connection = SimpleNamespace(session_scope=session_scope)
+    with pytest.raises(RuntimeError, match="explicit invocation attribution"):
+        with repository._session(commit=True):
+            pass
+    with repository._session(commit=False):
+        pass
+    assert observed == [(False, None)]
+
+    actor = Attribution(
+        actor_kind="service", actor_issuer="zebra-day", actor_subject="zebra-day:collector",
+        service_identity="zebra-day", request_id="invocation-1", operation_id="initial",
+    )
+    with attribution_scope(actor):
+        with repository._session(commit=True):
+            pass
+        with repository._session(commit=True):
+            pass
+
+    assert all(commit for commit, _ in observed[1:])
+    assert all(value.actor_subject == "zebra-day:collector" for _, value in observed[1:])
+    assert observed[1][1].request_id == observed[2][1].request_id == "invocation-1"
+    assert observed[1][1].operation_id != observed[2][1].operation_id
+    assert invocation_attribution() is None
+
+
+def test_cli_write_scope_requires_declared_native_envelope(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "zebra_day.client.get_context", lambda: SimpleNamespace(invocation={})
+    )
+    with pytest.raises(RuntimeError, match="--attribution"):
+        with cli_attribution_scope():
+            pass
+
+    path = tmp_path / "attribution.json"
+    path.write_text(json.dumps({
+        "actor_kind": "human", "actor_issuer": "https://issuer.example",
+        "actor_subject": "canonical-user", "service_identity": "zebra-day",
+        "request_id": "cli-invocation", "operation_id": "initial",
+    }), encoding="utf-8")
+    monkeypatch.setattr(
+        "zebra_day.client.get_context",
+        lambda: SimpleNamespace(invocation={"attribution": str(path)}),
+    )
+    repository = object.__new__(TapDBFleetRepository)
+    repository.settings = SimpleNamespace(tapdb_client_id="zebra-day")
+    observed = []
+
+    @contextmanager
+    def session_scope(*, commit):
+        from daylily_tapdb.security_context import invocation_attribution
+
+        observed.append((commit, invocation_attribution()))
+        yield object()
+
+    repository._connection = SimpleNamespace(session_scope=session_scope)
+    with cli_attribution_scope():
+        with repository._session(commit=True):
+            pass
+        with repository._session(commit=True):
+            pass
+    assert [actor.actor_subject for _, actor in observed] == [
+        "canonical-user", "canonical-user"
+    ]
+    assert observed[0][1].request_id == observed[1][1].request_id == "cli-invocation"
+    assert observed[0][1].operation_id != observed[1][1].operation_id
+
+
+def test_unattributed_print_fails_before_printer_resolution():
+    client = object.__new__(ZebraDayClient)
+    client.resolve_print_request = lambda **_kwargs: pytest.fail("printer resolution was reached")
+    with pytest.raises(RuntimeError, match="explicit invocation attribution"):
+        client.print_label(lab="lab", printer_euid="printer-euid")
 
 
 def _set_xdg(monkeypatch, tmp_path, deployment="local") -> None:
@@ -456,6 +644,33 @@ def test_api_client_lists_labs_and_submits_print_job(monkeypatch):
 
     assert response["success"] is True
     assert calls == [("GET", "/api/v1/labs"), ("POST", "/api/v1/print")]
+
+
+def test_api_client_forwards_original_printer_revision():
+    observed = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json={
+                "printer_euid": "printer-from-service", "lab": "default",
+                "ip_address": "192.0.2.10", "record_revision": 3,
+            })
+        observed.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            "printer_euid": "printer-from-service", "lab": "default",
+            "ip_address": "192.0.2.10", "record_revision": 4,
+        })
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.Client(base_url="https://example.test", transport=transport)
+    api_client = ZebraDayApiClient("https://example.test", client=client)
+    original = api_client.get_printer("printer-from-service", "default")
+    updated = api_client.update_printer_metadata(
+        "default", "printer-from-service",
+        expected_revision=original.record_revision, notes="curated",
+    )
+    assert observed == [{"expected_revision": 3, "notes": "curated"}]
+    assert updated.record_revision == 4
 
 
 def test_api_client_direct_print_uses_remote_resolution(monkeypatch):

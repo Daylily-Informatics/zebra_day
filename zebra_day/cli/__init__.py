@@ -163,6 +163,12 @@ spec = CliSpec(
     context=InvocationContextSpec(
         options=[
             ContextOptionSpec(
+                name="attribution",
+                option_flags=("--attribution",),
+                value_type="str",
+                help="Path to an explicit TapDB v1 attribution JSON envelope for CLI writes.",
+            ),
+            ContextOptionSpec(
                 name="no_auth",
                 option_flags=("--no-auth",),
                 value_type="bool",

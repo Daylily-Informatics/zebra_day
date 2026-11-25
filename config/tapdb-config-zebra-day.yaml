@@ -15,6 +15,10 @@ target:
   password: null
   database: tapdb_local
   schema_name: tapdb_zebra_day_local
+  # Bind the exact approved runtime principal scope for each deployment.
+  tenant_id: null
+  additional_tenant_ids: []
+  allow_global_claims: false
   audit_log_euid_prefix: ZGX
 safety:
   safety_tier: local

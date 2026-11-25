@@ -84,6 +84,7 @@
         <div class="form-group">
             <label class="form-label">Template Name</label>
             <input id="template-name" class="form-control" placeholder="tube_2inX1in" required>
+            <button type="button" class="btn btn-sm btn-outline mt-sm" onclick="loadTemplate(document.getElementById('template-name').value.trim())">Open by name</button>
         </div>
         <div class="form-group">
             <label class="form-label">ZPL Content</label>
@@ -95,13 +96,19 @@
             <button type="button" class="btn btn-outline" onclick="previewTemplate()">Preview PNG</button>
         </div>
     </form>
-    <p class="text-muted mt-md">This editor writes directly to TapDB through the same API contract used by downstream Python clients.</p>
+    <p class="text-muted mt-md">Open a template before editing or deleting it. Use Open by name to restore a previously deleted template.</p>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+let loadedTemplateName = null;
+let loadedTemplateRevision = null;
 async function loadTemplate(name) {
+    if (!name) {
+        showToast('error', 'Missing name', 'Enter a template name to open.');
+        return;
+    }
     showLoading('Loading template...');
     try {
         const response = await fetch(`/api/v1/templates/${encodeURIComponent(name)}`);
@@ -113,6 +120,8 @@ async function loadTemplate(name) {
         }
         document.getElementById('template-name').value = payload.template_name;
         document.getElementById('template-zpl').value = payload.zpl_content;
+        loadedTemplateName = payload.template_name;
+        loadedTemplateRevision = payload.record_revision;
     } catch (error) {
         hideLoading();
         showToast('error', 'Load failed', error.message || 'Unknown error');
@@ -123,12 +132,14 @@ document.getElementById('template-form')?.addEventListener('submit', async (even
     event.preventDefault();
     const filename = document.getElementById('template-name').value.trim();
     const zplContent = document.getElementById('template-zpl').value;
+    const stem = filename.endsWith('.zpl') ? filename.slice(0, -4) : filename;
+    const expectedRevision = stem === loadedTemplateName ? loadedTemplateRevision : null;
     showLoading('Saving template...');
     try {
         const response = await fetch('/api/v1/templates', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({filename, zpl_content: zplContent}),
+            body: JSON.stringify({filename, zpl_content: zplContent, expected_revision: expectedRevision}),
         });
         const payload = await response.json();
         hideLoading();
@@ -150,9 +161,13 @@ async function deleteTemplate() {
         showToast('error', 'Missing name', 'Load or enter a template first.');
         return;
     }
+    if (name !== loadedTemplateName || loadedTemplateRevision === null) {
+        showToast('error', 'Load required', 'Open this template before deleting it.');
+        return;
+    }
     showLoading('Deleting template...');
     try {
-        const response = await fetch(`/api/v1/templates/${encodeURIComponent(name)}`, {method: 'DELETE'});
+        const response = await fetch(`/api/v1/templates/${encodeURIComponent(name)}?expected_revision=${loadedTemplateRevision}`, {method: 'DELETE'});
         const payload = await response.json();
         hideLoading();
         if (!response.ok) {

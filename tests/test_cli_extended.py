@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -216,6 +217,7 @@ def test_cognito_commands_cover_status_bind_import_validate_and_passthrough(
 
 def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_path, capsys):
     _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.setattr(printer_module, "cli_attribution_scope", nullcontext)
     printers = [
         PrinterRecord(
             printer_id="printer-1",
@@ -289,6 +291,7 @@ def test_printer_commands_cover_empty_list_live_scan_and_sync(monkeypatch, tmp_p
 
 def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, tmp_path, capsys):
     _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.setattr(template_module, "cli_attribution_scope", nullcontext)
 
     class _FakeClient:
         def __init__(self) -> None:
@@ -301,14 +304,14 @@ def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, 
         def get_template(self, template_name):
             return self.templates.get(template_name)
 
-        def save_template(self, template_name, zpl_content, source="user"):
+        def save_template(self, template_name, zpl_content, source="user", expected_revision=None):
             self.templates[template_name] = {
                 "template_name": template_name,
                 "zpl_content": zpl_content,
                 "source": source,
             }
 
-        def delete_template(self, template_name):
+        def delete_template(self, template_name, expected_revision=None):
             self.deleted.append(template_name)
             self.templates.pop(template_name, None)
 
@@ -326,7 +329,7 @@ def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, 
 
     template_file = tmp_path / "tube.zpl"
     template_file.write_text("^XA^FDTEST^XZ", encoding="utf-8")
-    template_module.save(filename="tube.zpl", content=str(template_file))
+    template_module.save(filename="tube.zpl", content=str(template_file), expected_revision=None)
     save_out = capsys.readouterr().out
     assert "Saved template: tube" in save_out
     assert fake_client.templates["tube"]["zpl_content"] == "^XA^FDTEST^XZ"
@@ -352,11 +355,11 @@ def test_template_commands_cover_save_show_list_delete_and_preview(monkeypatch, 
 
     monkeypatch.setattr(template_module.typer, "confirm", lambda message: False)
     with pytest.raises(Abort):
-        template_module.delete(template_name="tube", force=False)
+        template_module.delete(template_name="tube", force=False, expected_revision=None)
     capsys.readouterr()
     assert "tube" in fake_client.templates
 
-    template_module.delete(template_name="tube", force=True)
+    template_module.delete(template_name="tube", force=True, expected_revision=None)
     delete_out = capsys.readouterr().out
     assert "Deleted template: tube" in delete_out
     assert fake_client.deleted == ["tube"]
@@ -400,6 +403,7 @@ def test_logs_commands_cover_present_and_missing_logs(monkeypatch, tmp_path, cap
 
 def test_root_status_and_bootstrap_cover_success_and_error(monkeypatch, tmp_path, capsys):
     _set_xdg(monkeypatch, tmp_path)
+    monkeypatch.setattr(config_extra_module, "cli_attribution_scope", nullcontext)
     status_settings = _settings(tmp_path / "status")
     status_settings.config_path.parent.mkdir(parents=True, exist_ok=True)
     status_settings.config_path.write_text("service: {}\n", encoding="utf-8")

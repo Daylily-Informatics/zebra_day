@@ -14,7 +14,7 @@ from zebra_day.cli._registry_v2 import (
     REQUIRED_MUTATING_JSON,
     register_group_commands,
 )
-from zebra_day.client import ZebraDayClient
+from zebra_day.client import ZebraDayClient, cli_attribution_scope
 from zebra_day.cmd_mgr import get_cached_status
 
 if TYPE_CHECKING:
@@ -99,11 +99,12 @@ def scan(
     """Discover reachable Zebra printers on the local network."""
     client = ZebraDayClient.from_context()
     resolved_ip_stub = ip_stub or _local_ip_stub()
-    found = client.discover_printers(
-        ip_stub=resolved_ip_stub,
-        lab=lab,
-        scan_http_port=scan_http_port,
-    )
+    with cli_attribution_scope():
+        found = client.discover_printers(
+            ip_stub=resolved_ip_stub,
+            lab=lab,
+            scan_http_port=scan_http_port,
+        )
     payload = [_public_printer_payload(printer) for printer in found]
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
@@ -122,7 +123,8 @@ def sync(
 ) -> None:
     """Refresh one printer's metadata from the live device."""
     client = ZebraDayClient.from_context()
-    printer = client.sync_printer_metadata(printer_euid, lab)
+    with cli_attribution_scope():
+        printer = client.sync_printer_metadata(printer_euid, lab)
     payload = _public_printer_payload(printer)
     if get_context().json_mode:
         ccyo_out.emit_json(payload)
@@ -140,7 +142,7 @@ def register(registry: CommandRegistry, spec: CliSpec) -> None:
         "Printer fleet operations",
         [
             ("list", list_printers, REQUIRED_JSON),
-            ("scan", scan, REQUIRED_JSON),
+            ("scan", scan, REQUIRED_MUTATING_JSON),
             ("sync", sync, REQUIRED_MUTATING_JSON),
         ],
     )

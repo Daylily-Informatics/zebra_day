@@ -9,6 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
+from daylily_tapdb.revisions import RevisionConflict
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
@@ -37,7 +38,6 @@ from zebra_day.web.chrome import build_chrome_context, resolve_git_metadata
 from zebra_day.web.middleware import RequestLoggingMiddleware, print_rate_limiter
 from zebra_day.web.tapdb_surfaces import (
     mount_tapdb_surfaces,
-    zebra_day_tapdb_obs_services_fragment,
 )
 
 _log = get_logger(__name__)
@@ -156,6 +156,10 @@ def create_app(
     app.state.chrome_context = chrome_context
     app.state.git_metadata = git_metadata
 
+    @app.exception_handler(RevisionConflict)
+    async def _stale_tapdb_write(_request: Request, exc: RevisionConflict) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
     cognito_binding = None
     if resolved_settings.auth_mode == "cognito":
         cognito_binding = setup_cognito_auth(app, resolved_settings)
@@ -250,10 +254,11 @@ def create_app(
             auth_mode=resolved_settings.auth_mode
         )
         if getattr(app.state, "tapdb_universal_configured", False):
-            fragment = zebra_day_tapdb_obs_services_fragment()
+            fragment = app.state.tapdb_dag_v2_advertisement
+            manifest = fragment["dag_v2"]
             payload["endpoints"] = [
                 *list(payload.get("endpoints") or []),
-                *list(fragment.get("endpoints") or []),
+                *list(manifest["endpoints"]),
             ]
             for key in ("extensions", "capabilities", "external_ref_models"):
                 existing = list(payload.get(key) or [])
@@ -262,7 +267,7 @@ def create_app(
                         existing.append(item)
                 if existing:
                     payload[key] = existing
-            payload["tapdb_dag_contract_version"] = str(fragment.get("contract_version") or "")
+            payload["dag_v2"] = manifest
         return app.state.observability.with_projection(
             request,
             name="obs_services",

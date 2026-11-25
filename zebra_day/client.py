@@ -5,13 +5,17 @@ from __future__ import annotations
 import importlib
 import json
 import tomllib
-from dataclasses import dataclass
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
+from uuid import uuid4
 
 import httpx
-from sqlalchemy import text
+import yaml
+from cli_core_yo.runtime import get_context
 
 from zebra_day import paths as xdg
 from zebra_day.logging_config import get_logger
@@ -24,8 +28,38 @@ from zebra_day.printer_protocol import (
 from zebra_day.settings import ZebraDaySettings
 
 _log = get_logger(__name__)
+_write_attribution: ContextVar[Any | None] = ContextVar("zebra_write_attribution", default=None)
 
-ZEBRA_DAY_TEMPLATE_EUID_PREFIX = "ZGX"
+
+@contextmanager
+def attribution_scope(actor):
+    """Bind one verified HTTP or CLI initiator to this execution context."""
+    security = _tapdb_import("daylily_tapdb.security_context")
+    if not isinstance(actor, security.Attribution) or actor.service_identity != "zebra-day":
+        raise ValueError("Zebra Day requires an explicit attribution envelope")
+    token = _write_attribution.set(actor)
+    try:
+        yield actor
+    finally:
+        _write_attribution.reset(token)
+
+
+@contextmanager
+def cli_attribution_scope():
+    """Read the supplied native CLI envelope once, before any database work."""
+    path = get_context().invocation.get("attribution")
+    if not isinstance(path, str) or not path.strip():
+        raise RuntimeError("Zebra Day CLI database writes require --attribution")
+    security = _tapdb_import("daylily_tapdb.security_context")
+    actor = security.Attribution(**json.loads(Path(path).read_text(encoding="utf-8")))
+    with attribution_scope(actor):
+        yield actor
+
+
+def require_write_attribution() -> None:
+    if _write_attribution.get() is None:
+        raise RuntimeError("Zebra Day TapDB write requires explicit invocation attribution")
+
 LAB_TEMPLATE_CODE = "fleet/lab/generic/1.0/"
 PRINTER_TEMPLATE_CODE = "fleet/printer/generic/1.0/"
 LABEL_PROFILE_TEMPLATE_CODE = "labels/profile/generic/1.0/"
@@ -42,13 +76,6 @@ ZEBRA_DAY_TYPE_CATEGORIES = {
     "template": "labels",
     "print-job": "printing",
 }
-PACKAGE_TEMPLATE_PACK = (
-    Path(__file__).resolve().parents[1]
-    / "config"
-    / "tapdb_templates"
-    / "zebra_day"
-    / "templates.json"
-)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -90,132 +117,6 @@ def _tapdb_import(module_name: str):
         ) from exc
 
 
-def _ensure_prefix_ownership_registry(
-    *,
-    owner_repo_name: str,
-    domain_code: str,
-    prefixes: list[str],
-    registry_path: Path,
-) -> Path:
-    resolved_path = Path(registry_path).expanduser().resolve()
-    if not resolved_path.exists():
-        raise RuntimeError(f"Prefix registry not found: {resolved_path}")
-
-    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"Prefix registry must be a JSON object: {resolved_path}")
-
-    ownership = payload.get("ownership")
-    if not isinstance(ownership, dict):
-        raise RuntimeError(f"Prefix registry must define an ownership object: {resolved_path}")
-
-    domain_claims = ownership.get(domain_code)
-    if domain_claims is None:
-        domain_claims = {}
-        ownership[domain_code] = domain_claims
-    if not isinstance(domain_claims, dict):
-        raise RuntimeError(
-            f"Prefix registry claims for domain {domain_code!r} must be an object: {resolved_path}"
-        )
-
-    changed = False
-    for prefix in sorted(
-        {str(prefix).strip().upper() for prefix in prefixes if str(prefix).strip()}
-    ):
-        existing = domain_claims.get(prefix)
-        if existing is None:
-            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
-            changed = True
-            continue
-        if not isinstance(existing, dict):
-            raise RuntimeError(
-                f"Prefix {prefix!r} claim for domain {domain_code!r} must be an object: "
-                f"{resolved_path}"
-            )
-        current_owner = str(
-            existing.get("issuer_app_code")
-            or existing.get("owner_repo_name")
-            or existing.get("repo_name")
-            or ""
-        ).strip()
-        if current_owner and current_owner != owner_repo_name:
-            raise RuntimeError(
-                f"Prefix {prefix!r} for domain {domain_code!r} is claimed by "
-                f"{current_owner!r}, not {owner_repo_name!r}"
-            )
-        if current_owner != owner_repo_name or existing.get("issuer_app_code") != owner_repo_name:
-            domain_claims[prefix] = {"issuer_app_code": owner_repo_name}
-            changed = True
-
-    if changed:
-        resolved_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-
-    return resolved_path
-
-
-def _ensure_identity_prefix_config(
-    session,
-    *,
-    entity: str,
-    domain_code: str,
-    owner_repo_name: str,
-    prefix: str,
-) -> None:
-    normalized_entity = _clean(entity)
-    normalized_domain = _clean(domain_code).upper()
-    normalized_owner = _clean(owner_repo_name)
-    normalized_prefix = _clean(prefix).upper()
-    if not normalized_entity:
-        raise RuntimeError("Zebra Day identity entity is required")
-    if not normalized_prefix:
-        raise RuntimeError(
-            f"Zebra Day identity prefix is required for entity {normalized_entity!r}"
-        )
-
-    params = {
-        "entity": normalized_entity,
-        "domain_code": normalized_domain,
-        "owner_repo_name": normalized_owner,
-        "prefix": normalized_prefix,
-    }
-    existing = session.execute(
-        text(
-            """
-            SELECT prefix
-            FROM tapdb_identity_prefix_config
-            WHERE entity = :entity
-              AND domain_code = :domain_code
-              AND issuer_app_code = :owner_repo_name
-            """
-        ),
-        params,
-    ).scalar_one_or_none()
-    if existing is not None:
-        existing_prefix = _clean(existing).upper()
-        if existing_prefix != normalized_prefix:
-            raise RuntimeError(
-                f"Zebra Day identity prefix config for entity {normalized_entity!r} in "
-                f"domain {normalized_domain!r} is already seeded with prefix "
-                f"{existing_prefix!r}, not {normalized_prefix!r}"
-            )
-        return
-
-    session.execute(
-        text(
-            """
-            INSERT INTO tapdb_identity_prefix_config(
-              entity, domain_code, issuer_app_code, prefix
-            )
-            VALUES (:entity, :domain_code, :owner_repo_name, :prefix)
-            """
-        ),
-        params,
-    )
-
-
 def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
     payload = record.to_payload()
     payload["printer_euid"] = _clean(payload.pop("euid", ""))
@@ -223,9 +124,13 @@ def _public_printer_payload(record: PrinterRecord) -> dict[str, Any]:
     return payload
 
 
-def _with_printer_euid(payload: dict[str, Any], printer_euid: str) -> dict[str, Any]:
+def _with_printer_euid(
+    payload: dict[str, Any], printer_euid: str, record_revision: int | None = None
+) -> dict[str, Any]:
     normalized = dict(payload)
     normalized["printer_euid"] = _clean(printer_euid)
+    if record_revision is not None:
+        normalized["record_revision"] = record_revision
     return normalized
 
 
@@ -249,6 +154,7 @@ class PrinterRecord:
     discovery_source: str = ""
     device_manifest: dict[str, Any] | None = None
     euid: str = ""
+    record_revision: int | None = None
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -270,6 +176,7 @@ class PrinterRecord:
             "discovery_source": self.discovery_source,
             "device_manifest": dict(self.device_manifest or {}),
             "euid": self.euid,
+            "record_revision": self.record_revision,
         }
 
     @classmethod
@@ -297,12 +204,16 @@ class PrinterRecord:
             discovery_source=_clean(payload.get("discovery_source")),
             device_manifest=dict(payload.get("device_manifest") or {}),
             euid=printer_euid,
+            record_revision=payload.get("record_revision"),
         )
 
 
 class FleetRepository(Protocol):
     def list_labs(self) -> list[str]: ...
-    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]: ...
+    def upsert_lab(
+        self, lab: str, payload: dict[str, Any] | None = None,
+        *, expected_revision: int | None = None,
+    ) -> dict[str, Any]: ...
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]: ...
     def get_printer(self, lab: str, printer_id: str) -> PrinterRecord | None: ...
     def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None: ...
@@ -310,14 +221,20 @@ class FleetRepository(Protocol):
     def list_templates(self) -> list[dict[str, Any]]: ...
     def get_template(self, template_name: str) -> dict[str, Any] | None: ...
     def upsert_template(
-        self, template_name: str, zpl_content: str, source: str = "package"
+        self, template_name: str, zpl_content: str, source: str = "package",
+        expected_revision: int | None = None,
     ) -> None: ...
     def list_label_profiles(self) -> list[dict[str, Any]]: ...
-    def upsert_label_profile(self, profile_name: str, payload: dict[str, Any]) -> None: ...
+    def upsert_label_profile(
+        self, profile_name: str, payload: dict[str, Any], *, expected_revision: int | None = None
+    ) -> None: ...
     def get_label_profile(self, profile_name: str) -> dict[str, Any] | None: ...
     def record_observation(self, payload: dict[str, Any]) -> None: ...
     def record_drift(self, payload: dict[str, Any]) -> None: ...
     def create_print_job(self, payload: dict[str, Any]) -> None: ...
+    def claim_print_job(self, request_id: str, payload: dict[str, Any]) -> tuple[bool, dict]: ...
+    def get_print_job(self, request_id: str) -> dict | None: ...
+    def finish_print_job(self, request_id: str, payload: dict[str, Any]) -> dict: ...
 
 
 class TapDBFleetRepository:
@@ -330,9 +247,10 @@ class TapDBFleetRepository:
         self._connection = self._build_connection()
         self._tapdb = _tapdb_import("daylily_tapdb")
         self._template_manager = self._tapdb.TemplateManager()
+        self._instance_factory = _tapdb_import("daylily_tapdb.factory").InstanceFactory(
+            self._template_manager, domain_code=self.settings.tapdb_domain_code
+        )
         self._generic_instance = _tapdb_import("daylily_tapdb.models.instance").generic_instance
-        self._seed_templates()
-        self._seed_package_templates()
 
     def _build_connection(self):
         tapdb_mod = _tapdb_import("daylily_tapdb")
@@ -342,6 +260,18 @@ class TapDBFleetRepository:
             client_id=self.settings.tapdb_client_id,
             database_name=self.settings.tapdb_database_name,
         )
+        root = yaml.safe_load(self.settings.tapdb_config_path.read_text(encoding="utf-8"))
+        target = root.get("target") if isinstance(root, dict) else None
+        required_policy = ("tenant_id", "additional_tenant_ids", "allow_global_claims")
+        if not isinstance(target, dict) or any(key not in target for key in required_policy):
+            raise RuntimeError(
+                "Zebra Day TapDB target must explicitly declare tenant_id, "
+                "additional_tenant_ids, and allow_global_claims"
+            )
+        if cfg["domain_code"] != self.settings.tapdb_domain_code:
+            raise RuntimeError("Zebra Day TapDB target domain does not match service settings")
+        if cfg["owner_repo_name"] != self.settings.tapdb_owner_repo_name:
+            raise RuntimeError("Zebra Day TapDB target owner does not match service settings")
         db_hostname = f"{cfg['host']}:{cfg['port']}"
         connection_engine_type = str(cfg["engine_type"])
         region = str(cfg.get("region") or "").strip()
@@ -368,68 +298,26 @@ class TapDBFleetRepository:
             secret_arn=str(cfg.get("secret_arn") or "").strip() or None,
             domain_code=self.settings.tapdb_domain_code,
             owner_repo_name=self.settings.tapdb_owner_repo_name,
+            issuance_profile=cfg["issuance_profile"],
+            config_identity=str(cfg["config_path"]),
+            tenant_id=str(cfg["tenant_id"] or "") or None,
+            additional_tenant_ids=tuple(cfg["additional_tenant_ids"]),
+            allow_global_rows=cfg["allow_global_claims"],
         )
 
+    @contextmanager
     def _session(self, *, commit: bool):
-        return self._connection.session_scope(commit=commit)
-
-    def _seed_templates(self) -> None:
-        if not PACKAGE_TEMPLATE_PACK.exists():
-            raise FileNotFoundError(f"TapDB template pack not found: {PACKAGE_TEMPLATE_PACK}")
-        loader = _tapdb_import("daylily_tapdb.templates.loader")
-        euid_mod = _tapdb_import("daylily_tapdb.euid")
-        with self._session(commit=True) as session:
-            templates = (
-                json.loads(PACKAGE_TEMPLATE_PACK.read_text(encoding="utf-8")).get("templates") or []
-            )
-            prefix_registry_path = _ensure_prefix_ownership_registry(
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                domain_code=self.settings.tapdb_domain_code,
-                prefixes=[str(template.get("instance_prefix") or "") for template in templates],
-                registry_path=self.settings.tapdb_prefix_ownership_registry_path,
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="generic_template",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=ZEBRA_DAY_TEMPLATE_EUID_PREFIX,
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="generic_instance_lineage",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=str(euid_mod.GENERIC_INSTANCE_LINEAGE_PREFIX),
-            )
-            _ensure_identity_prefix_config(
-                session,
-                entity="audit_log",
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                prefix=str(euid_mod.AUDIT_LOG_PREFIX),
-            )
-            loader.seed_templates(
-                session,
-                templates,
-                overwrite=False,
-                core_config_dir=loader.find_tapdb_core_config_dir(),
-                domain_code=self.settings.tapdb_domain_code,
-                owner_repo_name=self.settings.tapdb_owner_repo_name,
-                domain_registry_path=str(self.settings.tapdb_domain_registry_path),
-                prefix_registry_path=str(prefix_registry_path),
-            )
-
-    def _seed_package_templates(self) -> None:
-        package_dir = Path(__file__).resolve().parent / "etc" / "label_styles"
-        if not package_dir.exists():
-            return
-        for path in sorted(package_dir.glob("*.zpl")):
-            self.upsert_template(path.stem, path.read_text(encoding="utf-8"), source="package")
-            self.upsert_label_profile(
-                path.stem,
-                {"profile_name": path.stem, "template_name": path.stem, "managed_by": "zebra-day"},
-            )
+        security = _tapdb_import("daylily_tapdb.security_context")
+        actor = _write_attribution.get()
+        if commit and actor is None:
+            raise RuntimeError("Zebra Day TapDB write requires explicit invocation attribution")
+        attribution = replace(actor, operation_id=str(uuid4())) if actor is not None else None
+        token = security.set_invocation_attribution(attribution)
+        try:
+            with self._connection.session_scope(commit=commit) as session:
+                yield session
+        finally:
+            security.reset_invocation_attribution(token)
 
     def _template_for_code(self, session, code: str):
         template = self._template_manager.get_template(
@@ -462,7 +350,10 @@ class TapDBFleetRepository:
         name: str,
         payload: dict[str, Any],
         bstatus: str = "active",
+        expected_revision: int | None = None,
     ) -> dict[str, Any]:
+        from daylily_tapdb.revisions import RevisionConflict
+
         with self._session(commit=True) as session:
             existing = (
                 session.query(self._generic_instance)
@@ -476,29 +367,40 @@ class TapDBFleetRepository:
                 .first()
             )
             if existing is None:
-                template = self._template_for_code(session, template_code)
-                existing = self._generic_instance(
+                if expected_revision is not None:
+                    raise RevisionConflict(
+                        f"{subtype} changed since it was read; reread before updating"
+                    )
+                self._template_for_code(session, template_code)
+                existing = self._instance_factory.create_instance(
+                    session=session,
+                    template_code=template_code,
                     name=name,
-                    polymorphic_discriminator=template.instance_polymorphic_identity
-                    or template.polymorphic_discriminator.replace("_template", "_instance"),
-                    category=template.category,
-                    type=template.type,
-                    subtype=template.subtype,
-                    version=template.version,
-                    template_uid=template.uid,
-                    json_addl=dict(payload),
-                    bstatus=bstatus,
-                    is_singleton=False,
+                    properties={
+                        key: value for key, value in payload.items() if key != "record_revision"
+                    },
                 )
-                session.add(existing)
-                session.flush()
-            else:
-                existing.json_addl = dict(payload)
-                existing.bstatus = bstatus
-                session.flush()
+            elif expected_revision is None:
+                raise RevisionConflict(
+                    f"existing {subtype} requires its observed record_revision"
+                )
+            operations = _tapdb_import("daylily_tapdb.services.object_operations")
+            revision = (
+                expected_revision if expected_revision is not None else existing.record_revision
+            )
+            stored_payload = {key: value for key, value in payload.items() if key != "record_revision"}
+            operations.update_object(
+                session,
+                operations.ObjectSelector(uid=existing.uid, record_type="instance"),
+                {"json_addl": stored_payload, "bstatus": bstatus},
+                actor=self.settings.tapdb_client_id,
+                dry_run=False,
+                expected_revision=revision,
+            )
 
             stored = dict(existing.json_addl or {})
             stored["euid"] = _clean(getattr(existing, "euid", ""))
+            stored["record_revision"] = existing.record_revision
             return stored
 
     def list_labs(self) -> list[str]:
@@ -513,7 +415,10 @@ class TapDBFleetRepository:
             )
             return sorted(lab for lab in labs if lab)
 
-    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def upsert_lab(
+        self, lab: str, payload: dict[str, Any] | None = None,
+        *, expected_revision: int | None = None,
+    ) -> dict[str, Any]:
         normalized = _clean(lab)
         if not normalized:
             raise ValueError("lab is required")
@@ -530,6 +435,7 @@ class TapDBFleetRepository:
             name=normalized,
             payload=body,
             bstatus="active",
+            expected_revision=expected_revision,
         )
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
@@ -538,7 +444,9 @@ class TapDBFleetRepository:
             for instance in self._query_instances(session, "printer"):
                 payload = dict(instance.json_addl or {})
                 record = PrinterRecord.from_payload(
-                    _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+                    _with_printer_euid(
+                        payload, _clean(getattr(instance, "euid", "")), instance.record_revision
+                    )
                 )
                 if lab is None or record.lab == lab:
                     items.append(record)
@@ -561,7 +469,9 @@ class TapDBFleetRepository:
                 return None
             payload = dict(instance.json_addl or {})
             return PrinterRecord.from_payload(
-                _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+                _with_printer_euid(
+                    payload, _clean(getattr(instance, "euid", "")), instance.record_revision
+                )
             )
 
     def get_printer_by_euid(self, printer_euid: str) -> PrinterRecord | None:
@@ -581,7 +491,9 @@ class TapDBFleetRepository:
                 return None
             payload = dict(instance.json_addl or {})
             return PrinterRecord.from_payload(
-                _with_printer_euid(payload, _clean(getattr(instance, "euid", "")))
+                _with_printer_euid(
+                    payload, _clean(getattr(instance, "euid", "")), instance.record_revision
+                )
             )
 
     def upsert_printer(self, printer: PrinterRecord) -> PrinterRecord:
@@ -592,8 +504,11 @@ class TapDBFleetRepository:
             name=_stable_name(printer.lab, printer.printer_id),
             payload=payload,
             bstatus=printer.status or "active",
+            expected_revision=printer.record_revision,
         )
-        return PrinterRecord.from_payload(_with_printer_euid(payload, stored.get("euid", "")))
+        return PrinterRecord.from_payload(
+            _with_printer_euid(stored, stored.get("euid", ""), stored.get("record_revision"))
+        )
 
     def list_templates(self) -> list[dict[str, Any]]:
         with self._session(commit=False) as session:
@@ -601,6 +516,7 @@ class TapDBFleetRepository:
             for instance in self._query_instances(session, "template"):
                 payload = dict(instance.json_addl or {})
                 payload["euid"] = _clean(getattr(instance, "euid", ""))
+                payload["record_revision"] = instance.record_revision
                 if _clean(payload.get("source")) == "deleted" or not _clean(
                     payload.get("zpl_content")
                 ):
@@ -625,12 +541,12 @@ class TapDBFleetRepository:
                 return None
             payload = dict(instance.json_addl or {})
             payload["euid"] = _clean(getattr(instance, "euid", ""))
-            if _clean(payload.get("source")) == "deleted" or not _clean(payload.get("zpl_content")):
-                return None
+            payload["record_revision"] = instance.record_revision
             return payload
 
     def upsert_template(
-        self, template_name: str, zpl_content: str, source: str = "package"
+        self, template_name: str, zpl_content: str, source: str = "package",
+        expected_revision: int | None = None,
     ) -> None:
         self._upsert_instance(
             template_code=LABEL_TEMPLATE_TEMPLATE_CODE,
@@ -641,6 +557,7 @@ class TapDBFleetRepository:
                 "zpl_content": zpl_content,
                 "source": source,
             },
+            expected_revision=expected_revision,
         )
 
     def list_label_profiles(self) -> list[dict[str, Any]]:
@@ -649,11 +566,15 @@ class TapDBFleetRepository:
             for instance in self._query_instances(session, "profile"):
                 payload = dict(instance.json_addl or {})
                 payload["euid"] = _clean(getattr(instance, "euid", ""))
+                payload["record_revision"] = instance.record_revision
                 rows.append(payload)
             return sorted(rows, key=lambda item: _clean(item.get("profile_name")))
 
-    def upsert_label_profile(self, profile_name: str, payload: dict[str, Any]) -> None:
+    def upsert_label_profile(
+        self, profile_name: str, payload: dict[str, Any], *, expected_revision: int | None = None
+    ) -> None:
         full_payload = dict(payload)
+        full_payload.pop("record_revision", None)
         provided_name = _clean(full_payload.get("profile_name"))
         if provided_name and provided_name != profile_name:
             raise ValueError("label profile payload profile_name must match request profile_name")
@@ -663,6 +584,7 @@ class TapDBFleetRepository:
             subtype="profile",
             name=profile_name,
             payload=full_payload,
+            expected_revision=expected_revision,
         )
 
     def get_label_profile(self, profile_name: str) -> dict[str, Any] | None:
@@ -682,6 +604,7 @@ class TapDBFleetRepository:
                 return None
             payload = dict(instance.json_addl or {})
             payload["euid"] = _clean(getattr(instance, "euid", ""))
+            payload["record_revision"] = instance.record_revision
             return payload
 
     def record_observation(self, payload: dict[str, Any]) -> None:
@@ -718,6 +641,42 @@ class TapDBFleetRepository:
         )
 
 
+    @staticmethod
+    def _job_value(row):
+        return {**dict(row.json_addl or {}), "job_id": row.name, "job_euid": row.euid,
+                "status": (row.json_addl or {}).get("status"), "record_revision": row.record_revision}
+
+    def claim_print_job(self, request_id, payload):
+        from uuid import UUID
+        from daylily_tapdb.factory.instance import IdentityClaimOutcome, IdentityScope
+
+        tenant = self._connection.tenant_id
+        with self._session(commit=True) as session:
+            claim = self._instance_factory.claim_instance_by_identity(
+                session, template_code=PRINT_JOB_TEMPLATE_CODE,
+                identity_key="print-request:" + request_id, name=request_id,
+                scope=IdentityScope.TENANT if tenant else IdentityScope.GLOBAL,
+                tenant_id=UUID(str(tenant)) if tenant else None, properties=payload,
+            )
+            return claim.outcome == IdentityClaimOutcome.CREATED, self._job_value(claim.instance)
+
+    def get_print_job(self, request_id):
+        model = self._generic_instance
+        with self._session(commit=False) as session:
+            row = session.query(model).filter(
+                model.category == "printing", model.type == "print-job", model.subtype == "generic",
+                model.name == request_id, model.is_deleted.is_(False),
+            ).one_or_none()
+            return self._job_value(row) if row is not None else None
+
+    def finish_print_job(self, request_id, payload):
+        return self._upsert_instance(
+            template_code=PRINT_JOB_TEMPLATE_CODE, subtype="print-job", name=request_id,
+            payload={**payload, "status": payload["status"]},
+            bstatus=payload["status"], expected_revision=payload["record_revision"],
+        )
+
+
 class ZebraDayClient:
     """Direct TapDB client used by the zebra_day service and admin tooling."""
 
@@ -741,7 +700,8 @@ class ZebraDayClient:
         return self.repository.list_labs()
 
     def create_lab(
-        self, lab: str, *, display_name: str = "", description: str = ""
+        self, lab: str, *, display_name: str = "", description: str = "",
+        expected_revision: int | None = None,
     ) -> dict[str, Any]:
         normalized = _clean(lab)
         if not normalized:
@@ -750,7 +710,7 @@ class ZebraDayClient:
             "display_name": _clean(display_name) or normalized.replace("-", " ").title(),
             "description": _clean(description),
         }
-        return self.repository.upsert_lab(normalized, payload)
+        return self.repository.upsert_lab(normalized, payload, expected_revision=expected_revision)
 
     def list_printers(self, lab: str | None = None) -> list[PrinterRecord]:
         return self.repository.list_printers(lab)
@@ -774,14 +734,21 @@ class ZebraDayClient:
     def get_template(self, template_name: str) -> dict[str, Any] | None:
         return self.repository.get_template(template_name)
 
-    def save_template(self, template_name: str, zpl_content: str, *, source: str = "user") -> None:
-        self.repository.upsert_template(template_name, zpl_content, source=source)
+    def save_template(
+        self, template_name: str, zpl_content: str, *, source: str = "user",
+        expected_revision: int | None = None,
+    ) -> None:
+        self.repository.upsert_template(
+            template_name, zpl_content, source=source, expected_revision=expected_revision
+        )
 
-    def delete_template(self, template_name: str) -> None:
+    def delete_template(self, template_name: str, *, expected_revision: int | None = None) -> None:
         existing = self.repository.get_template(template_name)
-        if existing is None:
+        if existing is None or _clean(existing.get("source")) == "deleted":
             raise KeyError(f"Template not found: {template_name}")
-        self.repository.upsert_template(template_name, "", source="deleted")
+        self.repository.upsert_template(
+            template_name, "", source="deleted", expected_revision=expected_revision
+        )
 
     def list_label_profiles(self) -> list[dict[str, Any]]:
         return self.repository.list_label_profiles()
@@ -812,7 +779,7 @@ class ZebraDayClient:
 
         template_name, _profile = self._resolve_template_name(template_key)
         template_record = self.repository.get_template(template_name)
-        if template_record is None:
+        if template_record is None or _clean(template_record.get("source")) == "deleted":
             raise KeyError(f"Template not found: {template_name}")
         zpl_string = build_zpl(
             _clean(template_record.get("zpl_content")),
@@ -888,6 +855,7 @@ class ZebraDayClient:
         client_ip: str = "unknown",
         **fields: str,
     ) -> str:
+        require_write_attribution()  # Fail before any physical printer action.
         resolved = self.resolve_print_request(
             lab=lab,
             printer_euid=printer_euid,
@@ -922,6 +890,42 @@ class ZebraDayClient:
     def submit_print_job(self, **kwargs: Any) -> str:
         return self.print_label(**kwargs)
 
+    def tracked_print_job(self, request_id, *, lab, printer_euid, label_zpl_style,
+                          zpl_content, copies, client_ip, **fields):
+        from daylily_tapdb.revisions import RevisionConflict
+
+        require_write_attribution()
+        intent = {"lab": lab, "printer_euid": printer_euid, "label_zpl_style": label_zpl_style,
+                  "zpl_content": zpl_content, "copies": copies, "fields": fields}
+        retained = self.repository.get_print_job(request_id)
+        if retained is not None:
+            if retained.get("intent") != intent:
+                raise RevisionConflict("Print request ID belongs to a different label")
+            return retained
+        resolved = self.resolve_print_request(
+            lab=lab, printer_euid=printer_euid, label_zpl_style=label_zpl_style,
+            zpl_content=zpl_content, copies=copies, **fields,
+        )
+        created, job = self.repository.claim_print_job(request_id, {
+            "intent": intent, "status": "dispatch_pending", "lab": lab, "printer_euid": printer_euid,
+            "printer_id": resolved.get("printer_id", ""), "template": resolved.get("template_name") or "",
+            "client_ip": client_ip, "copies": copies, "submitted_at": _utcnow(),
+        })
+        if job.get("intent") != intent:
+            raise RevisionConflict("Print request ID belongs to a different label")
+        if not created:
+            return job
+        try:
+            for _ in range(copies):
+                send_zpl_code(resolved["zpl_content"], resolved["printer_ip"])
+        except Exception:
+            job["status"] = "dispatch_unknown"
+        else:
+            job["status"] = "submitted"
+            job["rendered_zpl"] = resolved["zpl_content"]
+        self.repository.finish_print_job(request_id, job)
+        return job
+
     def discover_printers(
         self,
         *,
@@ -931,6 +935,7 @@ class ZebraDayClient:
         scan_wait: float | None = None,
         progress_callback=None,
     ) -> list[PrinterRecord]:
+        require_write_attribution()
         if lab not in self.list_labs():
             raise KeyError(f"Lab '{lab}' not found. Create the lab before scanning printers.")
         resolved_scan_wait = (
@@ -983,6 +988,7 @@ class ZebraDayClient:
         return found
 
     def sync_printer_metadata(self, printer_euid: str, lab: str) -> PrinterRecord:
+        require_write_attribution()
         printer = self.repository.get_printer_by_euid(printer_euid)
         if printer is None:
             raise KeyError(f"Printer not found: {lab}/{printer_euid}")
@@ -1057,7 +1063,17 @@ class ZebraDayClient:
             )
         return self.repository.upsert_printer(PrinterRecord.from_payload(payload))
 
-    def update_printer_metadata(self, lab: str, printer_euid: str, **changes: Any) -> PrinterRecord:
+    def update_printer_metadata(
+        self, lab: str, printer_euid: str, *, expected_revision: int, **changes: Any
+    ) -> PrinterRecord:
+        from daylily_tapdb.revisions import RevisionConflict
+
+        if (
+            isinstance(expected_revision, bool)
+            or not isinstance(expected_revision, int)
+            or expected_revision < 0
+        ):
+            raise RevisionConflict("printer metadata requires an observed expected_revision")
         printer = self.repository.get_printer_by_euid(printer_euid)
         if printer is None:
             raise KeyError(f"Printer not found: {lab}/{printer_euid}")
@@ -1066,6 +1082,7 @@ class ZebraDayClient:
         payload = printer.to_payload()
         payload.update({key: value for key, value in changes.items() if value is not None})
         payload["printer_euid"] = _clean(payload.get("euid", ""))
+        payload["record_revision"] = expected_revision
         return self.repository.upsert_printer(PrinterRecord.from_payload(payload))
 
     def runtime_summary(self) -> dict[str, Any]:
@@ -1155,6 +1172,13 @@ class ZebraDayApiClient:
     def get_printer(self, printer_euid: str, lab: str) -> PrinterRecord:
         payload = self._json("GET", f"/api/v1/labs/{lab}/printers/{printer_euid}")
         return PrinterRecord.from_payload(payload)
+
+    def update_printer_metadata(
+        self, lab: str, printer_euid: str, *, expected_revision: int, **changes: Any
+    ) -> PrinterRecord:
+        payload = {"expected_revision": expected_revision, **changes}
+        result = self._json("PATCH", f"/api/v1/labs/{lab}/printers/{printer_euid}", json=payload)
+        return PrinterRecord.from_payload(result)
 
     def list_templates(self) -> list[str]:
         return list(self._json("GET", "/api/v1/templates"))

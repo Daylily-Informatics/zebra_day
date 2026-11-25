@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from daylily_tapdb.revisions import RevisionConflict
 from zebra_day.client import PrinterRecord
 
 
@@ -19,7 +20,10 @@ class FakeFleetRepository:
     def list_labs(self) -> list[str]:
         return sorted(set(self.labs) | {lab for lab, _printer_id in self.printers})
 
-    def upsert_lab(self, lab: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def upsert_lab(
+        self, lab: str, payload: dict[str, Any] | None = None,
+        *, expected_revision: int | None = None,
+    ) -> dict[str, Any]:
         body = {
             "lab": lab,
             "display_name": lab.replace("-", " ").title(),
@@ -46,8 +50,15 @@ class FakeFleetRepository:
         return None
 
     def upsert_printer(self, printer: PrinterRecord) -> PrinterRecord:
+        previous = self.printers.get((printer.lab, printer.printer_id))
+        if previous is not None and printer.record_revision != previous.record_revision:
+            raise RevisionConflict("stale printer revision")
         if not printer.euid:
             printer = replace(printer, euid=f"{printer.lab}-printer-{len(self.printers) + 1:04d}")
+        printer = replace(
+            printer,
+            record_revision=0 if previous is None else int(previous.record_revision or 0) + 1,
+        )
         self.printers[(printer.lab, printer.printer_id)] = printer
         return printer
 
@@ -58,19 +69,24 @@ class FakeFleetRepository:
         return self.templates.get(template_name)
 
     def upsert_template(
-        self, template_name: str, zpl_content: str, source: str = "package"
+        self, template_name: str, zpl_content: str, source: str = "package",
+        expected_revision: int | None = None,
     ) -> None:
+        prior = self.templates.get(template_name)
         self.templates[template_name] = {
             "template_name": template_name,
             "zpl_content": zpl_content,
             "source": source,
             "euid": "",
+            "record_revision": int((prior or {}).get("record_revision", -1)) + 1,
         }
 
     def list_label_profiles(self) -> list[dict[str, Any]]:
         return [self.label_profiles[name] for name in sorted(self.label_profiles)]
 
-    def upsert_label_profile(self, profile_name: str, payload: dict[str, Any]) -> None:
+    def upsert_label_profile(
+        self, profile_name: str, payload: dict[str, Any], *, expected_revision: int | None = None
+    ) -> None:
         merged = {"profile_name": profile_name, **payload}
         self.label_profiles[profile_name] = merged
 

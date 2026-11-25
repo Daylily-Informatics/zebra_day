@@ -130,6 +130,17 @@ def test_configured_app_mounts_tapdb_web_and_root_dag(monkeypatch, tmp_path) -> 
     assert search.json()["service"] == "zebra-day"
 
 
+def test_anonymous_mode_cannot_supply_embedded_tapdb_write_identity():
+    from types import SimpleNamespace
+
+    from zebra_day.web.tapdb_surfaces import _host_user
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(settings=SimpleNamespace(auth_mode="none")))
+    )
+    assert _host_user(request) is None
+
+
 def test_obs_services_advertises_tapdb_dag_when_configured(monkeypatch, tmp_path) -> None:
     app = _configured_app(monkeypatch, tmp_path)
 
